@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 import time
 from typing import Any
@@ -13,6 +14,8 @@ from batch_processing.level_selector import (
 )
 from batch_processing.sample_loader import ensure_standardized_sample
 from loader.feature_eng import FeatureTransformer
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -33,6 +36,7 @@ class ExperimentPipeline:
     """
     
     def __init__(self, config: ExperimentConfig):
+        logger.info("Initializing ExperimentPipeline...")
         self.config = config
         self.levels = normalize_levels(config.levels)
         self.extensions = get_extensions_for_format(config.data_format)
@@ -42,6 +46,7 @@ class ExperimentPipeline:
 
     def run(self):
         """Executes the pipeline across all configured levels."""
+        logger.info("Starting pipeline execution across levels: %s", self.levels)
         
         # 0. Fit global scalers to avoid data leakage
         self._fit_transformer()
@@ -61,14 +66,14 @@ class ExperimentPipeline:
 
     def _print_reports(self, reports):
         """Helper to print batch execution results."""
-        print("\nBatch execution completed.\n")
-        print(f"Data format: {self.config.data_format} | extensions: {self.extensions}")
-        print(f"Parallel levels launched: {self.levels}")
+        logger.info("Batch execution results gathered.")
+        logger.info("Data format: %s | extensions: %s", self.config.data_format, self.extensions)
+        logger.info("Parallel levels launched: %s", self.levels)
         for level in self.levels:
             report = reports[level]
-            print(
-                f"Level {level}: processed={report.processed}, skipped={report.skipped}, "
-                f"errors={report.errors}, duration={report.duration_seconds:.2f}s"
+            logger.info(
+                "Level %d: processed=%d, skipped=%d, errors=%d, duration=%.2fs",
+                level, report.processed, report.skipped, report.errors, report.duration_seconds
             )
 
     def _fit_transformer(self):
@@ -76,7 +81,7 @@ class ExperimentPipeline:
         Fits the feature transformer on a small reference set to compute global scaling
         statistics, ensuring consistent scaling across all parallel workers.
         """
-        print("\nFitting global scaler on a reference subset...")
+        logger.info("Preparing to fit global scaler on a reference subset...")
         reference_samples = []
         import itertools
         from batch_processing.sample_loader import load_standardized_sample
@@ -98,9 +103,10 @@ class ExperimentPipeline:
                 
         if reference_samples:
             self.transformer.fit(reference_samples)
-            print(f"Scaler fitted successfully. Global Mean: {self.transformer.global_mean:.4f}, Global Std: {self.transformer.global_std:.4f}")
+            logger.info("Scaler fitted successfully. Global Mean: %.4f, Global Std: %.4f", 
+                        self.transformer.global_mean, self.transformer.global_std)
         else:
-            print("Warning: No valid reference samples found for fitting. Scaling might fail.")
+            logger.warning("No valid reference samples found for fitting. Scaling might fail.")
 
     def process_sample(self, sample: SampleFile | np.ndarray | dict[str, Any]) -> None:
         """
@@ -108,6 +114,7 @@ class ExperimentPipeline:
         This handles loading, standardization, missing value imputation,
         and eventually feature engineering & reconstruction.
         """
+        # Note: this executes within a worker process
         eit_sample = ensure_standardized_sample(sample)
         
         # 1. Feature Engineering & Clean Contract
@@ -117,9 +124,9 @@ class ExperimentPipeline:
             # Report imputed values if any
             missing_count = int(np.sum(processed.gp_mask)) if processed.gp_mask is not None else 0
             if missing_count > 0:
-                print(
-                    f"[gp-imputed] sample={processed.sample_id} level={processed.level} "
-                    f"imputed={missing_count} values"
+                logger.info(
+                    "[gp-imputed] sample=%s level=%s imputed=%d values", 
+                    processed.sample_id, processed.level, missing_count
                 )
 
         # Validate Level Agreement

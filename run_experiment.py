@@ -3,9 +3,18 @@
 from __future__ import annotations
 
 import argparse
+import logging
 from pathlib import Path
 
 from pipeline import ExperimentConfig, ExperimentPipeline
+
+# Configure global logger for the entire application
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(processName)s | %(name)s: %(message)s",
+    datefmt="%H:%M:%S"
+)
+logger = logging.getLogger(__name__)
 
 
 def _parse_args() -> ExperimentConfig:
@@ -51,9 +60,13 @@ def _parse_args() -> ExperimentConfig:
 
 
 def _main() -> None:
+    logger.info("Starting run_experiment entrypoint...")
     config = _parse_args()
+    logger.info("CLI Arguments parsed successfully.")
+    
     pipeline = ExperimentPipeline(config)
     pipeline.run()
+    logger.info("Experiment run completed gracefully.")
 
 
 if __name__ == "__main__":

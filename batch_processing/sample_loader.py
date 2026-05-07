@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,8 @@ _PREFERRED_MEASUREMENT_KEYS = (
 
 from models import EITSample
 
+logger = logging.getLogger(__name__)
+
 
 def ensure_standardized_sample(
     source: SampleFile | EITSample | np.ndarray | dict[str, Any],
@@ -33,14 +36,8 @@ def ensure_standardized_sample(
 ) -> EITSample:
     """
     Normalize external payload/array input into EITSample.
-
-    Supported inputs:
-    - SampleFile: loaded from disk with `load_standardized_sample`
-    - EITSample: passed through
-    - np.ndarray: used directly as measurements
-    - dict payload: expects one measurement key such as `measurements`, `voltages`, `Uel`, `meas`, `data`
-      and optional `sample_id`, `level`, `source_path`, `metadata`.
     """
+    logger.debug("Ensuring standardized sample for input type: %s", type(source).__name__)
     if isinstance(source, EITSample):
         return source
 
@@ -87,6 +84,7 @@ def load_standardized_sample(sample: SampleFile, *, allow_reference: bool = Fals
     Load a sample into a standardized payload without relying on external loader modules.
     """
     source = sample.path
+    logger.debug("Loading standardized sample from: %s", source.name)
 
     if source.stem.lower() == "ref" and not allow_reference:
         raise SampleSkipError("reference_file_excluded")

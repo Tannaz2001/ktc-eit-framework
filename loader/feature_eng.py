@@ -1,5 +1,8 @@
+import logging
 import numpy as np
 from models import EITSample, ProcessedSample
+
+logger = logging.getLogger(__name__)
 
 class FeatureTransformer:
     def __init__(self, use_gp_interpolation: bool = True):
@@ -14,8 +17,10 @@ class FeatureTransformer:
         This prevents data leakage and ensures consistent scaling.
         """
         if not reference_samples:
+            logger.warning("No reference samples provided to FeatureTransformer.fit()")
             return
 
+        logger.info("FeatureTransformer fitting on %d reference samples.", len(reference_samples))
         all_delta_v = []
         for sample in reference_samples:
             v_clean, _ = self._apply_gp(sample.v_meas)
@@ -29,6 +34,7 @@ class FeatureTransformer:
 
     def process(self, sample: EITSample) -> ProcessedSample:
         """Applies all feature engineering steps sequentially."""
+        logger.debug("FeatureTransformer applying transformations to sample: %s", sample.sample_id)
         
         # Step 1: Missing Data Imputation (Level 7 Guard)
         v_clean, mask = self._apply_gp(sample.v_meas)
