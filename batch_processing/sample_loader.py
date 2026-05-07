@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -22,43 +23,32 @@ _PREFERRED_MEASUREMENT_KEYS = (
 )
 
 
-@dataclass(slots=True)
-class StandardizedSample:
-    sample_id: str
-    level: int
-    source_path: Path
-    measurements: np.ndarray
-    metadata: dict[str, Any] = field(default_factory=dict)
+from models import EITSample
+
+logger = logging.getLogger(__name__)
 
 
 def ensure_standardized_sample(
-    source: SampleFile | StandardizedSample | np.ndarray | dict[str, Any],
+    source: SampleFile | EITSample | np.ndarray | dict[str, Any],
     *,
     default_level: int = 1,
     default_sample_id: str = "external_sample",
-) -> StandardizedSample:
+) -> EITSample:
     """
-    Normalize external payload/array input into StandardizedSample.
-
-    Supported inputs:
-    - SampleFile: loaded from disk with `load_standardized_sample`
-    - StandardizedSample: passed through
-    - np.ndarray: used directly as measurements
-    - dict payload: expects one measurement key such as `measurements`, `voltages`, `Uel`, `meas`, `data`
-      and optional `sample_id`, `level`, `source_path`, `metadata`.
+    Normalize external payload/array input into EITSample.
     """
-    if isinstance(source, StandardizedSample):
+    logger.debug("Ensuring standardized sample for input type: %s", type(source).__name__)
+    if isinstance(source, EITSample):
         return source
 
     if isinstance(source, SampleFile):
         return load_standardized_sample(source)
 
     if isinstance(source, np.ndarray):
-        return StandardizedSample(
+        return EITSample(
             sample_id=default_sample_id,
             level=default_level,
-            source_path=Path(f"<{default_sample_id}>"),
-            measurements=np.asarray(source, dtype=float),
+            v_meas=np.asarray(source, dtype=float),
             metadata={"source_type": "ndarray"},
         )
 
@@ -78,22 +68,23 @@ def ensure_standardized_sample(
         if not isinstance(metadata, dict):
             metadata = {"raw_metadata": metadata}
 
-        return StandardizedSample(
+        return EITSample(
             sample_id=sample_id,
             level=level,
             source_path=Path(str(source_path_raw)),
-            measurements=np.asarray(measurement_value, dtype=float),
+            v_meas=np.asarray(measurement_value, dtype=float),
             metadata=metadata,
         )
 
     raise SampleSkipError(f"unsupported_payload_type:{type(source).__name__}")
 
 
-def load_standardized_sample(sample: SampleFile, *, allow_reference: bool = False) -> StandardizedSample:
+def load_standardized_sample(sample: SampleFile, *, allow_reference: bool = False) -> EITSample:
     """
     Load a sample into a standardized payload without relying on external loader modules.
     """
     source = sample.path
+    logger.debug("Loading standardized sample from: %s", source.name)
 
     if source.stem.lower() == "ref" and not allow_reference:
         raise SampleSkipError("reference_file_excluded")
@@ -116,11 +107,11 @@ def load_standardized_sample(sample: SampleFile, *, allow_reference: bool = Fals
     if values.size == 0:
         raise SampleSkipError("empty_measurement_array")
 
-    return StandardizedSample(
+    return EITSample(
         sample_id=sample.sample_id,
         level=sample.level,
         source_path=source,
-        measurements=values,
+        v_meas=values,
         metadata={"extension": suffix},
     )
 

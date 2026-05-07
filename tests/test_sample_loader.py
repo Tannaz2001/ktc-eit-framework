@@ -18,7 +18,7 @@ def test_load_standardized_sample_from_npy(tmp_path: Path) -> None:
 
     assert loaded.level == 1
     assert loaded.sample_id == "data1"
-    assert np.allclose(loaded.measurements, np.array([1.0, 2.0, 3.0]))
+    assert np.allclose(loaded.v_meas, np.array([1.0, 2.0, 3.0]))
 
 
 def test_load_standardized_sample_skips_reference_by_default(tmp_path: Path) -> None:
@@ -36,7 +36,7 @@ def test_ensure_standardized_sample_from_array() -> None:
     standardized = ensure_standardized_sample(payload, default_level=3, default_sample_id="x1")
     assert standardized.level == 3
     assert standardized.sample_id == "x1"
-    assert np.allclose(standardized.measurements, payload)
+    assert np.allclose(standardized.v_meas, payload)
 
 
 def test_ensure_standardized_sample_from_payload_dict() -> None:
@@ -49,4 +49,4 @@ def test_ensure_standardized_sample_from_payload_dict() -> None:
     standardized = ensure_standardized_sample(payload)
     assert standardized.level == 7
     assert standardized.sample_id == "external_1"
-    assert np.allclose(standardized.measurements, np.array([1.0, 2.0, 3.0]))
+    assert np.allclose(standardized.v_meas, np.array([1.0, 2.0, 3.0]))
