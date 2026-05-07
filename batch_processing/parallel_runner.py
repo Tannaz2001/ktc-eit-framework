@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import concurrent.futures
 from dataclasses import dataclass, field
+import logging
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Callable, Iterable, Sequence
@@ -11,6 +12,8 @@ from typing import Any, Callable, Iterable, Sequence
 from batch_processing.exceptions import SampleSkipError
 from batch_processing.level_selector import SampleFile, iter_samples_for_levels, normalize_levels
 from batch_processing.missing_values import validate_sample_file
+
+logger = logging.getLogger(__name__)
 
 ProcessSample = Callable[[SampleFile], Any]
 
@@ -29,6 +32,7 @@ def _process_one_sample(sample: SampleFile, process_fn: ProcessSample) -> tuple[
     """
     Worker function for processing a single sample.
     """
+    logger.debug("Worker picked up sample: %s", sample.path.name)
     validation = validate_sample_file(sample.path)
     if not validation.is_valid:
         return 'skipped', f"{sample.path}: {validation.reason}", None
@@ -67,17 +71,22 @@ class ParallelLevelRunner:
         extensions: Iterable[str] | None = None,
     ) -> dict[int, LevelRunReport]:
         selected_levels = normalize_levels(levels)
+        logger.info("ParallelLevelRunner preparing to run levels: %s (max workers: %d)", selected_levels, self.max_workers)
+        
         reports = {level: LevelRunReport(level=level) for level in selected_levels}
         started = {level: perf_counter() for level in selected_levels}
 
         # Gather all samples for the target levels
+        logger.info("Scanning dataset root %s for samples...", dataset_root)
         samples = list(iter_samples_for_levels(dataset_root, selected_levels, extensions=extensions or ()))
         
         if not samples:
+            logger.warning("No samples found matching the requested levels and extensions.")
             for level in selected_levels:
                 reports[level].duration_seconds = perf_counter() - started[level]
             return reports
 
+        logger.info("Discovered %d total samples. Spawning ProcessPoolExecutor...", len(samples))
         with concurrent.futures.ProcessPoolExecutor(max_workers=self.max_workers) as executor:
             # Map futures back to their original samples so we know which level it belonged to
             futures = {
