@@ -1,0 +1,13 @@
+greit:
+  method_name: "GREIT"
+  model_path: "models/greit_fixed_2356.npz"
+  reconstruction_matrix_key: "reconstruction_matrix"
+  expected_input_size: 2356
+  greit_image_shape: [64, 64]
+  output_image_size: [256, 256]
+  positive_class: "conductive"
+  segmentation_strategy: "threshold"
+  threshold: 0.20
+  clip_percentile: 99.0
+  zero_inactive_measurements: true
+  fail_on_invalid_input: true

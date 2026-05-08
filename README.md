@@ -1,31 +1,99 @@
-# ktc-eit-framework
-Modular framework for evaluating Electrical Impedance Tomography (EIT) reconstruction methods using the Kuopio Tomography Challenge dataset. Supports data loading, method integration, evaluation metrics, and visualization, with async batch processing to run multiple difficulty levels in parallel for efficient large-scale experiments.
+# GREIT Method Adapter Only
 
-## Testing batch processing
+This package contains only the GREIT method adapter and its small supporting contract classes.
+It does **not** include the data loader because data loading and preprocessing are handled by another team member.
 
-You do not need the full KTC dataset to test the batch module.
+## What this adapter expects
 
-- Unit and integration tests in `tests/` create mini synthetic files automatically using `tmp_path`.
-- This validates level classification, file-format filtering, missing-value handling, and asyncio parallel level execution.
+The data-loader / batch-engine side must provide a `StandardizedKtcInput` object:
 
-Install requirements and run:
-
-```bash
-python -m pip install -r requirements.txt
-pytest -q
+```python
+StandardizedKtcInput(
+    sample_id="level_4_sample_01",
+    level=4,
+    delta_v=standardized_vector_2356,
+    active_measurement_mask=active_mask_2356,
+    ground_truth=optional_256_by_256_mask,
+)
 ```
 
-## Where to put the real dataset
+The adapter expects:
 
-For real experiment runs, keep the KTC dataset outside or inside the repo, then pass the path with `--dataset-root`.
+- `delta_v`: already computed difference-voltage vector
+- length: exactly `2356`
+- missing measurements already padded by the pipeline
+- optional `active_measurement_mask`
+- level value from `1` to `7`
 
-Common options:
+## Adapter contract
 
-- Inside repo: `ktc-eit-framework/data/ktc/`
-- Outside repo: any folder (recommended for large data), e.g. `D:/datasets/ktc/`
+The GREIT adapter follows:
 
-Example:
+```python
+preprocess(sample)
+reconstruct(preprocessed_input)
+postprocess(raw_reconstruction)
+run(sample)
+```
+
+## Output
+
+The adapter returns `AdapterResult` with:
+
+- `raw_image`
+- `normalized_image`
+- `segmentation_mask`
+- `runtime_seconds`
+- `success`
+- `metadata`
+
+The final mask is always:
+
+```text
+256 x 256
+labels: 0 = water, 1 = resistive, 2 = conductive
+```
+
+## Required GREIT model file
+
+The model file should be:
+
+```text
+models/greit_fixed_2356.npz
+```
+
+It must contain:
+
+```text
+reconstruction_matrix
+```
+
+For a 64 x 64 GREIT image, matrix shape must be:
+
+```text
+4096 x 2356
+```
+
+## How to use from the batch engine
+
+```python
+from ktc_framework.contracts import StandardizedKtcInput
+from ktc_framework.factory import GreitAdapterFactory
+
+adapter = GreitAdapterFactory().from_yaml("config/greit_adapter.yaml")
+
+sample = StandardizedKtcInput(
+    sample_id="sample_01",
+    level=1,
+    delta_v=vector_2356,
+    active_measurement_mask=mask_2356,
+)
+
+result = adapter.run(sample)
+```
+
+## Run tests
 
 ```bash
-python run_experiment.py --dataset-root "D:/datasets/ktc" --levels 1 7 --data-format numpy --method greit
+PYTHONPATH=src pytest -q
 ```
