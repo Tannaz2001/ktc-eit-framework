@@ -12,6 +12,10 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
 from rich.table import Table
 
+from src.ktc_framework.adapters.method_registry import get as registry_get
+import src.ktc_framework.loaders.mock_data_plugin  # noqa: F401 — registers MockDataPlugin
+import src.ktc_framework.methods.mock_method_plugin  # noqa: F401 — registers MockMethodPlugin
+
 console = Console()
 
 
@@ -62,15 +66,22 @@ class BatchRunner:
         return results
 
     def _run_one(self, method: str, level: int, sample: str) -> dict[str, Any]:
-        start = time.perf_counter()
+        # Load data via MockDataPlugin
+        data_plugin = registry_get("MockDataPlugin")()
+        data = data_plugin.load(level=level, sample=sample)
 
-        # Placeholder — reconstruction logic will be wired in W4
+        # Run reconstruction via MockMethodPlugin
+        method_plugin = registry_get("MockMethodPlugin")()
+
+        start = time.perf_counter()
+        reconstruction = method_plugin.reconstruct(data)
         runtime_ms = (time.perf_counter() - start) * 1000
 
         return {
             "method": method,
             "level": level,
             "sample": sample,
+            "output_shape": list(reconstruction.shape),
             "metrics": {
                 "ktc_score": 0.0,
                 "dice_resistive": 0.0,
