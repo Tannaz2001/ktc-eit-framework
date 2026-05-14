@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from batch_processing.file_validator import validate_sample_file
+from src.ktc_framework.loaders.file_validator import validate_sample_file
 
 
 def test_missing_file(tmp_path: Path) -> None:
