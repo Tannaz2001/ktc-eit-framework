@@ -1,5 +1,8 @@
+import logging
 import numpy as np
 from skimage.measure import label, regionprops
+
+logger = logging.getLogger(__name__)
 
 class HullPlugin:
     """
@@ -25,10 +28,13 @@ class HullPlugin:
         if target_label not in (0, 1, 2):
             raise ValueError("Target label must be 0, 1, or 2.")
 
+        logger.info("Starting HullPlugin.run with segmentation shape: %s for target_label: %s", segmentation.shape, target_label)
+
         # Create binary mask for the target label
         target_mask = (segmentation == target_label).astype(int)
         
         # Label connected components
+        logger.debug("Labeling connected components...")
         labeled_mask = label(target_mask)
         
         # Extract features
@@ -42,5 +48,7 @@ class HullPlugin:
                 'bbox': region.bbox,
                 'convex_area': region.convex_area
             })
+        
+        logger.info("Extracted %d feature regions for target_label: %s.", len(features), target_label)
             
         return features
