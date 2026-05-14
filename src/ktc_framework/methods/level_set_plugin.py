@@ -1,6 +1,9 @@
+import logging
 import numpy as np
 from skimage.filters import threshold_otsu
 from skimage.measure import find_contours
+
+logger = logging.getLogger(__name__)
 
 class LevelSetPlugin:
     """
@@ -21,19 +24,26 @@ class LevelSetPlugin:
         if not isinstance(reconstruction, np.ndarray) or reconstruction.shape != (256, 256):
             raise ValueError("Reconstruction must be a numpy array of shape (256, 256).")
 
+        logger.info("Starting LevelSetPlugin.run with reconstruction shape: %s", reconstruction.shape)
+
         # Check for uniform arrays where Otsu's method will fail
         if np.all(reconstruction == reconstruction[0, 0]):
+            logger.warning("Uniform array detected; returning empty contours.")
             return {'contours': [], 'n_objects': 0}
 
         try:
             # Determine threshold and binarize
             thresh = threshold_otsu(reconstruction)
+            logger.debug("Computed Otsu threshold: %s", thresh)
+            
             binary = reconstruction > thresh
             
             # Find contours
             contours = find_contours(binary, level=0.5)
-        except Exception:
+            logger.info("Extracted %d contours.", len(contours))
+        except Exception as e:
             # Fallback if something goes wrong during thresholding/contour finding
+            logger.error("Exception during contour extraction: %s", e)
             contours = []
 
         return {
