@@ -1,0 +1,380 @@
+[
+  {
+    "method": "simple_baseline",
+    "level": 1,
+    "sample": "A",
+    "output_shape": [
+      256,
+      256
+    ],
+    "metrics": {
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0
+    },
+    "runtime_ms": 0.016,
+    "git_sha": "c27aa88"
+  },
+  {
+    "method": "simple_baseline",
+    "level": 1,
+    "sample": "B",
+    "output_shape": [
+      256,
+      256
+    ],
+    "metrics": {
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0
+    },
+    "runtime_ms": 0.02,
+    "git_sha": "c27aa88"
+  },
+  {
+    "method": "simple_baseline",
+    "level": 1,
+    "sample": "C",
+    "output_shape": [
+      256,
+      256
+    ],
+    "metrics": {
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0
+    },
+    "runtime_ms": 0.016,
+    "git_sha": "c27aa88"
+  },
+  {
+    "method": "simple_baseline",
+    "level": 2,
+    "sample": "A",
+    "output_shape": [
+      256,
+      256
+    ],
+    "metrics": {
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0
+    },
+    "runtime_ms": 0.017,
+    "git_sha": "c27aa88"
+  },
+  {
+    "method": "simple_baseline",
+    "level": 2,
+    "sample": "B",
+    "output_shape": [
+      256,
+      256
+    ],
+    "metrics": {
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0
+    },
+    "runtime_ms": 0.017,
+    "git_sha": "c27aa88"
+  },
+  {
+    "method": "simple_baseline",
+    "level": 2,
+    "sample": "C",
+    "output_shape": [
+      256,
+      256
+    ],
+    "metrics": {
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0
+    },
+    "runtime_ms": 0.018,
+    "git_sha": "c27aa88"
+  },
+  {
+    "method": "simple_baseline",
+    "level": 3,
+    "sample": "A",
+    "output_shape": [
+      256,
+      256
+    ],
+    "metrics": {
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0
+    },
+    "runtime_ms": 0.017,
+    "git_sha": "c27aa88"
+  },
+  {
+    "method": "simple_baseline",
+    "level": 3,
+    "sample": "B",
+    "output_shape": [
+      256,
+      256
+    ],
+    "metrics": {
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0
+    },
+    "runtime_ms": 0.018,
+    "git_sha": "c27aa88"
+  },
+  {
+    "method": "simple_baseline",
+    "level": 3,
+    "sample": "C",
+    "output_shape": [
+      256,
+      256
+    ],
+    "metrics": {
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0
+    },
+    "runtime_ms": 0.018,
+    "git_sha": "c27aa88"
+  },
+  {
+    "method": "simple_baseline",
+    "level": 4,
+    "sample": "A",
+    "output_shape": [
+      256,
+      256
+    ],
+    "metrics": {
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0
+    },
+    "runtime_ms": 0.016,
+    "git_sha": "c27aa88"
+  },
+  {
+    "method": "simple_baseline",
+    "level": 4,
+    "sample": "B",
+    "output_shape": [
+      256,
+      256
+    ],
+    "metrics": {
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0
+    },
+    "runtime_ms": 0.016,
+    "git_sha": "c27aa88"
+  },
+  {
+    "method": "simple_baseline",
+    "level": 4,
+    "sample": "C",
+    "output_shape": [
+      256,
+      256
+    ],
+    "metrics": {
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0
+    },
+    "runtime_ms": 0.019,
+    "git_sha": "c27aa88"
+  },
+  {
+    "method": "simple_baseline",
+    "level": 5,
+    "sample": "A",
+    "output_shape": [
+      256,
+      256
+    ],
+    "metrics": {
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0
+    },
+    "runtime_ms": 0.017,
+    "git_sha": "c27aa88"
+  },
+  {
+    "method": "simple_baseline",
+    "level": 5,
+    "sample": "B",
+    "output_shape": [
+      256,
+      256
+    ],
+    "metrics": {
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0
+    },
+    "runtime_ms": 0.02,
+    "git_sha": "c27aa88"
+  },
+  {
+    "method": "simple_baseline",
+    "level": 5,
+    "sample": "C",
+    "output_shape": [
+      256,
+      256
+    ],
+    "metrics": {
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0
+    },
+    "runtime_ms": 0.019,
+    "git_sha": "c27aa88"
+  },
+  {
+    "method": "simple_baseline",
+    "level": 6,
+    "sample": "A",
+    "output_shape": [
+      256,
+      256
+    ],
+    "metrics": {
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0
+    },
+    "runtime_ms": 0.018,
+    "git_sha": "c27aa88"
+  },
+  {
+    "method": "simple_baseline",
+    "level": 6,
+    "sample": "B",
+    "output_shape": [
+      256,
+      256
+    ],
+    "metrics": {
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0
+    },
+    "runtime_ms": 0.017,
+    "git_sha": "c27aa88"
+  },
+  {
+    "method": "simple_baseline",
+    "level": 6,
+    "sample": "C",
+    "output_shape": [
+      256,
+      256
+    ],
+    "metrics": {
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0
+    },
+    "runtime_ms": 0.018,
+    "git_sha": "c27aa88"
+  },
+  {
+    "method": "simple_baseline",
+    "level": 7,
+    "sample": "A",
+    "output_shape": [
+      256,
+      256
+    ],
+    "metrics": {
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0
+    },
+    "runtime_ms": 0.016,
+    "git_sha": "c27aa88"
+  },
+  {
+    "method": "simple_baseline",
+    "level": 7,
+    "sample": "B",
+    "output_shape": [
+      256,
+      256
+    ],
+    "metrics": {
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0
+    },
+    "runtime_ms": 0.018,
+    "git_sha": "c27aa88"
+  },
+  {
+    "method": "simple_baseline",
+    "level": 7,
+    "sample": "C",
+    "output_shape": [
+      256,
+      256
+    ],
+    "metrics": {
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0
+    },
+    "runtime_ms": 0.02,
+    "git_sha": "c27aa88"
+  }
+]

@@ -19,5 +19,4 @@ class ProcessedSample:
     sample_id: str
     level: int
     delta_v: np.ndarray
-    gp_mask: np.ndarray | None = None
     metadata: dict[str, Any] = field(default_factory=dict)

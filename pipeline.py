@@ -41,8 +41,7 @@ class ExperimentPipeline:
         self.levels = normalize_levels(config.levels)
         self.extensions = get_extensions_for_format(config.data_format)
         
-        # Instantiate the feature transformer once per pipeline
-        self.transformer = FeatureTransformer(use_gp_interpolation=True)
+        self.transformer = FeatureTransformer()
 
     def run(self):
         """Executes the pipeline across all configured levels."""
@@ -117,17 +116,7 @@ class ExperimentPipeline:
         # Note: this executes within a worker process
         eit_sample = ensure_standardized_sample(sample)
         
-        # 1. Feature Engineering & Clean Contract
         processed = self.transformer.process(eit_sample)
-
-        if self.config.verbose_missing:
-            # Report imputed values if any
-            missing_count = int(np.sum(processed.gp_mask)) if processed.gp_mask is not None else 0
-            if missing_count > 0:
-                logger.info(
-                    "[gp-imputed] sample=%s level=%s imputed=%d values", 
-                    processed.sample_id, processed.level, missing_count
-                )
 
         # Validate Level Agreement
         if isinstance(sample, SampleFile):
