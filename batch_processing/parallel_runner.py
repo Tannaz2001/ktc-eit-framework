@@ -11,7 +11,7 @@ from typing import Any, Callable, Iterable, Sequence
 
 from batch_processing.exceptions import SampleSkipError
 from batch_processing.level_selector import SampleFile, iter_samples_for_levels, normalize_levels
-from batch_processing.missing_values import validate_sample_file
+from batch_processing.file_validator import validate_sample_file
 
 logger = logging.getLogger(__name__)
 
