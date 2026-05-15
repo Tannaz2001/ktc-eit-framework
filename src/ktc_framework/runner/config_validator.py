@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +40,10 @@ def load_config(config_path: str | Path) -> dict[str, Any]:
     _check_samples(config)
     _check_methods(config)
     _check_mesh_path(config)
+
+    env_root = os.environ.get("KTC_DATASET_ROOT")
+    if env_root:
+        config["dataset_root"] = env_root
 
     return config
 
