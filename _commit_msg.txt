@@ -1,16 +1,24 @@
-Add TrainingDataPlugin and training_experiment.yaml for real data runs
+Sprint 5: HD95 metric, BackProjectionPlugin, real data wired end-to-end
 
-- src/ktc_framework/loaders/training_data_plugin.py (new): loads real KTC
-  training samples from Codes_Matlab/TrainingData/data{n}.mat (voltages)
-  and Codes_Matlab/GroundTruths/true{n}.mat (ground truth) and merges them
-  into a DataBatch; registered as 'TrainingDataPlugin' in PluginRegistry
-- configs/training_experiment.yaml (new): config to run all 4 training
-  samples (1-4) against any method using the real data
-- src/ktc_framework/runner/config_validator.py: relax VALID_SAMPLES to
-  also allow "1"-"4" (training sample numbers) alongside "A"/"B"/"C"
-- src/ktc_framework/runner/experiment_runner.py: auto-import
-  training_data_plugin so it registers on startup
-- outputs/: updated scores from real data run (KTC scores 0.01-0.50
-  reflecting actual phantom geometry)
+HD95 metric (src/ktc_framework/metrics/ktc_score.py):
+- hd95(pred, gt, label) using scipy distance_transform_edt — O(N) efficient
+- Computes 95th-percentile Hausdorff Distance per class (resistive/conductive)
+- Returns 0.0 when either mask is empty (no surface to compare)
+- Registered as hd95_resistive and hd95_conductive in experiment_runner
+
+BackProjectionPlugin (src/ktc_framework/methods/back_projection_plugin.py):
+- Simple linear back-projection: voltages (2356,) → (256,256) segmentation
+- Reshapes to (76,31), computes per-electrode sensitivity via injection-weighted
+  voltage magnitudes, interpolates onto 256×256 grid with scipy griddata (cubic)
+- Gaussian smoothing + threshold into {0=background, 1=resistive, 2=conductive}
+- Registered as BackProjectionPlugin via @register decorator
+
+Runner updates:
+- Auto-imports BackProjectionPlugin on startup
+- Summary table now shows HD95 Res. and HD95 Cond. columns
+- training_experiment.yaml updated to run both Mock and BackProjection
+
+Verified end-to-end on all 4 real training samples — BackProjection scores
+Dice ~0.05-0.11 on resistive class vs 0.000 for MockMethodPlugin.
 
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
