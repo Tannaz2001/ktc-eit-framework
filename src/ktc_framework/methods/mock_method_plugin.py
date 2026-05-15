@@ -14,5 +14,5 @@ class MockMethodPlugin:
     Used to test scoring, visualization, and reporting before real methods exist.
     """
 
-    def reconstruct(self, data: dict) -> np.ndarray:
+    def reconstruct(self, batch) -> np.ndarray:
         return np.zeros((256, 256), dtype=np.int32)

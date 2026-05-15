@@ -1,0 +1,16 @@
+data_plugin: MockDataPlugin
+mesh_path: data/Mesh/
+
+levels:
+  - 1
+  - 2
+
+samples:
+  - A
+  - B
+
+methods:
+  - MockMethodPlugin
+
+dataset_root: data/EvaluationData_full/
+output_dir: outputs/
