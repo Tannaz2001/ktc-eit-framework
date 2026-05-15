@@ -1,4 +1,4 @@
-data_plugin: KTCLoader
+data_plugin: KTCDataPlugin
 mesh_path: data/Mesh/
 
 levels:
@@ -16,7 +16,7 @@ samples:
   - C
 
 methods:
-  - simple_baseline
+  - MockMethodPlugin
 
 dataset_root: data/EvaluationData_full/
 output_dir: outputs/
