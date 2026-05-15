@@ -1,6 +1,6 @@
 # Session Summary & Updates
 
-This document summarizes the architectural choices, file migrations, and newly implemented features added to the `ktc-eit-framework` today.
+This document summarizes the architectural choices, file migrations, and newly implemented features added to the `ktc-eit-framework` today. 15/05/2026 Sprint3
 
 ## 1. Directory Structure & Architecture
 We analyzed the `src/ktc_framework/` structure to ensure our new components followed the existing pluggable architecture.

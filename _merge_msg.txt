@@ -1,0 +1,22 @@
+Merge upstream/main — resolve conflicts keeping correct KTC shapes
+
+Conflict resolution decisions:
+- src/ktc_framework/loaders/ktc_loader.py:
+    Keep VOLTAGE_SHAPE=(2356,) [ours, correct] over upstream's (76,30) [wrong].
+    Keep optional h5py import so the module works without h5py installed.
+    Merged upstream's fuller docstrings.
+- src/ktc_framework/loaders/mock_data_plugin.py:
+    Keep our KTC-correct shapes: voltages (2356,), injection_patterns (32,76),
+    ground_truth (256,256) uint8. Upstream version had wrong shapes (16,)/(32,32)
+    and lacked load_sample() needed by BatchRunner.
+- src/ktc_framework/types.py:
+    Keep our KTC-specific field docstrings.
+
+New files brought in from upstream:
+- src/ktc_framework/methods/hull_plugin.py
+- src/ktc_framework/methods/level_set_plugin.py
+- test_plugins.py
+- SESSION_SUMMARY.md
+- .gitignore updates
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>

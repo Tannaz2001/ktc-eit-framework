@@ -8,7 +8,7 @@ from typing import Any
 import yaml
 
 VALID_LEVELS = set(range(1, 8))
-VALID_SAMPLES = {"A", "B", "C"}
+VALID_SAMPLES = {"A", "B", "C", "1", "2", "3", "4"}   # A/B/C = evaluation; 1–4 = training
 REQUIRED_FIELDS = {"data_plugin", "mesh_path", "levels", "samples", "methods", "dataset_root", "output_dir"}
 
 
