@@ -14,5 +14,6 @@ samples:
 
 methods:
   - MockMethodPlugin
+  - BackProjectionPlugin
 
 output_dir: outputs/

@@ -17,18 +17,21 @@ from rich.table import Table
 from src.ktc_framework.adapters.method_registry import get as registry_get
 from src.ktc_framework.loaders.ktc_loader import PluginRegistry
 from src.ktc_framework.metrics.metric_registry import register_metric, run_all_metrics
-from src.ktc_framework.metrics.ktc_score import compute_ktc_score, dice, iou
+from src.ktc_framework.metrics.ktc_score import compute_ktc_score, dice, iou, hd95
 from src.ktc_framework.metrics.composite_score import composite_score, letter_grade
-import src.ktc_framework.loaders.mock_data_plugin      # noqa: F401 — registers MockDataPlugin
-import src.ktc_framework.loaders.training_data_plugin  # noqa: F401 — registers TrainingDataPlugin
-import src.ktc_framework.methods.mock_method_plugin    # noqa: F401 — registers MockMethodPlugin
+import src.ktc_framework.loaders.mock_data_plugin        # noqa: F401 — registers MockDataPlugin
+import src.ktc_framework.loaders.training_data_plugin    # noqa: F401 — registers TrainingDataPlugin
+import src.ktc_framework.methods.mock_method_plugin      # noqa: F401 — registers MockMethodPlugin
+import src.ktc_framework.methods.back_projection_plugin  # noqa: F401 — registers BackProjectionPlugin
 
 # Register built-in metrics
-register_metric("ktc_score",       compute_ktc_score)
-register_metric("dice_resistive",  lambda pred, gt: dice(pred, gt, label=1))
-register_metric("dice_conductive", lambda pred, gt: dice(pred, gt, label=2))
-register_metric("iou_resistive",   lambda pred, gt: iou(pred, gt, label=1))
-register_metric("iou_conductive",  lambda pred, gt: iou(pred, gt, label=2))
+register_metric("ktc_score",        compute_ktc_score)
+register_metric("dice_resistive",   lambda pred, gt: dice(pred, gt, label=1))
+register_metric("dice_conductive",  lambda pred, gt: dice(pred, gt, label=2))
+register_metric("iou_resistive",    lambda pred, gt: iou(pred, gt, label=1))
+register_metric("iou_conductive",   lambda pred, gt: iou(pred, gt, label=2))
+register_metric("hd95_resistive",   lambda pred, gt: hd95(pred, gt, label=1))
+register_metric("hd95_conductive",  lambda pred, gt: hd95(pred, gt, label=2))
 
 console = Console()
 
@@ -133,12 +136,14 @@ class BatchRunner:
 
     def _print_summary(self, results: list[dict[str, Any]]) -> None:
         table = Table(title="Experiment Summary", show_header=True, header_style="bold cyan", min_width=80)
-        table.add_column("Method", style="bold", min_width=16)
+        table.add_column("Method", style="bold", min_width=20)
         table.add_column("Level", justify="center", min_width=7)
         table.add_column("Sample", justify="center", min_width=8)
         table.add_column("KTC Score", justify="right", min_width=10)
         table.add_column("Dice Res.", justify="right", min_width=10)
         table.add_column("Dice Cond.", justify="right", min_width=11)
+        table.add_column("HD95 Res.", justify="right", min_width=10)
+        table.add_column("HD95 Cond.", justify="right", min_width=11)
         table.add_column("Runtime (ms)", justify="right", min_width=13)
 
         for r in results:
@@ -150,6 +155,8 @@ class BatchRunner:
                 f"{m['ktc_score']:.3f}",
                 f"{m['dice_resistive']:.3f}",
                 f"{m['dice_conductive']:.3f}",
+                f"{m.get('hd95_resistive', 0.0):.1f}",
+                f"{m.get('hd95_conductive', 0.0):.1f}",
                 f"{r['runtime_ms']:.2f}",
             )
 
