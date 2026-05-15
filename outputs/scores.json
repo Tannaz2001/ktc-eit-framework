@@ -2,81 +2,81 @@
   {
     "method": "MockMethodPlugin",
     "level": 1,
-    "sample": "A",
+    "sample": "1",
     "output_shape": [
       256,
       256
     ],
     "metrics": {
-      "ktc_score": 0.0007202448654319496,
+      "ktc_score": 0.00977638332013479,
       "dice_resistive": 0.0,
       "dice_conductive": 0.0,
       "iou_resistive": 0.0,
       "iou_conductive": 0.0
     },
-    "composite_score": 0.03,
+    "composite_score": 0.39,
     "grade": "D",
-    "runtime_ms": 0.071,
-    "git_sha": "2c00980"
+    "runtime_ms": 0.162,
+    "git_sha": "6da4c4f"
   },
   {
     "method": "MockMethodPlugin",
     "level": 1,
-    "sample": "B",
+    "sample": "2",
     "output_shape": [
       256,
       256
     ],
     "metrics": {
-      "ktc_score": 0.0007444021676726886,
+      "ktc_score": 0.04019218795843876,
       "dice_resistive": 0.0,
       "dice_conductive": 0.0,
       "iou_resistive": 0.0,
       "iou_conductive": 0.0
     },
-    "composite_score": 0.03,
+    "composite_score": 1.61,
     "grade": "D",
-    "runtime_ms": 0.064,
-    "git_sha": "2c00980"
+    "runtime_ms": 0.039,
+    "git_sha": "6da4c4f"
   },
   {
     "method": "MockMethodPlugin",
-    "level": 2,
-    "sample": "A",
+    "level": 1,
+    "sample": "3",
     "output_shape": [
       256,
       256
     ],
     "metrics": {
-      "ktc_score": 0.0007435130629820556,
+      "ktc_score": 0.5004151385114918,
       "dice_resistive": 0.0,
       "dice_conductive": 0.0,
       "iou_resistive": 0.0,
       "iou_conductive": 0.0
     },
-    "composite_score": 0.03,
+    "composite_score": 20.02,
     "grade": "D",
-    "runtime_ms": 0.031,
-    "git_sha": "2c00980"
+    "runtime_ms": 0.053,
+    "git_sha": "6da4c4f"
   },
   {
     "method": "MockMethodPlugin",
-    "level": 2,
-    "sample": "B",
+    "level": 1,
+    "sample": "4",
     "output_shape": [
       256,
       256
     ],
     "metrics": {
-      "ktc_score": 0.0007102391755806926,
+      "ktc_score": 0.5007089167906058,
       "dice_resistive": 0.0,
       "dice_conductive": 0.0,
       "iou_resistive": 0.0,
       "iou_conductive": 0.0
     },
-    "composite_score": 0.03,
+    "composite_score": 20.03,
     "grade": "D",
-    "runtime_ms": 0.045,
-    "git_sha": "2c00980"
+    "runtime_ms": 0.037,
+    "git_sha": "6da4c4f"
   }
 ]

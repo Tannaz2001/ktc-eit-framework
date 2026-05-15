@@ -19,8 +19,9 @@ from src.ktc_framework.loaders.ktc_loader import PluginRegistry
 from src.ktc_framework.metrics.metric_registry import register_metric, run_all_metrics
 from src.ktc_framework.metrics.ktc_score import compute_ktc_score, dice, iou
 from src.ktc_framework.metrics.composite_score import composite_score, letter_grade
-import src.ktc_framework.loaders.mock_data_plugin  # noqa: F401 — registers MockDataPlugin
-import src.ktc_framework.methods.mock_method_plugin  # noqa: F401 — registers MockMethodPlugin
+import src.ktc_framework.loaders.mock_data_plugin      # noqa: F401 — registers MockDataPlugin
+import src.ktc_framework.loaders.training_data_plugin  # noqa: F401 — registers TrainingDataPlugin
+import src.ktc_framework.methods.mock_method_plugin    # noqa: F401 — registers MockMethodPlugin
 
 # Register built-in metrics
 register_metric("ktc_score",       compute_ktc_score)

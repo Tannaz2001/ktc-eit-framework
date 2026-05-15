@@ -1,0 +1,18 @@
+data_plugin: TrainingDataPlugin
+dataset_root: Codes_Matlab
+mesh_path: Codes_Matlab/
+
+# Training data has 4 samples numbered 1–4
+levels:
+  - 1
+
+samples:
+  - "1"
+  - "2"
+  - "3"
+  - "4"
+
+methods:
+  - MockMethodPlugin
+
+output_dir: outputs/
