@@ -46,7 +46,7 @@ class HullPlugin:
                 'centroid': region.centroid,
                 'area': region.area,
                 'bbox': region.bbox,
-                'convex_area': region.convex_area
+                'convex_area': region.area_convex
             })
         
         logger.info("Extracted %d feature regions for target_label: %s.", len(features), target_label)

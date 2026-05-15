@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import numpy as np
 from src.ktc_framework.adapters.method_registry import register
-from src.ktc_framework.types import DataBatch
 
 
 @register
@@ -15,5 +14,5 @@ class MockMethodPlugin:
     Used to test scoring, visualization, and reporting before real methods exist.
     """
 
-    def reconstruct(self, batch: DataBatch) -> np.ndarray:
+    def reconstruct(self, data: dict) -> np.ndarray:
         return np.zeros((256, 256), dtype=np.int32)

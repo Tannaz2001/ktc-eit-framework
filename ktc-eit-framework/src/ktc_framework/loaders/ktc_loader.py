@@ -73,12 +73,13 @@ class KTCValidator:
 
     Constants
     ---------
-    VOLTAGE_SHAPE : expected (n_measurements, n_electrodes) for voltages.
+    VOLTAGE_SHAPE : expected flat shape (2356,) = 76 injections × 31 voltage pairs.
     GT_SHAPE      : expected (height, width) spatial shape for ground_truth.
     VALID_LABELS  : allowed integer label values in ground_truth.
     """
 
-    VOLTAGE_SHAPE: tuple[int, int] = (76, 30)
+    # 76 injection patterns × 31 differential voltage pairs = 2356
+    VOLTAGE_SHAPE: tuple[int] = (2356,)
     GT_SHAPE: tuple[int, int] = (256, 256)
     VALID_LABELS: set[int] = {0, 1, 2}
 
@@ -196,6 +197,27 @@ class KTCLoader:
         KTCValidator.validate(batch)
         return batch
 
+    def load_sample(self, level: int, sample: str) -> DataBatch:
+        """Load a sample by level number and sample letter (A/B/C).
+
+        Constructs the canonical KTC filename ``level{level}_{sample}.mat``
+        and delegates to :meth:`load`.
+
+        Parameters
+        ----------
+        level : int
+            Difficulty level, 1–7.
+        sample : str
+            Sample identifier, one of 'A', 'B', 'C'.
+
+        Returns
+        -------
+        DataBatch
+            Validated batch for the requested level/sample.
+        """
+        filename = f"level{level}_{sample}.mat"
+        return self.load(filename)
+
     def list_samples(self) -> List[str]:
         """Return a sorted list of .mat filenames matching the level pattern.
 
@@ -222,8 +244,8 @@ class KTCLoader:
     def _parse_mat_v5(self, mat: dict, filename: str) -> DataBatch:
         """Extract arrays from a scipy.io.loadmat result dict."""
         # Key names follow the KTC dataset convention.
-        voltages = np.asarray(mat['Uel'], dtype=np.float32)          # (76, 30)
-        injection = np.asarray(mat['Injref'], dtype=np.float32)       # (n_patterns, n_electrodes)
+        voltages = np.asarray(mat['Uel'], dtype=np.float32)          # (2356,)
+        injection = np.asarray(mat['Inj'], dtype=np.float32)         # (32, 76)
         ground_truth = np.asarray(mat['truth'], dtype=np.float32)     # (256, 256)
         level = int(mat.get('level', self.level))
         sample_id = Path(filename).stem
@@ -240,8 +262,8 @@ class KTCLoader:
         """Extract arrays from an HDF5-based .mat v7.3 file using h5py."""
         with h5py.File(str(filepath), 'r') as f:
             # h5py stores arrays in C order; transpose to match MATLAB layout.
-            voltages = np.array(f['Uel'], dtype=np.float32).T          # (76, 30)
-            injection = np.array(f['Injref'], dtype=np.float32).T      # (n_patterns, n_electrodes)
+            voltages = np.array(f['Uel'], dtype=np.float32).T          # (2356,)
+            injection = np.array(f['Inj'], dtype=np.float32).T        # (32, 76)
             ground_truth = np.array(f['truth'], dtype=np.float32).T    # (256, 256)
             level = int(np.array(f['level']).squeeze()) if 'level' in f else self.level
 

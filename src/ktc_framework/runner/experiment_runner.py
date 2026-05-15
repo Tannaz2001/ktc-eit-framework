@@ -3,14 +3,10 @@
 from __future__ import annotations
 
 import json
-import logging
 import subprocess
-import sys
 import time
 from pathlib import Path
 from typing import Any
-
-log = logging.getLogger(__name__)
 
 import numpy as np
 
@@ -19,21 +15,20 @@ from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeEl
 from rich.table import Table
 
 from src.ktc_framework.adapters.method_registry import get as registry_get
-from src.ktc_framework.loaders.ktc_loader import PluginRegistry
 from src.ktc_framework.metrics.metric_registry import register_metric, run_all_metrics
 from src.ktc_framework.metrics.ktc_score import dice, iou
 from src.ktc_framework.metrics.composite_score import composite_score, letter_grade
-import src.ktc_framework.loaders.ktc_loader       # noqa: F401 — registers KTCLoader
 import src.ktc_framework.loaders.mock_data_plugin  # noqa: F401 — registers MockDataPlugin
 import src.ktc_framework.methods.mock_method_plugin  # noqa: F401 — registers MockMethodPlugin
 
 # Register built-in metrics
-from src.ktc_framework.metrics.ktc_score import compute_ktc_score
-register_metric("ktc_score",       compute_ktc_score)
-register_metric("dice_resistive",  lambda pred, gt: dice(pred, gt, label=1))
+register_metric("dice_resistive", lambda pred, gt: dice(pred, gt, label=1))
 register_metric("dice_conductive", lambda pred, gt: dice(pred, gt, label=2))
-register_metric("iou_resistive",   lambda pred, gt: iou(pred, gt, label=1))
-register_metric("iou_conductive",  lambda pred, gt: iou(pred, gt, label=2))
+register_metric("iou_resistive", lambda pred, gt: iou(pred, gt, label=1))
+register_metric("iou_conductive", lambda pred, gt: iou(pred, gt, label=2))
+# Syeda's metrics will be registered here once ready:
+# register_metric("ktc_score", ...)
+# register_metric("hd95", ...)
 
 console = Console()
 
@@ -50,14 +45,6 @@ class BatchRunner:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def run(self) -> list[dict[str, Any]]:
-        # Prepend dataset_root/Codes_Matlab to sys.path so that any external
-        # Python scoring helpers shipped alongside the dataset are importable.
-        # This is a no-op when the directory does not exist.
-        scoring_path = Path(self.config.get("dataset_root", "")) / "Codes_Matlab"
-        if scoring_path.exists() and str(scoring_path) not in sys.path:
-            sys.path.insert(0, str(scoring_path))
-            log.debug("Added %s to sys.path", scoring_path)
-
         results = []
 
         levels = self.config.get("levels", [])
@@ -85,8 +72,7 @@ class BatchRunner:
                             description=f"method={method}  level={level}  sample={sample}",
                         )
                         result = self._run_one(method, level, sample)
-                        if result is not None:
-                            results.append(result)
+                        results.append(result)
                         progress.advance(task)
 
         self._save(results)
@@ -94,58 +80,21 @@ class BatchRunner:
         self._print_degradation(results)
         return results
 
-    def _run_one(self, method: str, level: int, sample: str) -> dict[str, Any] | None:
-        """Run one method/level/sample combination.
+    def _run_one(self, method: str, level: int, sample: str) -> dict[str, Any]:
+        # Load data via MockDataPlugin
+        data_plugin = registry_get("MockDataPlugin")()
+        data = data_plugin.load(level=level, sample=sample)
 
-        Returns a result dict, or None if loading or reconstruction fails
-        (the caller skips None entries so the loop continues cleanly).
-        """
-        plugin_name = self.config.get("data_plugin", "ktc_loader")
-        dataset_root = self.config.get("dataset_root", "")
-
-        # --- resolve and instantiate the data plugin ---
-        try:
-            data_plugin_cls = PluginRegistry.get(plugin_name)
-        except KeyError:
-            log.warning(
-                "data_plugin '%s' not registered — falling back to MockDataPlugin.",
-                plugin_name,
-            )
-            from src.ktc_framework.loaders.mock_data_plugin import MockDataPlugin
-            data_plugin_cls = MockDataPlugin
-
-        data_plugin = data_plugin_cls(dataset_root)
-
-        # --- load the sample; skip on missing file or bad data ---
-        try:
-            batch = data_plugin.load_sample(level=level, sample=sample)
-        except FileNotFoundError:
-            log.warning(
-                "Skipping level=%s sample=%s — file not found in '%s'.",
-                level, sample, dataset_root,
-            )
-            return None
-        except ValueError as exc:
-            log.error(
-                "Skipping level=%s sample=%s — validation error: %s",
-                level, sample, exc,
-            )
-            return None
-
-        # --- resolve and run the reconstruction method ---
-        try:
-            method_plugin = registry_get(method)()
-        except KeyError:
-            log.error("Method '%s' not registered — skipping.", method)
-            return None
+        # Run reconstruction via MockMethodPlugin
+        method_plugin = registry_get("MockMethodPlugin")()
 
         start = time.perf_counter()
-        reconstruction = method_plugin.reconstruct(batch)
+        reconstruction = method_plugin.reconstruct(data)
         runtime_ms = (time.perf_counter() - start) * 1000
 
-        # ground_truth is a field on the DataBatch NamedTuple, not a dict key
-        gt = batch.ground_truth
+        gt = data.get("ground_truth", None)
         metrics = run_all_metrics(reconstruction, gt)
+        metrics["ktc_score"] = 0.0  # replaced by KTCScoring once real data is loaded
 
         comp = composite_score(metrics)
         grade = letter_grade(comp)
@@ -225,7 +174,7 @@ class BatchRunner:
         table.add_column("Slope (per level)", justify="right", min_width=20)
 
         for method, slope in slopes.items():
-            direction = "v degrades" if slope < 0 else "^ improves"
+            direction = "↓ degrades" if slope < 0 else "↑ improves"
             table.add_row(method, f"{slope:+.4f}  {direction}")
 
         console.print()
