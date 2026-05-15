@@ -1,0 +1,60 @@
+{
+  "MockMethodPlugin": {
+    "1": {
+      "A": {
+        "metrics": {
+          "ktc_score": 0.0007202448654319496,
+          "dice_resistive": 0.0,
+          "dice_conductive": 0.0,
+          "iou_resistive": 0.0,
+          "iou_conductive": 0.0
+        },
+        "composite_score": 0.03,
+        "grade": "D",
+        "runtime_ms": 0.071,
+        "degradation_slope": 0.0
+      },
+      "B": {
+        "metrics": {
+          "ktc_score": 0.0007444021676726886,
+          "dice_resistive": 0.0,
+          "dice_conductive": 0.0,
+          "iou_resistive": 0.0,
+          "iou_conductive": 0.0
+        },
+        "composite_score": 0.03,
+        "grade": "D",
+        "runtime_ms": 0.064,
+        "degradation_slope": 0.0
+      }
+    },
+    "2": {
+      "A": {
+        "metrics": {
+          "ktc_score": 0.0007435130629820556,
+          "dice_resistive": 0.0,
+          "dice_conductive": 0.0,
+          "iou_resistive": 0.0,
+          "iou_conductive": 0.0
+        },
+        "composite_score": 0.03,
+        "grade": "D",
+        "runtime_ms": 0.031,
+        "degradation_slope": 0.0
+      },
+      "B": {
+        "metrics": {
+          "ktc_score": 0.0007102391755806926,
+          "dice_resistive": 0.0,
+          "dice_conductive": 0.0,
+          "iou_resistive": 0.0,
+          "iou_conductive": 0.0
+        },
+        "composite_score": 0.03,
+        "grade": "D",
+        "runtime_ms": 0.045,
+        "degradation_slope": 0.0
+      }
+    }
+  }
+}

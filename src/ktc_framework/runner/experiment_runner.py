@@ -15,20 +15,19 @@ from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeEl
 from rich.table import Table
 
 from src.ktc_framework.adapters.method_registry import get as registry_get
+from src.ktc_framework.loaders.ktc_loader import PluginRegistry
 from src.ktc_framework.metrics.metric_registry import register_metric, run_all_metrics
-from src.ktc_framework.metrics.ktc_score import dice, iou
+from src.ktc_framework.metrics.ktc_score import compute_ktc_score, dice, iou
 from src.ktc_framework.metrics.composite_score import composite_score, letter_grade
 import src.ktc_framework.loaders.mock_data_plugin  # noqa: F401 — registers MockDataPlugin
 import src.ktc_framework.methods.mock_method_plugin  # noqa: F401 — registers MockMethodPlugin
 
 # Register built-in metrics
-register_metric("dice_resistive", lambda pred, gt: dice(pred, gt, label=1))
+register_metric("ktc_score",       compute_ktc_score)
+register_metric("dice_resistive",  lambda pred, gt: dice(pred, gt, label=1))
 register_metric("dice_conductive", lambda pred, gt: dice(pred, gt, label=2))
-register_metric("iou_resistive", lambda pred, gt: iou(pred, gt, label=1))
-register_metric("iou_conductive", lambda pred, gt: iou(pred, gt, label=2))
-# Syeda's metrics will be registered here once ready:
-# register_metric("ktc_score", ...)
-# register_metric("hd95", ...)
+register_metric("iou_resistive",   lambda pred, gt: iou(pred, gt, label=1))
+register_metric("iou_conductive",  lambda pred, gt: iou(pred, gt, label=2))
 
 console = Console()
 
@@ -72,7 +71,8 @@ class BatchRunner:
                             description=f"method={method}  level={level}  sample={sample}",
                         )
                         result = self._run_one(method, level, sample)
-                        results.append(result)
+                        if result is not None:
+                            results.append(result)
                         progress.advance(task)
 
         self._save(results)
@@ -80,21 +80,40 @@ class BatchRunner:
         self._print_degradation(results)
         return results
 
-    def _run_one(self, method: str, level: int, sample: str) -> dict[str, Any]:
-        # Load data via MockDataPlugin
-        data_plugin = registry_get("MockDataPlugin")()
-        data = data_plugin.load(level=level, sample=sample)
+    def _run_one(self, method: str, level: int, sample: str) -> dict[str, Any] | None:
+        plugin_name = self.config.get("data_plugin", "MockDataPlugin")
+        dataset_root = self.config.get("dataset_root", "")
 
-        # Run reconstruction via MockMethodPlugin
-        method_plugin = registry_get("MockMethodPlugin")()
+        try:
+            data_plugin_cls = PluginRegistry.get(plugin_name)
+        except KeyError:
+            console.print(f"[yellow]data_plugin '{plugin_name}' not registered — falling back to MockDataPlugin.[/yellow]")
+            from src.ktc_framework.loaders.mock_data_plugin import MockDataPlugin
+            data_plugin_cls = MockDataPlugin
+
+        data_plugin = data_plugin_cls(dataset_root)
+
+        try:
+            batch = data_plugin.load_sample(level=level, sample=sample)
+        except FileNotFoundError:
+            console.print(f"[yellow]Skipping level={level} sample={sample} — file not found in '{dataset_root}'.[/yellow]")
+            return None
+        except ValueError as exc:
+            console.print(f"[red]Skipping level={level} sample={sample} — validation error: {exc}[/red]")
+            return None
+
+        try:
+            method_plugin = registry_get(method)()
+        except KeyError:
+            console.print(f"[red]Method '{method}' not registered — skipping.[/red]")
+            return None
 
         start = time.perf_counter()
-        reconstruction = method_plugin.reconstruct(data)
+        reconstruction = method_plugin.reconstruct(batch)
         runtime_ms = (time.perf_counter() - start) * 1000
 
-        gt = data.get("ground_truth", None)
+        gt = batch.ground_truth
         metrics = run_all_metrics(reconstruction, gt)
-        metrics["ktc_score"] = 0.0  # replaced by KTCScoring once real data is loaded
 
         comp = composite_score(metrics)
         grade = letter_grade(comp)
@@ -174,7 +193,7 @@ class BatchRunner:
         table.add_column("Slope (per level)", justify="right", min_width=20)
 
         for method, slope in slopes.items():
-            direction = "↓ degrades" if slope < 0 else "↑ improves"
+            direction = "v degrades" if slope < 0 else "^ improves"
             table.add_row(method, f"{slope:+.4f}  {direction}")
 
         console.print()
