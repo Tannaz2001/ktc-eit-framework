@@ -27,13 +27,22 @@ class KTCDataPlugin:
     Dataset layout (under dataset_root):
       evaluation_datasets/level{N}/data{1|2|3}.mat  — voltages + injection
       GroundTruths/level_{N}/{1|2|3}_true.mat        — ground truth (256x256)
+
+    dataset_root must point to the folder that contains both
+    ``evaluation_datasets/`` and ``GroundTruths/``.
     """
 
     def __init__(self, dataset_root: str = "") -> None:
         self.dataset_root = Path(dataset_root)
 
     def load_sample(self, level: int, sample: str) -> DataBatch:
-        """Load one KTC sample by level and sample letter (A/B/C)."""
+        """Load one KTC sample by level and sample letter (A/B/C).
+
+        Returns a DataBatch with:
+          voltages           (2356,)    float32  — flat Uel measurements
+          injection_patterns (32, 76)   float32  — Inj matrix
+          ground_truth       (256, 256) float32  — segmentation mask
+        """
         num = _SAMPLE_MAP.get(sample.upper(), sample)
 
         data_path = self.dataset_root / "evaluation_datasets" / f"level{level}" / f"data{num}.mat"
@@ -42,7 +51,10 @@ class KTCDataPlugin:
         if not data_path.exists():
             raise FileNotFoundError(f"Data file not found: {data_path}")
 
+        # Load voltage measurements
         voltages, injection = self._load_data(data_path)
+
+        # Load ground truth (zeros if file missing)
         ground_truth = self._load_gt(gt_path)
 
         return DataBatch(
@@ -54,10 +66,11 @@ class KTCDataPlugin:
         )
 
     def _load_data(self, path: Path):
+        """Load Uel and Inj from a data .mat file."""
         try:
             mat = scipy.io.loadmat(str(path), squeeze_me=True, struct_as_record=False)
-            voltages = np.asarray(mat["Uel"], dtype=np.float32).ravel()
-            injection = np.asarray(mat["Inj"], dtype=np.float32)
+            voltages = np.asarray(mat["Uel"], dtype=np.float32).ravel()   # (2356,)
+            injection = np.asarray(mat["Inj"], dtype=np.float32)           # (32, 76)
         except NotImplementedError:
             if _h5py is None:
                 raise ImportError("h5py is required for .mat v7.3 files. Run: pip install h5py")
@@ -67,6 +80,7 @@ class KTCDataPlugin:
         return voltages, injection
 
     def _load_gt(self, path: Path) -> np.ndarray:
+        """Load ground truth from a separate .mat file, or return zeros."""
         if not path.exists():
             return np.zeros((256, 256), dtype=np.float32)
         try:
