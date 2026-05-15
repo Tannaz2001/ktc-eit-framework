@@ -1,47 +1,68 @@
+"""
+mock_data_plugin.py
+-------------------
+Generates synthetic EIT DataBatch objects whose array shapes exactly match
+the real KTC 2023 dataset:
+
+    voltages           (2356,)    float64   — 76 injections × 31 voltage pairs
+    injection_patterns (32, 76)   float64   — adjacent-pair current protocol
+    ground_truth       (256, 256) uint8     — labels {0, 1, 2}
+
+RNG is seeded from sample_id so the same sample_id always produces identical
+data — essential for deterministic unit tests.
+"""
+
 from __future__ import annotations
 
-import uuid
-from typing import Iterator, Optional
+from typing import Generator, Optional
 
 import numpy as np
 
+from src.ktc_framework.loaders.ktc_loader import PluginRegistry
 from src.ktc_framework.types import DataBatch
-from src.ktc_framework.adapters.method_registry import register
+
+# KTC-realistic class weights: background dominates at ~90 %
+_LABEL_PROBS = [0.90, 0.05, 0.05]
+
+# Injection protocol shape — fixed by the KTC dataset
+_N_ELECTRODES = 32
+_N_INJ_COLS = 76
+_N_VOLTAGES = 2356  # 76 injection patterns × 31 voltage pairs
 
 
-@register
+@PluginRegistry.register('MockDataPlugin')
 class MockDataPlugin:
-    """Generates synthetic EIT DataBatch objects for testing and development.
+    """Synthetic DataBatch generator with KTC-correct array shapes.
 
-    Usage
-    -----
-    plugin = MockDataPlugin(n_electrodes=16, spatial_dims=(32, 32), seed=42)
-    for batch in plugin.iter_batches(n_batches=10, level=1):
-        ...
+    Parameters
+    ----------
+    dataset_root : str
+        Accepted for interface compatibility with KTCLoader; unused here.
     """
 
-    def __init__(
+    def __init__(self, dataset_root: str = "") -> None:
+        self.dataset_root = dataset_root
+
+    def get_batch(
         self,
-        n_electrodes: int = 16,
-        n_patterns: int = 13,
-        spatial_dims: tuple[int, ...] = (32, 32),
-        seed: Optional[int] = None,
-    ) -> None:
-        self.n_electrodes = n_electrodes
-        self.n_patterns = n_patterns
-        self.spatial_dims = spatial_dims
-        self._rng = np.random.default_rng(seed)
+        n_samples: int = 1,
+        level: int = 1,
+        sample_id: Optional[str] = None,
+    ) -> DataBatch:
+        """Return one synthetic DataBatch with KTC-correct shapes.
 
-    # ------------------------------------------------------------------
-    # Public interface
-    # ------------------------------------------------------------------
+        RNG is seeded from *sample_id* so identical inputs always return
+        identical data.
+        """
+        sid = sample_id if sample_id is not None else "mock-0000"
+        seed = hash(sid) % (2 ** 32)
+        rng = np.random.default_rng(seed)
 
-    def get_batch(self, n_samples: int = 1, level: int = 1, sample_id: Optional[str] = None) -> DataBatch:
-        """Return a single synthetic DataBatch."""
-        voltages = self._rng.standard_normal((n_samples, self.n_electrodes)).astype(np.float32)
+        voltages = rng.standard_normal(_N_VOLTAGES).astype(np.float64)
         injection_patterns = self._make_injection_patterns()
-        ground_truth = self._rng.uniform(0.1, 2.0, size=(n_samples, *self.spatial_dims)).astype(np.float32)
-        sid = sample_id if sample_id is not None else str(uuid.uuid4())
+        gt_flat = rng.choice([0, 1, 2], size=(256 * 256), p=_LABEL_PROBS)
+        ground_truth = gt_flat.reshape(256, 256).astype(np.uint8)
+
         return DataBatch(
             voltages=voltages,
             injection_patterns=injection_patterns,
@@ -50,30 +71,35 @@ class MockDataPlugin:
             sample_id=sid,
         )
 
+    def load_sample(self, level: int, sample: str) -> DataBatch:
+        """Unified interface matching KTCLoader.load_sample().
+
+        Constructs a deterministic sample_id from *level* and *sample* so
+        BatchRunner can call this method on either plugin transparently.
+        """
+        return self.get_batch(level=level, sample_id=f"mock_level{level}_{sample}")
+
     def iter_batches(
         self,
         n_batches: int,
         n_samples: int = 1,
         level: int = 1,
-    ) -> Iterator[DataBatch]:
+    ) -> Generator[DataBatch, None, None]:
         """Yield *n_batches* synthetic DataBatch objects."""
         for i in range(n_batches):
-            yield self.get_batch(n_samples=n_samples, level=level, sample_id=f"mock-{i:04d}")
+            yield self.get_batch(
+                n_samples=n_samples,
+                level=level,
+                sample_id=f"mock-{i:04d}",
+            )
 
-    def reset(self, seed: Optional[int] = None) -> None:
-        """Re-seed the internal RNG (pass None for a random seed)."""
-        self._rng = np.random.default_rng(seed)
-
-    # ------------------------------------------------------------------
-    # Private helpers
-    # ------------------------------------------------------------------
-
-    def _make_injection_patterns(self) -> np.ndarray:
-        """Build an adjacent-pair injection pattern matrix (n_patterns × n_electrodes)."""
-        patterns = np.zeros((self.n_patterns, self.n_electrodes), dtype=np.float32)
-        for i in range(self.n_patterns):
-            source = i % self.n_electrodes
-            sink = (i + 1) % self.n_electrodes
+    @staticmethod
+    def _make_injection_patterns() -> np.ndarray:
+        """Build the KTC adjacent-pair injection matrix (32 × 76)."""
+        patterns = np.zeros((_N_ELECTRODES, _N_INJ_COLS), dtype=np.float64)
+        for i in range(_N_ELECTRODES):
+            source = i % _N_INJ_COLS
+            sink = (i + 1) % _N_INJ_COLS
             patterns[i, source] = 1.0
             patterns[i, sink] = -1.0
         return patterns

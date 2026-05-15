@@ -14,11 +14,15 @@ import os
 from pathlib import Path
 from typing import List
 
-import h5py
 import numpy as np
 import scipy.io
 
 from src.ktc_framework.types import DataBatch
+
+try:
+    import h5py as _h5py
+except ImportError:
+    _h5py = None  # type: ignore[assignment]
 
 
 # ---------------------------------------------------------------------------
@@ -73,14 +77,15 @@ class KTCValidator:
 
     Constants
     ---------
-    VOLTAGE_SHAPE : expected (n_measurements, n_electrodes) for voltages.
+    VOLTAGE_SHAPE : expected flat shape (2356,) = 76 injections × 31 voltage pairs.
     GT_SHAPE      : expected (height, width) spatial shape for ground_truth.
     VALID_LABELS  : allowed integer label values in ground_truth.
     """
 
-    VOLTAGE_SHAPE: tuple[int, int] = (76, 30)
-    GT_SHAPE: tuple[int, int] = (256, 256)
-    VALID_LABELS: set[int] = {0, 1, 2}
+    # 76 injection patterns × 31 differential voltage pairs = 2356
+    VOLTAGE_SHAPE: tuple = (2356,)
+    GT_SHAPE: tuple = (256, 256)
+    VALID_LABELS: set = {0, 1, 2}
 
     @staticmethod
     def validate(batch: DataBatch) -> None:
@@ -97,14 +102,12 @@ class KTCValidator:
         ValueError
             Descriptive message for the first constraint that is violated.
         """
-        # --- voltage shape ---
         if batch.voltages.shape != KTCValidator.VOLTAGE_SHAPE:
             raise ValueError(
                 f"voltages shape mismatch: expected {KTCValidator.VOLTAGE_SHAPE}, "
                 f"got {batch.voltages.shape}"
             )
 
-        # --- ground-truth spatial shape (last two dims) ---
         gt_spatial = batch.ground_truth.shape[-2:]
         if gt_spatial != KTCValidator.GT_SHAPE:
             raise ValueError(
@@ -112,7 +115,6 @@ class KTCValidator:
                 f"got {gt_spatial} (full shape: {batch.ground_truth.shape})"
             )
 
-        # --- label values ---
         unique_labels = set(np.unique(batch.ground_truth).astype(int).tolist())
         invalid = unique_labels - KTCValidator.VALID_LABELS
         if invalid:
@@ -141,116 +143,69 @@ class KTCLoader:
         Difficulty level used to filter filenames (matches ``level{level}_*.mat``).
     """
 
-    # Pattern template for filename discovery.
     _FILENAME_PATTERN = "level{level}_*.mat"
 
     def __init__(self, data_dir: str | Path, level: int = 1) -> None:
         self.data_dir = Path(data_dir)
         self.level = level
 
-    # ------------------------------------------------------------------
-    # Public interface
-    # ------------------------------------------------------------------
-
     def load(self, filename: str) -> DataBatch:
-        """Load a single .mat file and return a validated DataBatch.
-
-        Tries scipy.io.loadmat first; falls back to h5py for v7.3 (HDF5)
-        files that loadmat cannot parse.
-
-        Parameters
-        ----------
-        filename : str
-            Name of the .mat file (relative to *data_dir*).
-
-        Returns
-        -------
-        DataBatch
-            Validated batch containing the data from *filename*.
-
-        Raises
-        ------
-        FileNotFoundError
-            If the file does not exist.
-        ValueError
-            If the loaded data fails KTCValidator checks.
-        """
+        """Load a single .mat file and return a validated DataBatch."""
         filepath = self.data_dir / filename
-
         if not filepath.exists():
             raise FileNotFoundError(f"File not found: {filepath}")
-
-        # Attempt v5 load; fall back to v7.3 / HDF5.
         try:
-            mat = scipy.io.loadmat(
-                str(filepath),
-                squeeze_me=True,
-                struct_as_record=False,
-            )
+            mat = scipy.io.loadmat(str(filepath), squeeze_me=True, struct_as_record=False)
             batch = self._parse_mat_v5(mat, filename)
         except NotImplementedError:
-            # scipy raises NotImplementedError for HDF5 (.mat v7.3) files.
             batch = self._parse_mat_v73(filepath, filename)
-
-        # Validate before handing data to the caller.
         KTCValidator.validate(batch)
         return batch
 
-    def list_samples(self) -> List[str]:
-        """Return a sorted list of .mat filenames matching the level pattern.
+    def load_sample(self, level: int, sample: str) -> DataBatch:
+        """Load a sample by level number and sample letter (A/B/C).
 
-        Scans *data_dir* (non-recursively) for files matching
-        ``level{self.level}_*.mat``.
-
-        Returns
-        -------
-        List[str]
-            Sorted filenames (not full paths).
+        Constructs the canonical KTC filename ``level{level}_{sample}.mat``
+        and delegates to :meth:`load`.
         """
-        pattern = self._FILENAME_PATTERN.format(level=self.level)
-        matches = [
-            entry.name
-            for entry in self.data_dir.iterdir()
-            if entry.is_file() and fnmatch.fnmatch(entry.name, pattern)
-        ]
-        return sorted(matches)
+        filename = f"level{level}_{sample}.mat"
+        return self.load(filename)
 
-    # ------------------------------------------------------------------
-    # Private parsing helpers
-    # ------------------------------------------------------------------
+    def list_samples(self) -> List[str]:
+        """Return a sorted list of .mat filenames matching the level pattern."""
+        pattern = self._FILENAME_PATTERN.format(level=self.level)
+        return sorted(
+            e.name for e in self.data_dir.iterdir()
+            if e.is_file() and fnmatch.fnmatch(e.name, pattern)
+        )
 
     def _parse_mat_v5(self, mat: dict, filename: str) -> DataBatch:
         """Extract arrays from a scipy.io.loadmat result dict."""
-        # Key names follow the KTC dataset convention.
-        voltages = np.asarray(mat['Uel'], dtype=np.float32)          # (76, 30)
-        injection = np.asarray(mat['Injref'], dtype=np.float32)       # (n_patterns, n_electrodes)
-        ground_truth = np.asarray(mat['truth'], dtype=np.float32)     # (256, 256)
+        voltages = np.asarray(mat['Uel'], dtype=np.float32)
+        injection = np.asarray(mat['Inj'], dtype=np.float32)
+        ground_truth = np.asarray(mat['truth'], dtype=np.float32)
         level = int(mat.get('level', self.level))
-        sample_id = Path(filename).stem
-
         return DataBatch(
             voltages=voltages,
             injection_patterns=injection,
             ground_truth=ground_truth,
             level=level,
-            sample_id=sample_id,
+            sample_id=Path(filename).stem,
         )
 
     def _parse_mat_v73(self, filepath: Path, filename: str) -> DataBatch:
         """Extract arrays from an HDF5-based .mat v7.3 file using h5py."""
-        with h5py.File(str(filepath), 'r') as f:
-            # h5py stores arrays in C order; transpose to match MATLAB layout.
-            voltages = np.array(f['Uel'], dtype=np.float32).T          # (76, 30)
-            injection = np.array(f['Injref'], dtype=np.float32).T      # (n_patterns, n_electrodes)
-            ground_truth = np.array(f['truth'], dtype=np.float32).T    # (256, 256)
+        if _h5py is None:
+            raise ImportError("h5py is required to load MATLAB v7.3 files. Run: pip install h5py")
+        with _h5py.File(str(filepath), 'r') as f:
+            voltages = np.array(f['Uel'], dtype=np.float32).T
+            injection = np.array(f['Inj'], dtype=np.float32).T
+            ground_truth = np.array(f['truth'], dtype=np.float32).T
             level = int(np.array(f['level']).squeeze()) if 'level' in f else self.level
-
-        sample_id = filepath.stem
-
         return DataBatch(
             voltages=voltages,
             injection_patterns=injection,
             ground_truth=ground_truth,
             level=level,
-            sample_id=sample_id,
+            sample_id=filepath.stem,
         )

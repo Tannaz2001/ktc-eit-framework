@@ -3,19 +3,19 @@ import numpy as np
 
 
 class DataBatch(NamedTuple):
-    """A single batch of EIT measurement data."""
+    """A single EIT measurement sample."""
 
     voltages: np.ndarray
-    """Measured voltage readings, shape (n_samples, n_electrodes)."""
+    """Flat voltage vector, shape (2356,) = 76 injections × 31 pairs."""
 
     injection_patterns: np.ndarray
-    """Current injection patterns used during measurement, shape (n_patterns, n_electrodes)."""
+    """Adjacent-pair injection matrix, shape (32, 76)."""
 
     ground_truth: np.ndarray
-    """Ground-truth conductivity map or label array, shape (n_samples, *spatial_dims)."""
+    """Segmentation labels {0=background, 1=resistive, 2=conductive}, shape (256, 256) uint8."""
 
     level: int
-    """Difficulty or resolution level of this batch (e.g. mesh refinement level)."""
+    """Difficulty level (1–7 in KTC dataset)."""
 
     sample_id: str
-    """Unique identifier for this batch or sample."""
+    """Unique identifier for this sample."""
