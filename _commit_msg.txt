@@ -1,0 +1,16 @@
+Add TrainingDataPlugin and training_experiment.yaml for real data runs
+
+- src/ktc_framework/loaders/training_data_plugin.py (new): loads real KTC
+  training samples from Codes_Matlab/TrainingData/data{n}.mat (voltages)
+  and Codes_Matlab/GroundTruths/true{n}.mat (ground truth) and merges them
+  into a DataBatch; registered as 'TrainingDataPlugin' in PluginRegistry
+- configs/training_experiment.yaml (new): config to run all 4 training
+  samples (1-4) against any method using the real data
+- src/ktc_framework/runner/config_validator.py: relax VALID_SAMPLES to
+  also allow "1"-"4" (training sample numbers) alongside "A"/"B"/"C"
+- src/ktc_framework/runner/experiment_runner.py: auto-import
+  training_data_plugin so it registers on startup
+- outputs/: updated scores from real data run (KTC scores 0.01-0.50
+  reflecting actual phantom geometry)
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
