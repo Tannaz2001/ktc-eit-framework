@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -39,8 +40,21 @@ def load_config(config_path: str | Path) -> dict[str, Any]:
     _check_samples(config)
     _check_methods(config)
     _check_mesh_path(config)
+    _apply_env_overrides(config)
 
     return config
+
+
+def _apply_env_overrides(config: dict[str, Any]) -> None:
+    """Override config values with environment variables if set.
+
+    KTC_DATASET_ROOT — overrides dataset_root in the config.
+    Each teammate sets this once on their own machine so the config
+    file itself stays generic and works for everyone.
+    """
+    env_root = os.environ.get("KTC_DATASET_ROOT")
+    if env_root:
+        config["dataset_root"] = env_root
 
 
 def _check_required_fields(config: dict[str, Any]) -> None:
