@@ -42,6 +42,10 @@ def load_config(config_path: str | Path) -> dict[str, Any]:
     _check_mesh_path(config)
     _apply_env_overrides(config)
 
+    env_root = os.environ.get("KTC_DATASET_ROOT")
+    if env_root:
+        config["dataset_root"] = env_root
+
     return config
 
 
