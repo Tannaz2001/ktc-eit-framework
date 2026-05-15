@@ -1,3 +1,6 @@
 numpy
 pytest
 scipy
+scikit-image
+rich
+h5py
