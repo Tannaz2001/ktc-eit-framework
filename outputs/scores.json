@@ -18,8 +18,8 @@
     },
     "composite_score": 0.39,
     "grade": "D",
-    "runtime_ms": 0.027,
-    "git_sha": "703556f"
+    "runtime_ms": 0.03,
+    "git_sha": "c23c69d"
   },
   {
     "method": "MockMethodPlugin",
@@ -40,8 +40,8 @@
     },
     "composite_score": 1.61,
     "grade": "D",
-    "runtime_ms": 0.031,
-    "git_sha": "703556f"
+    "runtime_ms": 0.152,
+    "git_sha": "c23c69d"
   },
   {
     "method": "MockMethodPlugin",
@@ -62,8 +62,8 @@
     },
     "composite_score": 20.02,
     "grade": "D",
-    "runtime_ms": 0.026,
-    "git_sha": "703556f"
+    "runtime_ms": 0.035,
+    "git_sha": "c23c69d"
   },
   {
     "method": "MockMethodPlugin",
@@ -84,8 +84,8 @@
     },
     "composite_score": 20.03,
     "grade": "D",
-    "runtime_ms": 0.033,
-    "git_sha": "703556f"
+    "runtime_ms": 0.028,
+    "git_sha": "c23c69d"
   },
   {
     "method": "BackProjectionPlugin",
@@ -106,8 +106,8 @@
     },
     "composite_score": 3.13,
     "grade": "D",
-    "runtime_ms": 56.663,
-    "git_sha": "703556f"
+    "runtime_ms": 61.923,
+    "git_sha": "c23c69d"
   },
   {
     "method": "BackProjectionPlugin",
@@ -128,8 +128,8 @@
     },
     "composite_score": 2.33,
     "grade": "D",
-    "runtime_ms": 40.104,
-    "git_sha": "703556f"
+    "runtime_ms": 35.058,
+    "git_sha": "c23c69d"
   },
   {
     "method": "BackProjectionPlugin",
@@ -150,8 +150,8 @@
     },
     "composite_score": 10.94,
     "grade": "D",
-    "runtime_ms": 31.31,
-    "git_sha": "703556f"
+    "runtime_ms": 34.821,
+    "git_sha": "c23c69d"
   },
   {
     "method": "BackProjectionPlugin",
@@ -172,7 +172,7 @@
     },
     "composite_score": 1.99,
     "grade": "D",
-    "runtime_ms": 37.76,
-    "git_sha": "703556f"
+    "runtime_ms": 36.109,
+    "git_sha": "c23c69d"
   }
 ]
