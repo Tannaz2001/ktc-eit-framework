@@ -1,3 +1,4 @@
+from atexit import register
 import logging
 import numpy as np
 from skimage.filters import threshold_otsu
@@ -5,6 +6,7 @@ from skimage.measure import find_contours
 
 logger = logging.getLogger(__name__)
 
+@register
 class LevelSetPlugin:
     """
     Extracts interfaces from a 2D reconstruction using Otsu's thresholding 

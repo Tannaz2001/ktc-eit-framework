@@ -11,6 +11,8 @@ samples:
 
 methods:
   - MockMethodPlugin
+  - BackProjection
+  - GaussNewton
 
 dataset_root: data/EvaluationData_full/
 output_dir: outputs/
