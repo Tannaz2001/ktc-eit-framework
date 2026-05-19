@@ -10,9 +10,9 @@ from typing import Any
 
 import numpy as np
 
-from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
-from rich.table import Table
+from rich.console import Console  # type: ignore[import]
+from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn  # type: ignore[import]
+from rich.table import Table  # type: ignore[import]
 
 from src.ktc_framework.adapters.method_registry import get as registry_get
 from src.ktc_framework.loaders.ktc_loader import PluginRegistry

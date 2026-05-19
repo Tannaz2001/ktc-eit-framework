@@ -1,5 +1,5 @@
 data_plugin: KTCDataPlugin
-mesh_path: data/Mesh/
+mesh_path: D:/MS_HIS/SoSe2026/HIS Project/Evaluation_Data_Full/10418802/Mesh
 
 levels:
   - 1
@@ -16,8 +16,10 @@ samples:
   - C
 
 methods:
-  - BackProjectionPlugin
+  - MockMethodPlugin
+  - BackProjection
+  - GaussNewton
 
 # Set KTC_DATASET_ROOT environment variable to override this on your machine
-dataset_root: "data/EvaluationData_full"
+dataset_root: "D:/MS_HIS/SoSe2026/HIS Project/Evaluation_Data_Full/10418802/EvaluationData_full"
 output_dir: outputs/

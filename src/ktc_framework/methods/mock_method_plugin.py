@@ -6,8 +6,11 @@ import numpy as np
 from src.ktc_framework.adapters.method_registry import register
 
 
+from src.ktc_framework.methods.method_plugin import MethodPlugin
+
+
 @register
-class MockMethodPlugin:
+class MockMethodPlugin(MethodPlugin):
     """
     Fake reconstruction method that returns a valid 256x256 segmentation.
     All pixels are labelled 0 (water) — wrong but structurally valid.
@@ -15,4 +18,6 @@ class MockMethodPlugin:
     """
 
     def reconstruct(self, batch) -> np.ndarray:
-        return np.zeros((256, 256), dtype=np.int32)
+        out = np.zeros((256, 256), dtype=int)
+        self.validate_output(out)
+        return out
