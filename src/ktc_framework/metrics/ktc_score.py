@@ -1,9 +1,9 @@
-"""Scoring module — pure-Python port of KTCssim.m / scoringFunction.m."""
+"""Scoring module — pure-Python port of KTCssim.m / scoringFunction.m + HD95."""
 
 from __future__ import annotations
 
 import numpy as np
-from scipy.ndimage import gaussian_filter
+from scipy.ndimage import gaussian_filter, distance_transform_edt
 
 
 def _ktcssim(truth: np.ndarray, reco: np.ndarray, r: float = 80.0) -> float:
@@ -56,6 +56,33 @@ def iou(pred: np.ndarray, gt: np.ndarray, label: int) -> float:
     fn = int(np.logical_and(~pred_mask, gt_mask).sum())
     denom = tp + fp + fn
     return (tp / denom) if denom > 0 else 0.0
+
+
+def hd95(pred: np.ndarray, gt: np.ndarray, label: int) -> float:
+    """95th-percentile Hausdorff Distance for a single class label (pixels).
+
+    Uses distance transforms for efficiency — O(N) vs O(N²) for brute force.
+    Returns 0.0 if either mask is empty (no surface to measure).
+
+    Lower is better. A score of 0.0 means perfect boundary overlap.
+    """
+    pred_mask = (pred == label)
+    gt_mask = (gt == label)
+
+    # If either mask is empty there is no surface — return 0 to avoid inf
+    if not pred_mask.any() or not gt_mask.any():
+        return 0.0
+
+    # Distance from every gt pixel to nearest pred boundary pixel, and vice versa
+    dist_pred_to_gt = distance_transform_edt(~pred_mask)   # dist of each px to pred surface
+    dist_gt_to_pred = distance_transform_edt(~gt_mask)     # dist of each px to gt surface
+
+    # Hausdorff: directed distances at surface pixels only
+    hd_pred = dist_gt_to_pred[pred_mask]   # how far pred boundary is from gt
+    hd_gt = dist_pred_to_gt[gt_mask]       # how far gt boundary is from pred
+
+    all_distances = np.concatenate([hd_pred, hd_gt])
+    return float(np.percentile(all_distances, 95))
 
 
 def compute_all_metrics(pred: np.ndarray, gt: np.ndarray) -> dict[str, float]:
