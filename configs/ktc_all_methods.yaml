@@ -1,8 +1,25 @@
+# Full benchmark config — runs ALL methods across ALL levels and samples.
+# 3 methods x 7 levels x 3 samples = 63 reconstructions.
+#
+# Usage:
+#   $env:KTC_DATASET_ROOT = "C:\path\to\EvaluationData_full"
+#   python run.py --config configs/ktc_all_methods.yaml
+#
+# dataset_root below is a fallback. Set KTC_DATASET_ROOT env var on your
+# machine to override it without editing this file.
+
 data_plugin: KTCDataPlugin
 mesh_path: data/Mesh/
+
 levels: [1, 2, 3, 4, 5, 6, 7]
 samples: [A, B, C]
-methods: [MockMethodPlugin, BackProjection, GaussNewton]
-# Set KTC_DATASET_ROOT environment variable to override this on your machine
+
+methods:
+  - MockMethodPlugin       # all-zero baseline (sanity check)
+  - BackProjectionPlugin   # geometry-aware voltage interpolation
+  - GaussNewton            # linearised JAC solver (falls back to random if pyEIT absent)
+
+# Overridden at runtime by KTC_DATASET_ROOT environment variable
 dataset_root: "data/EvaluationData_full"
+
 output_dir: outputs/
