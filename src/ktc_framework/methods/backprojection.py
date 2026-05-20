@@ -19,7 +19,7 @@ except ImportError:
 class BackProjection(MethodPlugin):
     def reconstruct(self, batch) -> np.ndarray:
         # fallback if pyEIT not installed or no mesh
-        if BP is None or batch.mesh is None or AdjElectrode is None:
+        if BP is None or getattr(batch, 'mesh', None) is None or AdjElectrode is None:
             sigma_map = np.random.rand(256, 256)
         else:
             protocol = AdjElectrode(batch.mesh)

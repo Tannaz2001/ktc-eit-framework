@@ -16,7 +16,7 @@ class GaussNewton(MethodPlugin):
             JAC = None
             AdjElectrode = None
 
-        if JAC is None or batch.mesh is None or AdjElectrode is None:
+        if JAC is None or getattr(batch, 'mesh', None) is None or AdjElectrode is None:
             sigma_map = np.random.rand(256, 256)
         else:
             protocol = AdjElectrode(batch.mesh)
