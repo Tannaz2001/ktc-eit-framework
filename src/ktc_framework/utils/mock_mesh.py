@@ -3,7 +3,6 @@ import numpy as np
 from pyeit.mesh import create as mesh_create
 from collections import namedtuple
 
-# DataBatch structure
 DataBatch = namedtuple(
     "DataBatch",
     ["voltages", "injection_patterns", "ground_truth", "mesh"]
@@ -26,19 +25,11 @@ def make_adjacent_protocol(n_electrodes=32):
 def make_dummy_batch_with_mesh():
     """
     Create a dummy DataBatch for testing GaussNewton and BackProjection.
-    Uses a real mesh and manual adjacent-pair injection patterns.
+    Uses a valid PyEIT mesh and manual adjacent-pair protocol.
     """
-    # Voltages
     voltages = np.random.randn(2356).astype(np.float64)
-
-    # Mesh
-    mesh_obj = mesh_create(n_el=32, h0=0.1)  # single PyEITMesh object
-    el_pos = mesh_obj.el_pos                   # extract electrode positions
-
-    # Injection patterns
+    mesh_obj = mesh_create(n_el=32, h0=0.1)  # valid PyEIT mesh
     injection_patterns = make_adjacent_protocol(n_electrodes=32)
-
-    # Ground truth segmentation
     ground_truth = np.zeros((256, 256), dtype=int)
 
     return DataBatch(

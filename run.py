@@ -8,7 +8,7 @@ from pathlib import Path
 
 from src.ktc_framework.runner.config_validator import load_config, ConfigError
 from src.ktc_framework.runner.experiment_runner import BatchRunner
-
+from src.ktc_framework.utils.mock_mesh import make_dummy_batch_with_mesh  # always valid mesh
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -53,11 +53,15 @@ def main() -> None:
     print(f"     Mesh   : {config['mesh_path']}")
     print()
 
+    if 'mesh_path' in config:
+        print(f"     Mesh   : {config['mesh_path']}")
+    print()
+
     output_dir = Path(config.get("output_dir", "outputs/"))
     runner = BatchRunner(config=config, output_dir=output_dir)
 
     print("[...] Running experiment...")
-    results = runner.run()
+    results = runner.run()  # no 'batch=' argument
 
     print(f"[OK] Done. {len(results)} runs completed.")
     print(f"     Results saved to: {output_dir / 'scores.json'}")
