@@ -19,7 +19,8 @@ from src.ktc_framework.loaders.ktc_loader import PluginRegistry
 from src.ktc_framework.metrics.metric_registry import register_metric, run_all_metrics
 from src.ktc_framework.metrics.ktc_score import compute_ktc_score, dice, iou, hd95
 from src.ktc_framework.metrics.composite_score import composite_score, letter_grade
-import src.ktc_framework.loaders.mock_data_plugin        # noqa: F401 � registers MockDataPlugin
+from src.ktc_framework.visualization import save_panel
+import src.ktc_framework.loaders.mock_data_plugin        # noqa: F401� registers MockDataPlugin
 import src.ktc_framework.loaders.ktc_data_plugin         # noqa: F401 � registers KTCDataPlugin
 import src.ktc_framework.loaders.training_data_plugin    # noqa: F401 � registers TrainingDataPlugin
 import src.ktc_framework.methods.mock_method_plugin      # noqa: F401 � registers MockMethodPlugin
@@ -125,6 +126,17 @@ class BatchRunner:
         comp = composite_score(metrics)
         grade = letter_grade(comp)
 
+        # Save side-by-side PNG: ground_truth | prediction
+        png_path = save_panel(
+            gt=gt,
+            pred=reconstruction,
+            method=method,
+            level=level,
+            sample=sample,
+            output_dir=self.output_dir / "images",
+            ktc_score=metrics.get("ktc_score", 0.0),
+        )
+
         return {
             "method": method,
             "level": level,
@@ -135,6 +147,7 @@ class BatchRunner:
             "grade": grade,
             "runtime_ms": round(runtime_ms, 3),
             "git_sha": self._git_sha(),
+            "png_path": str(png_path),
         }
 
     def _print_summary(self, results: list[dict[str, Any]]) -> None:
