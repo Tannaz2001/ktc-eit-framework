@@ -19,7 +19,9 @@ from src.ktc_framework.loaders.ktc_loader import PluginRegistry
 from src.ktc_framework.metrics.metric_registry import register_metric, run_all_metrics
 from src.ktc_framework.metrics.ktc_score import compute_ktc_score, dice, iou, hd95
 from src.ktc_framework.metrics.composite_score import composite_score, letter_grade
-import src.ktc_framework.loaders.mock_data_plugin        # noqa: F401 � registers MockDataPlugin
+from src.ktc_framework.visualization.plot_results import save_figures, plot_failure_gallery, plot_degradation_curve, plot_leaderboard
+from src.ktc_framework.reporting.html_report import generate_html_report
+import src.ktc_framework.loaders.mock_data_plugin        # noqa: F401 — registers MockDataPlugin
 import src.ktc_framework.loaders.ktc_data_plugin         # noqa: F401 � registers KTCDataPlugin
 import src.ktc_framework.loaders.training_data_plugin    # noqa: F401 � registers TrainingDataPlugin
 import src.ktc_framework.methods.mock_method_plugin      # noqa: F401 � registers MockMethodPlugin
@@ -85,6 +87,7 @@ class BatchRunner:
         self._save(results)
         self._print_summary(results)
         self._print_degradation(results)
+        self._generate_visuals(results)
         return results
 
     def _run_one(self, method: str, level: int, sample: str) -> dict[str, Any] | None:
@@ -135,6 +138,8 @@ class BatchRunner:
             "grade": grade,
             "runtime_ms": round(runtime_ms, 3),
             "git_sha": self._git_sha(),
+            "_gt":   gt,
+            "_pred": reconstruction,
         }
 
     def _print_summary(self, results: list[dict[str, Any]]) -> None:
@@ -211,15 +216,30 @@ class BatchRunner:
         console.print(table)
         console.print("[dim]Steeper negative slope = method degrades faster at harder levels[/dim]")
 
+    def _generate_visuals(self, results: list[dict[str, Any]]) -> None:
+        """Save comparison PNGs, failure gallery, degradation curve, leaderboard and HTML report."""
+        try:
+            saved = save_figures(results, self.output_dir)
+            plot_failure_gallery(results, self.output_dir)
+            plot_degradation_curve(results, self.output_dir)
+            plot_leaderboard(results, self.output_dir)
+            report_path = generate_html_report(results, self.output_dir)
+            console.print(f"\n[green]Figures saved:[/green] {len(saved)} PNGs -> {self.output_dir / 'figures'}")
+            console.print(f"[green]HTML report:[/green]   {report_path}")
+        except Exception as exc:
+            console.print(f"[yellow]Visualization skipped: {exc}[/yellow]")
+
     def _save(self, results: list[dict[str, Any]]) -> None:
-        # Flat list for easy iteration
+        # Strip internal arrays before serialising to JSON
+        clean = [{k: v for k, v in r.items() if not k.startswith("_")} for r in results]
+
         out = self.output_dir / "scores.json"
         with out.open("w", encoding="utf-8") as f:
-            json.dump(results, f, indent=2)
+            json.dump(clean, f, indent=2)
 
         # Nested structure: method → level → sample → metrics
         nested: dict[str, Any] = {}
-        for r in results:
+        for r in clean:
             m = r["method"]
             lv = str(r["level"])
             s = r["sample"]
