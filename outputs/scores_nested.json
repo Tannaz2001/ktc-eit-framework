@@ -13,7 +13,7 @@
         },
         "composite_score": 0.39,
         "grade": "D",
-        "runtime_ms": 0.03,
+        "runtime_ms": 1.207,
         "degradation_slope": 0.0
       },
       "2": {
@@ -28,7 +28,7 @@
         },
         "composite_score": 1.61,
         "grade": "D",
-        "runtime_ms": 0.152,
+        "runtime_ms": 1.249,
         "degradation_slope": 0.0
       },
       "3": {
@@ -43,7 +43,7 @@
         },
         "composite_score": 20.02,
         "grade": "D",
-        "runtime_ms": 0.035,
+        "runtime_ms": 2.073,
         "degradation_slope": 0.0
       },
       "4": {
@@ -58,7 +58,7 @@
         },
         "composite_score": 20.03,
         "grade": "D",
-        "runtime_ms": 0.028,
+        "runtime_ms": 0.683,
         "degradation_slope": 0.0
       }
     }
@@ -77,7 +77,7 @@
         },
         "composite_score": 3.13,
         "grade": "D",
-        "runtime_ms": 61.923,
+        "runtime_ms": 37.798,
         "degradation_slope": 0.0
       },
       "2": {
@@ -92,7 +92,7 @@
         },
         "composite_score": 2.33,
         "grade": "D",
-        "runtime_ms": 35.058,
+        "runtime_ms": 35.801,
         "degradation_slope": 0.0
       },
       "3": {
@@ -107,7 +107,7 @@
         },
         "composite_score": 10.94,
         "grade": "D",
-        "runtime_ms": 34.821,
+        "runtime_ms": 35.582,
         "degradation_slope": 0.0
       },
       "4": {
@@ -122,7 +122,7 @@
         },
         "composite_score": 1.99,
         "grade": "D",
-        "runtime_ms": 36.109,
+        "runtime_ms": 36.771,
         "degradation_slope": 0.0
       }
     }

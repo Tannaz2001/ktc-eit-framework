@@ -1,4 +1,3 @@
-[]
 [
   {
     "method": "MockMethodPlugin",
@@ -19,8 +18,9 @@
     },
     "composite_score": 0.39,
     "grade": "D",
-    "runtime_ms": 0.03,
-    "git_sha": "c23c69d"
+    "runtime_ms": 1.207,
+    "git_sha": "c487cbb",
+    "png_path": "outputs\\images\\MockMethodPlugin_level1_sample1.png"
   },
   {
     "method": "MockMethodPlugin",
@@ -41,8 +41,9 @@
     },
     "composite_score": 1.61,
     "grade": "D",
-    "runtime_ms": 0.152,
-    "git_sha": "c23c69d"
+    "runtime_ms": 1.249,
+    "git_sha": "c487cbb",
+    "png_path": "outputs\\images\\MockMethodPlugin_level1_sample2.png"
   },
   {
     "method": "MockMethodPlugin",
@@ -63,8 +64,9 @@
     },
     "composite_score": 20.02,
     "grade": "D",
-    "runtime_ms": 0.035,
-    "git_sha": "c23c69d"
+    "runtime_ms": 2.073,
+    "git_sha": "c487cbb",
+    "png_path": "outputs\\images\\MockMethodPlugin_level1_sample3.png"
   },
   {
     "method": "MockMethodPlugin",
@@ -85,8 +87,9 @@
     },
     "composite_score": 20.03,
     "grade": "D",
-    "runtime_ms": 0.028,
-    "git_sha": "c23c69d"
+    "runtime_ms": 0.683,
+    "git_sha": "c487cbb",
+    "png_path": "outputs\\images\\MockMethodPlugin_level1_sample4.png"
   },
   {
     "method": "BackProjectionPlugin",
@@ -107,8 +110,9 @@
     },
     "composite_score": 3.13,
     "grade": "D",
-    "runtime_ms": 61.923,
-    "git_sha": "c23c69d"
+    "runtime_ms": 37.798,
+    "git_sha": "c487cbb",
+    "png_path": "outputs\\images\\BackProjectionPlugin_level1_sample1.png"
   },
   {
     "method": "BackProjectionPlugin",
@@ -129,8 +133,9 @@
     },
     "composite_score": 2.33,
     "grade": "D",
-    "runtime_ms": 35.058,
-    "git_sha": "c23c69d"
+    "runtime_ms": 35.801,
+    "git_sha": "c487cbb",
+    "png_path": "outputs\\images\\BackProjectionPlugin_level1_sample2.png"
   },
   {
     "method": "BackProjectionPlugin",
@@ -151,8 +156,9 @@
     },
     "composite_score": 10.94,
     "grade": "D",
-    "runtime_ms": 34.821,
-    "git_sha": "c23c69d"
+    "runtime_ms": 35.582,
+    "git_sha": "c487cbb",
+    "png_path": "outputs\\images\\BackProjectionPlugin_level1_sample3.png"
   },
   {
     "method": "BackProjectionPlugin",
@@ -173,7 +179,8 @@
     },
     "composite_score": 1.99,
     "grade": "D",
-    "runtime_ms": 36.109,
-    "git_sha": "c23c69d"
+    "runtime_ms": 36.771,
+    "git_sha": "c487cbb",
+    "png_path": "outputs\\images\\BackProjectionPlugin_level1_sample4.png"
   }
 ]
