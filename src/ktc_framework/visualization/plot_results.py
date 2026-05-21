@@ -142,7 +142,7 @@ def plot_failure_gallery(
                 ax.axis("off")
             row += 1
 
-    fig.tight_layout()
+    fig.tight_layout(rect=[0, 0, 1, 0.97])
     path = Path(output_dir) / "figures" / "failure_gallery.png"
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=100, bbox_inches="tight")
@@ -259,7 +259,6 @@ def plot_leaderboard(
 
     path = Path(output_dir) / "figures" / "leaderboard.png"
     path.parent.mkdir(parents=True, exist_ok=True)
-    plt.tight_layout()
     plt.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(fig)
     return path
