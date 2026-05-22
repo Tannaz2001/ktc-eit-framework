@@ -1,0 +1,25 @@
+data_plugin: KTCDataPlugin
+mesh_path: D:/MS_HIS/SoSe2026/HIS Project/Evaluation_Data_Full/10418802/Mesh
+
+levels:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  - 6
+  - 7
+
+samples:
+  - A
+  - B
+  - C
+
+methods:
+  - MockMethodPlugin
+  - BackProjection
+  - GaussNewton
+
+# Set KTC_DATASET_ROOT environment variable to override this on your machine
+dataset_root: "F:/university/7th/HIS project/Three Methods Data Loader Evaluation/zenodo_data/EvaluationData/EvaluationData"
+output_dir: outputs/

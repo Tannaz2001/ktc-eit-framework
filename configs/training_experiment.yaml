@@ -1,0 +1,32 @@
+# Real-data training config — runs the framework's BatchRunner on the
+# 4 real KTC training samples shipped under Codes_Matlab/.
+#
+# Methods kept here are the ones that produce real, deterministic
+# reconstructions without needing a pyEIT mesh:
+#   - MockMethodPlugin     : real zero-baseline (deterministic)
+#   - BackProjectionPlugin : scipy griddata + gaussian smoothing
+#
+# BackProjection and GaussNewton are intentionally excluded because
+# they fall back to np.random.rand when no pyEIT mesh is attached to
+# the DataBatch (which it isn't, by default). Re-enable them only
+# once a real mesh is attached.
+
+data_plugin: TrainingDataPlugin
+dataset_root: Codes_Matlab
+mesh_path: Codes_Matlab/
+
+# Training data has 4 real samples numbered 1–4
+levels:
+  - 1
+
+samples:
+  - "1"
+  - "2"
+  - "3"
+  - "4"
+
+methods:
+  - MockMethodPlugin
+  - BackProjectionPlugin
+
+output_dir: outputs/
