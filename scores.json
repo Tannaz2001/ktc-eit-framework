@@ -1,0 +1,16 @@
+{
+    "Back-projection (avg across 4 real samples)": {
+        "Dice (resistive)": 0.05689326108938891,
+        "Dice (conductive)": 0.09669392088144857,
+        "IoU (resistive)": 0.02968939945337442,
+        "IoU (conductive)": 0.0547344643701472,
+        "KTC score": 0.017092247525078343
+    },
+    "Mock baseline (avg across 4 real samples)": {
+        "Dice (resistive)": 0.0,
+        "Dice (conductive)": 0.0,
+        "IoU (resistive)": 0.0,
+        "IoU (conductive)": 0.0,
+        "KTC score": 0.26277315664516776
+    }
+}
