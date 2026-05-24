@@ -1,40 +1,57 @@
 # src/ktc_framework/utils/mock_mesh.py
+"""Utility for creating a dummy DataBatch with a real pyEIT mesh.
+
+Used in tests and CLI sanity checks where real .mat files are not available.
+The duplicate DataBatch namedtuple that used to live here has been removed —
+the canonical DataBatch (with mesh field) now lives in src/ktc_framework/types.py.
+"""
+
+from __future__ import annotations
+
 import numpy as np
-from pyeit.mesh import create as mesh_create
-from collections import namedtuple
 
-DataBatch = namedtuple(
-    "DataBatch",
-    ["voltages", "injection_patterns", "ground_truth", "mesh"]
-)
+from src.ktc_framework.types import DataBatch
 
-def make_adjacent_protocol(n_electrodes=32):
-    """
-    Build an adjacent-pair injection protocol manually.
-    Returns a matrix of shape (n_electrodes, n_patterns)
-    """
+_N_ELECTRODES = 32
+_N_INJ_COLS   = 76
+_N_VOLTAGES   = 2356   # 76 injections × 31 pairs
+
+
+def make_adjacent_protocol(n_electrodes: int = 32) -> np.ndarray:
+    """Build an adjacent-pair injection protocol matrix (n_electrodes × n_patterns)."""
     n_patterns = n_electrodes * (n_electrodes - 1) // 2
     patterns = np.zeros((n_electrodes, n_patterns))
     for i in range(n_electrodes):
         source = i % n_patterns
-        sink = (i + 1) % n_patterns
-        patterns[i, source] = 1
-        patterns[i, sink] = -1
+        sink   = (i + 1) % n_patterns
+        patterns[i, source] =  1.0
+        patterns[i, sink]   = -1.0
     return patterns
 
-def make_dummy_batch_with_mesh():
+
+def make_dummy_batch_with_mesh() -> DataBatch:
+    """Create a dummy DataBatch with a valid pyEIT mesh attached.
+
+    Uses pyeit.mesh.create() so BackProjection and GaussNewton
+    can run their real algorithms instead of the random fallback.
+    Returns a DataBatch with mesh=None if pyeit is not installed.
     """
-    Create a dummy DataBatch for testing GaussNewton and BackProjection.
-    Uses a valid PyEIT mesh and manual adjacent-pair protocol.
-    """
-    voltages = np.random.randn(2356).astype(np.float64)
-    mesh_obj = mesh_create(n_el=32, h0=0.1)  # valid PyEIT mesh
-    injection_patterns = make_adjacent_protocol(n_electrodes=32)
-    ground_truth = np.zeros((256, 256), dtype=int)
+    voltages           = np.random.randn(_N_VOLTAGES).astype(np.float64)
+    injection_patterns = make_adjacent_protocol(_N_ELECTRODES)
+    ground_truth       = np.zeros((256, 256), dtype=int)
+
+    mesh_obj = None
+    try:
+        from pyeit.mesh import create as mesh_create  # type: ignore[import]
+        mesh_obj = mesh_create(n_el=_N_ELECTRODES, h0=0.1)
+    except ImportError:
+        pass  # pyeit not installed — mesh stays None, methods use fallback
 
     return DataBatch(
         voltages=voltages,
         injection_patterns=injection_patterns,
         ground_truth=ground_truth,
-        mesh=mesh_obj
+        level=1,
+        sample_id="dummy",
+        mesh=mesh_obj,
     )

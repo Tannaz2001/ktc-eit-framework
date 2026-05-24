@@ -36,12 +36,8 @@ def main() -> None:
     else:
         print("[WARN] KTC_DATASET_ROOT not set and no dataset_root in config — data loading may fail.")
 
-    # Update mesh_path relative to dataset_root when not absolute
-    if 'mesh_path' in config and not os.path.isabs(config['mesh_path']):
-        config['mesh_path'] = os.path.join(dataset_path, config['mesh_path'])
-    # Add any other dataset-related paths here if needed:
-    # if 'other_data' in config:
-    #     config['other_data'] = os.path.join(dataset_path, config['other_data'])
+    # mesh_path is always relative to the project root, NOT dataset_root.
+    # (Mesh_sparse.mat lives in Codes_Matlab/, independent of the dataset location.)
 
     # -----------------------------
     print(f"[OK] Config loaded: {args.config}")
