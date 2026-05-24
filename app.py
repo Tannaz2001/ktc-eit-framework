@@ -56,6 +56,8 @@ GRADE_COLORS = {
     'D': '#D85A30'   # red
 }
 
+ALL_LEVELS = [1, 2, 3, 4, 5, 6, 7]
+
 # Color map for segmentation visualization
 COLORMAP = ListedColormap([COLORS['water'], COLORS['resistive'], COLORS['conductive']])
 
@@ -126,13 +128,12 @@ def load_data(scores_path: str = "scores.json",
     return scores, per_run, method_mapping
 
 @st.cache_data
-def load_images_for_sample(sample_id: str, outputs_dir: str = "outputs") -> Dict[str, Image.Image]:
-    """Load all method images for a specific sample."""
+def load_images_for_sample(sample_id: str, level: int = 1, outputs_dir: str = "outputs") -> Dict[str, Image.Image]:
+    """Load all method images for a specific sample and level."""
     images = {}
     outputs_path = Path(outputs_dir)
-    
-    # Look in reconstructions/level_1/sample_X/ directory for individual method images
-    sample_dir = outputs_path / "reconstructions" / "level_1" / f"sample_{sample_id}"
+
+    sample_dir = outputs_path / "reconstructions" / f"level_{level}" / f"sample_{sample_id}"
     if sample_dir.exists():
         for img_file in sample_dir.glob("*.png"):
             # Use the filename (without .png) as the method key
@@ -227,6 +228,49 @@ def letter_grade(score: float) -> str:
         return 'C'
     else:
         return 'D'
+
+# =========================================================
+# ADD METHOD AT RUNTIME
+# =========================================================
+
+def sidebar_add_method():
+    """Sidebar section to register a new method name at runtime."""
+    st.sidebar.markdown("---")
+    st.sidebar.header("➕ Add Method")
+    st.sidebar.caption("Register a method now; connect its backend later.")
+
+    if 'custom_methods' not in st.session_state:
+        st.session_state.custom_methods = []
+
+    new_name = st.sidebar.text_input("Method name:", key="new_method_input",
+                                     placeholder="e.g. gauss_newton_v2")
+    if st.sidebar.button("Add Method") and new_name.strip():
+        name = new_name.strip()
+        if name not in st.session_state.custom_methods:
+            st.session_state.custom_methods.append(name)
+            st.sidebar.success(f"Added: {name}")
+        else:
+            st.sidebar.warning("Method already in list.")
+
+    if st.session_state.custom_methods:
+        st.sidebar.markdown("**Custom methods:**")
+        to_remove = None
+        for m in st.session_state.custom_methods:
+            col_a, col_b = st.sidebar.columns([4, 1])
+            col_a.caption(f"• {m}  *(pending)*")
+            if col_b.button("✕", key=f"rm_{m}"):
+                to_remove = m
+        if to_remove:
+            st.session_state.custom_methods.remove(to_remove)
+            st.rerun()
+
+
+def all_methods(scores: Dict) -> List[str]:
+    """Merge scores-file methods with any runtime-added custom methods."""
+    loaded = list(scores.keys())
+    custom = st.session_state.get('custom_methods', [])
+    return loaded + [m for m in custom if m not in loaded]
+
 
 # =========================================================
 # VIEW 1: LEADERBOARD WITH INTERACTIVE WEIGHTS
@@ -401,15 +445,17 @@ def view_degradation_curve(scores: Dict, per_run: Dict, method_mapping: Dict):
         st.warning("No per-run metrics available. Run the benchmark first.")
         return
     
-    # Use display names for selection
-    display_methods = list(scores.keys())
-    
-    # Method selector with display names
-    selected_display_methods = st.multiselect(
-        "Select methods to display:",
-        display_methods,
-        default=display_methods[:3] if len(display_methods) >= 3 else display_methods
-    )
+    display_methods = all_methods(scores)
+
+    col_lvl, col_methods = st.columns([1, 3])
+    with col_lvl:
+        selected_level = st.selectbox("Level:", ALL_LEVELS, index=0, key="deg_level")
+    with col_methods:
+        selected_display_methods = st.multiselect(
+            "Select methods to display:",
+            display_methods,
+            default=[m for m in display_methods[:3] if m not in st.session_state.get('custom_methods', [])]
+        )
     
     if not selected_display_methods:
         st.info("Please select at least one method to display.")
@@ -449,7 +495,7 @@ def view_degradation_curve(scores: Dict, per_run: Dict, method_mapping: Dict):
         ))
     
     fig.update_layout(
-        title="KTC Score Degradation Across Samples",
+        title=f"KTC Score Degradation Across Samples — Level {selected_level}",
         xaxis_title="Sample ID",
         yaxis_title="KTC Score (lower is better)",
         height=500,
@@ -498,32 +544,40 @@ def view_comparison(scores: Dict, per_run: Dict, method_mapping: Dict):
         st.warning("No per-run metrics available.")
         return
     
-    # Use display names
-    display_methods = list(scores.keys())
-    
-    # Get sample IDs from first available method
+    display_methods = all_methods(scores)
+
     first_internal = list(per_run.keys())[0] if per_run else None
     samples = list(per_run[first_internal].keys()) if first_internal else []
-    
-    col1, col2, col3 = st.columns(3)
-    
+
+    col1, col2, col3, col4 = st.columns(4)
+
     with col1:
-        method1_display = st.selectbox("Method 1:", display_methods, index=0 if len(display_methods) > 0 else 0)
-    
+        method1_display = st.selectbox("Method 1:", display_methods, index=0)
+
     with col2:
-        method2_display = st.selectbox("Method 2:", display_methods, index=1 if len(display_methods) > 1 else 0)
-    
+        method2_display = st.selectbox("Method 2:", display_methods,
+                                       index=1 if len(display_methods) > 1 else 0)
+
     with col3:
         sample_id = st.selectbox("Sample:", samples)
+
+    with col4:
+        selected_level = st.selectbox("Level:", ALL_LEVELS, index=0)
     
     if method1_display and method2_display and sample_id:
-        # Map to internal keys
         method1_internal = method_mapping.get(method1_display)
         method2_internal = method_mapping.get(method2_display)
-        
-        # Get metrics for both methods
-        metrics1 = per_run.get(method1_internal, {}).get(sample_id, {})
-        metrics2 = per_run.get(method2_internal, {}).get(sample_id, {})
+
+        # Custom (pending) methods have no backend data yet
+        m1_pending = method1_display in st.session_state.get('custom_methods', [])
+        m2_pending = method2_display in st.session_state.get('custom_methods', [])
+        if m1_pending:
+            st.info(f"**{method1_display}** is a custom method — connect its backend to see metrics.")
+        if m2_pending:
+            st.info(f"**{method2_display}** is a custom method — connect its backend to see metrics.")
+
+        metrics1 = per_run.get(method1_internal, {}).get(sample_id, {}) if not m1_pending else {}
+        metrics2 = per_run.get(method2_internal, {}).get(sample_id, {}) if not m2_pending else {}
         
         # Display metrics comparison
         st.subheader("📊 Metric Comparison")
@@ -601,8 +655,7 @@ def view_comparison(scores: Dict, per_run: Dict, method_mapping: Dict):
             st.image(comparison_panel, use_container_width=True)
             st.markdown("---")
         
-        # Try to load individual method images
-        images = load_images_for_sample(sample_id)
+        images = load_images_for_sample(sample_id, level=selected_level)
         
         if images:
             img_col1, img_col2 = st.columns(2)
@@ -816,7 +869,8 @@ def main():
     - 📡 Multi-dimensional radar charts
     """)
     
-    # Load data
+    sidebar_add_method()
+
     try:
         scores, per_run, method_mapping = load_data()
         

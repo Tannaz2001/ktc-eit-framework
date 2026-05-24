@@ -4,20 +4,20 @@
         "Dice (conductive)": 0.09669392088144857,
         "IoU (resistive)": 0.02968939945337442,
         "IoU (conductive)": 0.0547344643701472,
-        "KTC score": 0.017092247525078343
+        "KTC score": 0.003423999999999999
     },
     "Mock baseline (avg across 4 real samples)": {
         "Dice (resistive)": 0.0,
         "Dice (conductive)": 0.0,
         "IoU (resistive)": 0.0,
         "IoU (conductive)": 0.0,
-        "KTC score": 0.26277315664516776
+        "KTC score": 0.0
     },
     "Gauss-Newton (avg across 4 real samples)": {
-        "Dice (resistive)": 0.0658589242888269,
-        "Dice (conductive)": 0.06194599537162968,
-        "IoU (resistive)": 0.03453817170644121,
-        "IoU (conductive)": 0.032423274673322636,
-        "KTC score": 0.00209060264109564
+        "Dice (resistive)": 0.06667921982758195,
+        "Dice (conductive)": 0.060138757135807075,
+        "IoU (resistive)": 0.03497708693339021,
+        "IoU (conductive)": 0.031457847848173966,
+        "KTC score": -0.01191025
     }
 }
