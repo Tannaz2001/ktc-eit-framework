@@ -1,5 +1,5 @@
 data_plugin: KTCDataPlugin
-mesh_path: D:/MS_HIS/SoSe2026/HIS Project/Evaluation_Data_Full/10418802/Mesh
+mesh_path: Codes_Matlab/
 
 levels:
   - 1
@@ -20,6 +20,7 @@ methods:
   - BackProjection
   - GaussNewton
 
-# Set KTC_DATASET_ROOT environment variable to override this on your machine
-dataset_root: "D:/MS_HIS/SoSe2026/HIS Project/Evaluation_Data_Full/10418802/EvaluationData_full"
+# dataset_root is overridden at runtime by KTC_DATASET_ROOT env var if set.
+# Default points to the EvaluationData folder inside the repo.
+dataset_root: EvaluationData
 output_dir: outputs/
