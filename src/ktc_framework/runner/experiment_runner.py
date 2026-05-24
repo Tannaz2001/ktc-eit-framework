@@ -3,31 +3,46 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import time
+import warnings
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+import scipy.io
 
 from rich.console import Console  # type: ignore[import]
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn  # type: ignore[import]
 from rich.table import Table  # type: ignore[import]
 
+from src.ktc_framework.types import DataBatch
 from src.ktc_framework.adapters.method_registry import get as registry_get
 from src.ktc_framework.loaders.ktc_loader import PluginRegistry
 from src.ktc_framework.metrics.metric_registry import register_metric, run_all_metrics
 from src.ktc_framework.metrics.ktc_score import compute_ktc_score, dice, iou, hd95
 from src.ktc_framework.metrics.composite_score import composite_score, letter_grade
-import src.ktc_framework.loaders.mock_data_plugin        # noqa: F401 � registers MockDataPlugin
-import src.ktc_framework.loaders.ktc_data_plugin         # noqa: F401 � registers KTCDataPlugin
-import src.ktc_framework.loaders.training_data_plugin    # noqa: F401 � registers TrainingDataPlugin
-import src.ktc_framework.methods.mock_method_plugin      # noqa: F401 � registers MockMethodPlugin
-import src.ktc_framework.methods.back_projection_plugin  # noqa: F401 — registers BackProjectionPlugin
-import src.ktc_framework.methods.backprojection           # noqa: F401 — registers BackProjection
-import src.ktc_framework.methods.gauss_newton             # noqa: F401 — registers GaussNewton
+from src.ktc_framework.visualization import save_panel
+from src.ktc_framework.visualization.plot_results import (
+    save_figures,
+    plot_failure_gallery,
+    plot_degradation_curve,
+    plot_leaderboard,
+)
+from src.ktc_framework.reporting.html_report import generate_html_report
 
-# Register built-in metrics
+# Side-effect imports — registers data plugins into PluginRegistry
+import src.ktc_framework.loaders.mock_data_plugin        # noqa: F401
+import src.ktc_framework.loaders.ktc_data_plugin         # noqa: F401
+import src.ktc_framework.loaders.training_data_plugin    # noqa: F401
+
+# Side-effect imports — registers reconstruction methods into method_registry
+import src.ktc_framework.methods.mock_method_plugin      # noqa: F401
+import src.ktc_framework.methods.backprojection          # noqa: F401  registers BackProjection
+import src.ktc_framework.methods.gauss_newton            # noqa: F401  registers GaussNewton
+
+# Register built-in metrics once at module load
 register_metric("ktc_score",        compute_ktc_score)
 register_metric("dice_resistive",   lambda pred, gt: dice(pred, gt, label=1))
 register_metric("dice_conductive",  lambda pred, gt: dice(pred, gt, label=2))
@@ -40,20 +55,129 @@ console = Console()
 
 
 class BatchRunner:
-    """
-    Reads experiment.yaml config and runs each method across
+    """Reads an experiment config dict and runs each method across
     all selected difficulty levels and samples.
+
+    Parameters
+    ----------
+    config : dict
+        Parsed YAML config with keys: data_plugin, mesh_path, dataset_root,
+        levels, samples, methods, output_dir.
+    output_dir : Path
+        Directory where scores.json, images/, and figures/ are written.
     """
 
-    def __init__(self, config: dict[str, Any], output_dir: Path):
+    def __init__(self, config: dict[str, Any], output_dir: Path) -> None:
         self.config = config
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    def run(self) -> list[dict[str, Any]]:
-        results = []
+        # Load shared resources once — passed to every DataBatch at run time
+        self.mesh = self._load_mesh(config.get("mesh_path", ""))
+        self.ref_voltages = self._load_reference(config.get("dataset_root", ""))
 
-        levels = self.config.get("levels", [])
+    # ------------------------------------------------------------------
+    # Resource loaders
+    # ------------------------------------------------------------------
+
+    def _load_mesh(self, mesh_path: str):
+        """Load Mesh_sparse.mat and return the raw ``mat['Mesh']`` struct.
+
+        Accepts a directory path (looks for ``Mesh_sparse.mat`` inside) or a
+        direct path to the ``.mat`` file.  Falls back to a generated pyEIT
+        32-electrode mesh if the file is absent; returns ``None`` if pyEIT is
+        not installed.
+        """
+        if mesh_path:
+            candidate = Path(mesh_path)
+            mat_file = (candidate / "Mesh_sparse.mat") if candidate.is_dir() else candidate
+
+            if mat_file.exists():
+                try:
+                    mat = scipy.io.loadmat(
+                        str(mat_file), squeeze_me=True, struct_as_record=False
+                    )
+                    mesh_struct = mat["Mesh"]
+                    console.print(
+                        f"[green]Mesh loaded:[/green] {mat_file} "
+                        f"({mesh_struct.g.shape[0]} nodes, "
+                        f"{mesh_struct.H.shape[0]} elements)"
+                    )
+                    return mesh_struct
+                except Exception as exc:
+                    warnings.warn(
+                        f"Could not load Mesh_sparse.mat ({exc}) — falling back to generated mesh.",
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
+                    console.print(f"[yellow]Mesh load failed: {exc}[/yellow]")
+            else:
+                console.print(
+                    f"[yellow]mesh_path '{mesh_path}' not found — "
+                    f"falling back to generated mesh.[/yellow]"
+                )
+
+        # Fallback: generate a 32-electrode mesh using pyEIT
+        try:
+            from pyeit.mesh import create as mesh_create  # type: ignore[import]
+            mesh_obj = mesh_create(n_el=32, h0=0.1)
+            console.print(
+                "[yellow]Using generated 32-electrode pyEIT mesh (no Mesh_sparse.mat).[/yellow]"
+            )
+            return mesh_obj
+        except ImportError:
+            console.print(
+                "[yellow]pyeit not installed — mesh unavailable; "
+                "BP/GaussNewton will use random fallback.[/yellow]"
+            )
+            return None
+        except Exception as exc:
+            console.print(f"[yellow]pyEIT mesh generation failed ({exc}) — returning None.[/yellow]")
+            return None
+
+    def _load_reference(self, dataset_root: str) -> np.ndarray | None:
+        """Load the empty-tank reference voltages from ``ref.mat``.
+
+        Looks for ``<dataset_root>/ref.mat``.  Returns a flat float32 array of
+        shape ``(N,)`` on success, or ``None`` if the file is absent.
+        """
+        if not dataset_root:
+            return None
+
+        ref_path = os.path.join(dataset_root, "ref.mat")
+        if not os.path.exists(ref_path):
+            console.print(
+                f"[yellow]ref.mat not found at '{ref_path}' — "
+                f"reconstruction methods will use mean-subtraction fallback.[/yellow]"
+            )
+            return None
+
+        try:
+            mat = scipy.io.loadmat(ref_path, squeeze_me=True, struct_as_record=False)
+            ref = np.asarray(mat["Uel"], dtype=np.float32).ravel()
+            console.print(
+                f"[green]Reference voltages loaded:[/green] {ref_path} "
+                f"(shape {ref.shape})"
+            )
+            return ref
+        except Exception as exc:
+            warnings.warn(
+                f"Could not load ref.mat ({exc}) — using mean-subtraction fallback.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            console.print(f"[yellow]ref.mat load failed: {exc}[/yellow]")
+            return None
+
+    # ------------------------------------------------------------------
+    # Main loop
+    # ------------------------------------------------------------------
+
+    def run(self) -> list[dict[str, Any]]:
+        """Run all method × level × sample combinations and return results."""
+        results: list[dict[str, Any]] = []
+
+        levels  = self.config.get("levels",  [])
         samples = self.config.get("samples", [])
         methods = self.config.get("methods", [])
 
@@ -85,69 +209,162 @@ class BatchRunner:
         self._save(results)
         self._print_summary(results)
         self._print_degradation(results)
+        self._generate_visuals(results)
         return results
 
-    def _run_one(self, method: str, level: int, sample: str) -> dict[str, Any] | None:
-        plugin_name = self.config.get("data_plugin", "MockDataPlugin")
+    def _run_one(
+        self, method: str, level: int, sample: str
+    ) -> dict[str, Any] | None:
+        """Load one sample, run one reconstruction method, return scored result."""
+        plugin_name  = self.config.get("data_plugin", "MockDataPlugin")
         dataset_root = self.config.get("dataset_root", "")
 
+        # ── load data plugin ──────────────────────────────────────────────
         try:
             data_plugin_cls = PluginRegistry.get(plugin_name)
         except KeyError:
-            console.print(f"[yellow]data_plugin '{plugin_name}' not registered — falling back to MockDataPlugin.[/yellow]")
+            console.print(
+                f"[yellow]data_plugin '{plugin_name}' not registered — "
+                f"falling back to MockDataPlugin.[/yellow]"
+            )
             from src.ktc_framework.loaders.mock_data_plugin import MockDataPlugin
             data_plugin_cls = MockDataPlugin
 
         data_plugin = data_plugin_cls(dataset_root)
 
+        # ── load sample ───────────────────────────────────────────────────
         try:
-            batch = data_plugin.load_sample(level=level, sample=sample)
+            raw_batch = data_plugin.load_sample(level=level, sample=sample)
         except FileNotFoundError:
-            console.print(f"[yellow]Skipping level={level} sample={sample} — file not found in '{dataset_root}'.[/yellow]")
+            console.print(
+                f"[yellow]Skipping level={level} sample={sample} — "
+                f"file not found in '{dataset_root}'.[/yellow]"
+            )
             return None
         except ValueError as exc:
-            console.print(f"[red]Skipping level={level} sample={sample} — validation error: {exc}[/red]")
+            console.print(
+                f"[red]Skipping level={level} sample={sample} — "
+                f"validation error: {exc}[/red]"
+            )
             return None
 
+        # ── augment batch with shared resources ───────────────────────────
+        # Use the explicit DataBatch constructor (not _replace) so every field
+        # is visible and the type signature stays correct.
+        batch = DataBatch(
+            voltages           = raw_batch.voltages,
+            injection_patterns = raw_batch.injection_patterns,
+            ground_truth       = raw_batch.ground_truth,
+            level              = raw_batch.level,
+            sample_id          = raw_batch.sample_id,
+            mesh               = self.mesh,
+            reference_voltages = self.ref_voltages,
+        )
+
+        # ── load method ───────────────────────────────────────────────────
         try:
             method_plugin = registry_get(method)()
         except KeyError:
             console.print(f"[red]Method '{method}' not registered — skipping.[/red]")
             return None
 
+        # ── reconstruct ───────────────────────────────────────────────────
         start = time.perf_counter()
-        reconstruction = method_plugin.reconstruct(batch)
+        try:
+            reconstruction = method_plugin.reconstruct(batch)
+        except Exception as exc:
+            console.print(
+                f"[red]Reconstruction failed for method={method} "
+                f"level={level} sample={sample}: {exc}[/red]"
+            )
+            return None
         runtime_ms = (time.perf_counter() - start) * 1000
 
-        gt = batch.ground_truth
+        # ── score ─────────────────────────────────────────────────────────
+        gt      = batch.ground_truth
         metrics = run_all_metrics(reconstruction, gt)
+        comp    = composite_score(metrics)
+        grade   = letter_grade(comp)
 
-        comp = composite_score(metrics)
-        grade = letter_grade(comp)
+        # ── save panel image ──────────────────────────────────────────────
+        png_path = save_panel(
+            gt         = gt,
+            pred       = reconstruction,
+            method     = method,
+            level      = level,
+            sample     = sample,
+            output_dir = self.output_dir / "images",
+            ktc_score  = metrics.get("ktc_score", 0.0),
+        )
 
         return {
-            "method": method,
-            "level": level,
-            "sample": sample,
-            "output_shape": list(reconstruction.shape),
-            "metrics": metrics,
+            "method":          method,
+            "level":           level,
+            "sample":          sample,
+            "output_shape":    list(reconstruction.shape),
+            "metrics":         metrics,
             "composite_score": comp,
-            "grade": grade,
-            "runtime_ms": round(runtime_ms, 3),
-            "git_sha": self._git_sha(),
+            "grade":           grade,
+            "runtime_ms":      round(runtime_ms, 3),
+            "git_sha":         self._git_sha(),
+            "png_path":        str(png_path),
+            # internal arrays — stripped before JSON serialisation
+            "_gt":   gt,
+            "_pred": reconstruction,
         }
 
+    # ------------------------------------------------------------------
+    # Output
+    # ------------------------------------------------------------------
+
+    def _save(self, results: list[dict[str, Any]]) -> None:
+        """Write scores.json and scores_nested.json to output_dir."""
+        # Strip arrays before JSON serialisation
+        clean = [
+            {k: v for k, v in r.items() if not k.startswith("_")}
+            for r in results
+        ]
+
+        # Flat list
+        out = self.output_dir / "scores.json"
+        with out.open("w", encoding="utf-8") as f:
+            json.dump(clean, f, indent=2)
+
+        # Nested: method → level → sample → metrics
+        nested: dict[str, Any] = {}
+        for r in clean:
+            m  = r["method"]
+            lv = str(r["level"])
+            s  = r["sample"]
+            nested.setdefault(m, {}).setdefault(lv, {})[s] = {
+                "metrics":           r["metrics"],
+                "composite_score":   r.get("composite_score", 0.0),
+                "grade":             r.get("grade", "D"),
+                "runtime_ms":        r["runtime_ms"],
+                "degradation_slope": r.get("degradation_slope", 0.0),
+            }
+
+        nested_out = self.output_dir / "scores_nested.json"
+        with nested_out.open("w", encoding="utf-8") as f:
+            json.dump(nested, f, indent=2)
+
     def _print_summary(self, results: list[dict[str, Any]]) -> None:
-        table = Table(title="Experiment Summary", show_header=True, header_style="bold cyan", min_width=80)
-        table.add_column("Method", style="bold", min_width=20)
-        table.add_column("Level", justify="center", min_width=7)
-        table.add_column("Sample", justify="center", min_width=8)
-        table.add_column("KTC Score", justify="right", min_width=10)
-        table.add_column("Dice Res.", justify="right", min_width=10)
-        table.add_column("Dice Cond.", justify="right", min_width=11)
-        table.add_column("HD95 Res.", justify="right", min_width=10)
-        table.add_column("HD95 Cond.", justify="right", min_width=11)
-        table.add_column("Runtime (ms)", justify="right", min_width=13)
+        """Print a rich table of per-run metrics."""
+        table = Table(
+            title="Experiment Summary",
+            show_header=True,
+            header_style="bold cyan",
+            min_width=80,
+        )
+        table.add_column("Method",       style="bold", min_width=20)
+        table.add_column("Level",        justify="center", min_width=7)
+        table.add_column("Sample",       justify="center", min_width=8)
+        table.add_column("KTC Score",    justify="right",  min_width=10)
+        table.add_column("Dice Res.",    justify="right",  min_width=10)
+        table.add_column("Dice Cond.",   justify="right",  min_width=11)
+        table.add_column("HD95 Res.",    justify="right",  min_width=10)
+        table.add_column("HD95 Cond.",   justify="right",  min_width=11)
+        table.add_column("Runtime (ms)", justify="right",  min_width=13)
 
         for r in results:
             m = r["metrics"]
@@ -165,10 +382,12 @@ class BatchRunner:
 
         console.print()
         console.print(table)
-        console.print(f"\n[green]scores.json saved to:[/green] {self.output_dir / 'scores.json'}")
+        console.print(
+            f"\n[green]scores.json saved to:[/green] {self.output_dir / 'scores.json'}"
+        )
 
     def _print_degradation(self, results: list[dict[str, Any]]) -> None:
-        """Compute and print degradation slope per method using numpy.polyfit."""
+        """Compute and print the degradation slope (KTC score vs level) per method."""
         methods = list({r["method"] for r in results})
         slopes: dict[str, float] = {}
 
@@ -176,21 +395,22 @@ class BatchRunner:
             method_results = [r for r in results if r["method"] == method]
             levels = sorted({r["level"] for r in method_results})
             avg_scores = []
-            for level in levels:
+            for lv in levels:
                 level_scores = [
                     r["metrics"]["ktc_score"]
                     for r in method_results
-                    if r["level"] == level
+                    if r["level"] == lv
                 ]
-                avg_scores.append(np.mean(level_scores))
+                avg_scores.append(float(np.mean(level_scores)))
 
-            if len(levels) >= 2:
-                slope = float(np.polyfit(levels, avg_scores, 1)[0])
-            else:
-                slope = 0.0
-
+            slope = (
+                float(np.polyfit(levels, avg_scores, 1)[0])
+                if len(levels) >= 2
+                else 0.0
+            )
             slopes[method] = round(slope, 4)
 
+        # Attach slope to every result dict for _save
         for result in results:
             result["degradation_slope"] = slopes[result["method"]]
 
@@ -200,43 +420,41 @@ class BatchRunner:
             header_style="bold magenta",
             min_width=50,
         )
-        table.add_column("Method", style="bold", min_width=20)
+        table.add_column("Method",            style="bold", min_width=20)
         table.add_column("Slope (per level)", justify="right", min_width=20)
 
         for method, slope in slopes.items():
-            direction = "v degrades" if slope < 0 else "^ improves"
+            direction = "▼ degrades" if slope < 0 else "▲ improves"
             table.add_row(method, f"{slope:+.4f}  {direction}")
 
         console.print()
         console.print(table)
-        console.print("[dim]Steeper negative slope = method degrades faster at harder levels[/dim]")
+        console.print(
+            "[dim]Steeper negative slope = method degrades faster at harder levels[/dim]"
+        )
 
-    def _save(self, results: list[dict[str, Any]]) -> None:
-        # Flat list for easy iteration
-        out = self.output_dir / "scores.json"
-        with out.open("w", encoding="utf-8") as f:
-            json.dump(results, f, indent=2)
+    def _generate_visuals(self, results: list[dict[str, Any]]) -> None:
+        """Save comparison PNGs, failure gallery, degradation curve, leaderboard, HTML report."""
+        try:
+            saved = save_figures(results, self.output_dir)
+            plot_failure_gallery(results, self.output_dir)
+            plot_degradation_curve(results, self.output_dir)
+            plot_leaderboard(results, self.output_dir)
+            report_path = generate_html_report(results, self.output_dir)
+            console.print(
+                f"\n[green]Figures saved:[/green] {len(saved)} PNGs → {self.output_dir / 'figures'}"
+            )
+            console.print(f"[green]HTML report:[/green]   {report_path}")
+        except Exception as exc:
+            console.print(f"[yellow]Visualization skipped: {exc}[/yellow]")
 
-        # Nested structure: method → level → sample → metrics
-        nested: dict[str, Any] = {}
-        for r in results:
-            m = r["method"]
-            lv = str(r["level"])
-            s = r["sample"]
-            nested.setdefault(m, {}).setdefault(lv, {})[s] = {
-                "metrics": r["metrics"],
-                "composite_score": r.get("composite_score", 0.0),
-                "grade": r.get("grade", "D"),
-                "runtime_ms": r["runtime_ms"],
-                "degradation_slope": r.get("degradation_slope", 0.0),
-            }
-
-        nested_out = self.output_dir / "scores_nested.json"
-        with nested_out.open("w", encoding="utf-8") as f:
-            json.dump(nested, f, indent=2)
+    # ------------------------------------------------------------------
+    # Utilities
+    # ------------------------------------------------------------------
 
     @staticmethod
     def _git_sha() -> str:
+        """Return the current git short SHA, or 'unknown' if git is unavailable."""
         try:
             return subprocess.check_output(
                 ["git", "rev-parse", "--short", "HEAD"],

@@ -12,5 +12,12 @@
         "IoU (resistive)": 0.0,
         "IoU (conductive)": 0.0,
         "KTC score": 0.26277315664516776
+    },
+    "Gauss-Newton (avg across 4 real samples)": {
+        "Dice (resistive)": 0.0658589242888269,
+        "Dice (conductive)": 0.06194599537162968,
+        "IoU (resistive)": 0.03453817170644121,
+        "IoU (conductive)": 0.032423274673322636,
+        "KTC score": 0.00209060264109564
     }
 }

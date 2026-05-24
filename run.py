@@ -8,7 +8,7 @@ from pathlib import Path
 
 from src.ktc_framework.runner.config_validator import load_config, ConfigError
 from src.ktc_framework.runner.experiment_runner import BatchRunner
-
+from src.ktc_framework.utils.mock_mesh import make_dummy_batch_with_mesh  # always valid mesh
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -28,6 +28,7 @@ def main() -> None:
         print(f"[ERROR] Config validation failed: {e}")
         raise SystemExit(1)
     # -----------------------------
+<<<<<<< HEAD
     # Dataset path: prefer KTC_DATASET_ROOT env var, else use config['dataset_root'].
     dataset_path = os.environ.get("KTC_DATASET_ROOT") or config.get("dataset_root")
     if not dataset_path:
@@ -35,14 +36,18 @@ def main() -> None:
             "No dataset_root in config and KTC_DATASET_ROOT env var is not set."
         )
     print(f"[INFO] Using dataset path: {dataset_path}")
+=======
+    # Dataset root: env var overrides config value; config value is the fallback
+    dataset_path = os.environ.get("KTC_DATASET_ROOT") or config.get("dataset_root", "")
+    if dataset_path:
+        print(f"[INFO] Using dataset path: {dataset_path}")
+        config["dataset_root"] = dataset_path
+    else:
+        print("[WARN] KTC_DATASET_ROOT not set and no dataset_root in config — data loading may fail.")
+>>>>>>> a4fe1cce8f2f5141f23aa337c21dee73f1e5cb6f
 
-    # -----------------------------
-    # Update paths in config to point to your local dataset
-    if 'mesh_path' in config and not os.path.isabs(config['mesh_path']):
-         config['mesh_path'] = os.path.join(dataset_path, config['mesh_path'])
-    # Add any other dataset-related paths here if needed:
-    # if 'other_data' in config:
-    #     config['other_data'] = os.path.join(dataset_path, config['other_data'])
+    # mesh_path is always relative to the project root, NOT dataset_root.
+    # (Mesh_sparse.mat lives in Codes_Matlab/, independent of the dataset location.)
 
     # -----------------------------
     print(f"[OK] Config loaded: {args.config}")
@@ -52,11 +57,15 @@ def main() -> None:
     print(f"     Mesh   : {config['mesh_path']}")
     print()
 
+    if 'mesh_path' in config:
+        print(f"     Mesh   : {config['mesh_path']}")
+    print()
+
     output_dir = Path(config.get("output_dir", "outputs/"))
     runner = BatchRunner(config=config, output_dir=output_dir)
 
     print("[...] Running experiment...")
-    results = runner.run()
+    results = runner.run()  # no 'batch=' argument
 
     print(f"[OK] Done. {len(results)} runs completed.")
     print(f"     Results saved to: {output_dir / 'scores.json'}")

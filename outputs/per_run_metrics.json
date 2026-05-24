@@ -1,0 +1,116 @@
+{
+  "mock_baseline": {
+    "1": {
+      "ktc_score": 0.00977638332013479,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0,
+      "hd95_resistive": 0.0,
+      "hd95_conductive": 0.0
+    },
+    "2": {
+      "ktc_score": 0.04019218795843876,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0,
+      "hd95_resistive": 0.0,
+      "hd95_conductive": 0.0
+    },
+    "3": {
+      "ktc_score": 0.5004151385114918,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0,
+      "hd95_resistive": 0.0,
+      "hd95_conductive": 0.0
+    },
+    "4": {
+      "ktc_score": 0.5007089167906058,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0,
+      "hd95_resistive": 0.0,
+      "hd95_conductive": 0.0
+    }
+  },
+  "back_projection": {
+    "1": {
+      "ktc_score": -0.009879795154572369,
+      "dice_resistive": 0.10805937023165488,
+      "dice_conductive": 0.03166666666666667,
+      "iou_resistive": 0.05711562431263289,
+      "iou_conductive": 0.016088060965283656,
+      "hd95_resistive": 130.3186467198452,
+      "hd95_conductive": 122.14786120442946
+    },
+    "2": {
+      "ktc_score": -0.016134796318214472,
+      "dice_resistive": 0.050721591705198264,
+      "dice_conductive": 0.06775018261504748,
+      "iou_resistive": 0.026020701552616446,
+      "iou_conductive": 0.035062848502031944,
+      "hd95_resistive": 117.15374513859982,
+      "hd95_conductive": 98.03060746521976
+    },
+    "3": {
+      "ktc_score": 0.08783841227259134,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.28735883424408015,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.1677869480132732,
+      "hd95_resistive": 0.0,
+      "hd95_conductive": 68.24954212300622
+    },
+    "4": {
+      "ktc_score": 0.006545169300508873,
+      "dice_resistive": 0.06879208242070252,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.035621271948248344,
+      "iou_conductive": 0.0,
+      "hd95_resistive": 85.28774824088158,
+      "hd95_conductive": 0.0
+    }
+  },
+  "gauss_newton": {
+    "1": {
+      "ktc_score": 0.0038539848876157196,
+      "dice_resistive": 0.10477657935285054,
+      "dice_conductive": 0.07768187422934648,
+      "iou_resistive": 0.055284552845528454,
+      "iou_conductive": 0.040410519563822966,
+      "hd95_resistive": 146.20704406395097,
+      "hd95_conductive": 152.55441651630528
+    },
+    "2": {
+      "ktc_score": 0.0025645217950836926,
+      "dice_resistive": 0.10087179234595872,
+      "dice_conductive": 0.05682122755293487,
+      "iou_resistive": 0.053114788111416567,
+      "iou_conductive": 0.029241379310344828,
+      "hd95_resistive": 133.54362582593873,
+      "hd95_conductive": 170.43297769015643
+    },
+    "3": {
+      "ktc_score": 0.0015818336214926763,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.11328087970423736,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.060041199819122745,
+      "hd95_resistive": 0.0,
+      "hd95_conductive": 123.8789731956154
+    },
+    "4": {
+      "ktc_score": 0.00036207026019047223,
+      "dice_resistive": 0.05778732545649839,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.029753345868819822,
+      "iou_conductive": 0.0,
+      "hd95_resistive": 121.03718436910205,
+      "hd95_conductive": 0.0
+    }
+  }
+}

@@ -1,0 +1,875 @@
+"""
+app.py — Streamlit Dashboard for EIT Reconstruction Analysis
+
+Five Views:
+1. Leaderboard table with composite scores
+2. Degradation curve with method selector
+3. Side-by-side comparison (any two methods + any sample)
+4. Failure gallery (worst 3 samples per method)
+5. Per-metric radar chart
+
+Features:
+- Interactive composite weight editor (5 sliders for metric tiers)
+- Real-time leaderboard updates based on weight changes
+- Loads from scores.json and per_run_metrics.json
+"""
+
+import streamlit as st
+import json
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
+import plotly.express as px
+from pathlib import Path
+from typing import Dict, List, Tuple
+import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
+import io
+from PIL import Image
+
+# =========================================================
+# CONFIGURATION
+# =========================================================
+
+st.set_page_config(
+    page_title="EIT Reconstruction Dashboard",
+    page_icon="🔬",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Color scheme matching the report
+COLORS = {
+    'water': '#1a3a5c',
+    'resistive': '#D85A30',
+    'conductive': '#1D9E75',
+    'primary': '#1a3a5c',
+    'success': '#1D9E75',
+    'warning': '#F5A623',
+    'danger': '#D85A30'
+}
+
+GRADE_COLORS = {
+    'A': '#1D9E75',  # green
+    'B': '#4A90E2',  # blue
+    'C': '#F5A623',  # amber
+    'D': '#D85A30'   # red
+}
+
+# Color map for segmentation visualization
+COLORMAP = ListedColormap([COLORS['water'], COLORS['resistive'], COLORS['conductive']])
+
+# =========================================================
+# DATA LOADING
+# =========================================================
+
+def create_method_mapping(scores: Dict, per_run: Dict) -> Dict[str, str]:
+    """
+    Create mapping between display names (from scores.json) and internal keys (from per_run_metrics.json).
+    
+    Examples:
+    - "Back-projection (avg across 4 real samples)" -> "back_projection"
+    - "Mock baseline (avg across 4 real samples)" -> "mock_baseline"
+    - "Gauss-Newton (avg across 4 real samples)" -> "gauss_newton"
+    """
+    mapping = {}
+    
+    # Extract base names from display names
+    for display_name in scores.keys():
+        # Try to match with per_run keys
+        display_lower = display_name.lower()
+        
+        for internal_key in per_run.keys():
+            # Check if internal key is contained in display name
+            if internal_key.replace('_', '-') in display_lower or internal_key.replace('_', ' ') in display_lower:
+                mapping[display_name] = internal_key
+                break
+            # Also try matching first word
+            elif display_name.split()[0].lower().replace('-', '_') == internal_key.split('_')[0]:
+                mapping[display_name] = internal_key
+                break
+    
+    return mapping
+
+@st.cache_data
+def load_data(scores_path: str = "scores.json", 
+              per_run_path: str = "outputs/per_run_metrics.json") -> Tuple[Dict, Dict, Dict]:
+    """Load scores and per-run metrics from JSON files."""
+    
+    # Try scores.json in current directory or outputs/
+    scores = {}
+    scores_file = None
+    if Path(scores_path).exists():
+        scores_file = Path(scores_path)
+    elif Path("outputs/scores.json").exists():
+        scores_file = Path("outputs/scores.json")
+    
+    if scores_file:
+        with open(scores_file, 'r') as f:
+            scores = json.load(f)
+        st.sidebar.caption(f"📄 Loaded: {scores_file}")
+    
+    # Try per_run_metrics.json in outputs/
+    per_run = {}
+    per_run_file = None
+    if Path(per_run_path).exists():
+        per_run_file = Path(per_run_path)
+    
+    if per_run_file:
+        with open(per_run_file, 'r') as f:
+            per_run = json.load(f)
+        st.sidebar.caption(f"📄 Loaded: {per_run_file}")
+    
+    # Create mapping
+    method_mapping = create_method_mapping(scores, per_run)
+    
+    return scores, per_run, method_mapping
+
+@st.cache_data
+def load_images_for_sample(sample_id: str, outputs_dir: str = "outputs") -> Dict[str, Image.Image]:
+    """Load all method images for a specific sample."""
+    images = {}
+    outputs_path = Path(outputs_dir)
+    
+    # Look in reconstructions/level_1/sample_X/ directory for individual method images
+    sample_dir = outputs_path / "reconstructions" / "level_1" / f"sample_{sample_id}"
+    if sample_dir.exists():
+        for img_file in sample_dir.glob("*.png"):
+            # Use the filename (without .png) as the method key
+            method_key = img_file.stem  # e.g., 'back_projection', 'mock_baseline'
+            images[method_key] = Image.open(img_file)
+    
+    # Also look for error overlays
+    error_dir = outputs_path / "error_overlays"
+    if error_dir.exists():
+        for img_file in error_dir.glob(f"*_sample_{sample_id}.png"):
+            # Extract method name from filename (e.g., "back_projection_sample_1.png")
+            method_key = img_file.stem.replace(f"_sample_{sample_id}", "")
+            if method_key not in images:  # Don't overwrite reconstructions
+                images[method_key] = Image.open(img_file)
+    
+    return images
+
+@st.cache_data
+def load_comparison_panel(sample_id: str, outputs_dir: str = "outputs") -> Image.Image:
+    """Load the multi-method comparison panel for a sample."""
+    outputs_path = Path(outputs_dir)
+    
+    # Look for comparison panel
+    comparison_file = outputs_path / "comparison_panels" / f"sample_{sample_id}.png"
+    if comparison_file.exists():
+        return Image.open(comparison_file)
+    
+    # Try the main variant
+    comparison_main = outputs_path / "comparison_panels" / f"sample_{sample_id}_main.png"
+    if comparison_main.exists():
+        return Image.open(comparison_main)
+    
+    return None
+
+# =========================================================
+# COMPOSITE SCORE CALCULATION
+# =========================================================
+
+def calculate_composite_score(metrics: Dict[str, float], weights: Dict[str, float]) -> float:
+    """
+    Calculate weighted composite score from metrics.
+    
+    Metric tiers:
+    - Tier 1: KTC Score (primary benchmark metric)
+    - Tier 2: Dice coefficients (overlap metrics)
+    - Tier 3: IoU scores (intersection over union)
+    - Tier 4: Hausdorff distance (boundary accuracy)
+    - Tier 5: Overall balance
+    
+    Returns score in range 0-100
+    """
+    
+    # Extract metrics with defaults
+    ktc = metrics.get('KTC score', metrics.get('ktc_score', 0))
+    dice_r = metrics.get('Dice (resistive)', metrics.get('dice_resistive', 0))
+    dice_c = metrics.get('Dice (conductive)', metrics.get('dice_conductive', 0))
+    iou_r = metrics.get('IoU (resistive)', metrics.get('iou_resistive', 0))
+    iou_c = metrics.get('IoU (conductive)', metrics.get('iou_conductive', 0))
+    
+    # Hausdorff distance (lower is better, so invert)
+    hd95_r = metrics.get('hd95_resistive', 0)
+    hd95_c = metrics.get('hd95_conductive', 0)
+    # Normalize HD95 to 0-1 range (assuming max reasonable value is 100 pixels)
+    hd95_r_norm = max(0, 1 - (hd95_r / 100))
+    hd95_c_norm = max(0, 1 - (hd95_c / 100))
+    
+    # Calculate tier scores
+    tier1 = (1 - ktc) * 100  # KTC is error, so invert
+    tier2 = ((dice_r + dice_c) / 2) * 100
+    tier3 = ((iou_r + iou_c) / 2) * 100
+    tier4 = ((hd95_r_norm + hd95_c_norm) / 2) * 100
+    tier5 = tier1  # Overall balance - use KTC as baseline
+    
+    # Weighted combination
+    composite = (
+        weights['tier1'] * tier1 +
+        weights['tier2'] * tier2 +
+        weights['tier3'] * tier3 +
+        weights['tier4'] * tier4 +
+        weights['tier5'] * tier5
+    ) / sum(weights.values())
+    
+    return composite
+
+def letter_grade(score: float) -> str:
+    """Convert composite score to letter grade."""
+    if score >= 85:
+        return 'A'
+    elif score >= 70:
+        return 'B'
+    elif score >= 55:
+        return 'C'
+    else:
+        return 'D'
+
+# =========================================================
+# VIEW 1: LEADERBOARD WITH INTERACTIVE WEIGHTS
+# =========================================================
+
+def view_leaderboard(scores: Dict, per_run: Dict):
+    """Interactive leaderboard with composite weight editor."""
+    
+    st.header("🏆 Leaderboard")
+    
+    # Sidebar: Weight Editor
+    st.sidebar.header("⚙️ Composite Score Weights")
+    st.sidebar.markdown("Adjust the weights for each metric tier to see how rankings change:")
+    
+    # Initialize session state for weights if not exists
+    if 'weights' not in st.session_state:
+        st.session_state.weights = {
+            'tier1': 0.40,  # KTC Score
+            'tier2': 0.25,  # Dice
+            'tier3': 0.20,  # IoU
+            'tier4': 0.10,  # HD95
+            'tier5': 0.05   # Balance
+        }
+    
+    # Weight sliders
+    weights = {}
+    weights['tier1'] = st.sidebar.slider(
+        "Tier 1: KTC Score (Primary)",
+        0.0, 1.0, st.session_state.weights['tier1'], 0.05,
+        help="KTC benchmark score - lower is better"
+    )
+    weights['tier2'] = st.sidebar.slider(
+        "Tier 2: Dice Coefficients",
+        0.0, 1.0, st.session_state.weights['tier2'], 0.05,
+        help="Overlap metrics for resistive/conductive regions"
+    )
+    weights['tier3'] = st.sidebar.slider(
+        "Tier 3: IoU Scores",
+        0.0, 1.0, st.session_state.weights['tier3'], 0.05,
+        help="Intersection over Union metrics"
+    )
+    weights['tier4'] = st.sidebar.slider(
+        "Tier 4: Hausdorff Distance",
+        0.0, 1.0, st.session_state.weights['tier4'], 0.05,
+        help="Boundary accuracy (95th percentile)"
+    )
+    weights['tier5'] = st.sidebar.slider(
+        "Tier 5: Overall Balance",
+        0.0, 1.0, st.session_state.weights['tier5'], 0.05,
+        help="Balancing factor for overall performance"
+    )
+    
+    # Normalize button
+    if st.sidebar.button("⚖️ Normalize Weights to 1.0"):
+        total = sum(weights.values())
+        if total > 0:
+            weights = {k: v/total for k, v in weights.items()}
+            st.session_state.weights = weights
+            st.rerun()
+    
+    # Reset button
+    if st.sidebar.button("🔄 Reset to Defaults"):
+        st.session_state.weights = {
+            'tier1': 0.40, 'tier2': 0.25, 'tier3': 0.20, 'tier4': 0.10, 'tier5': 0.05
+        }
+        st.rerun()
+    
+    # Show weight distribution
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("**Current Weight Distribution:**")
+    total_weight = sum(weights.values())
+    for tier, weight in weights.items():
+        pct = (weight / total_weight * 100) if total_weight > 0 else 0
+        st.sidebar.progress(weight)
+        st.sidebar.caption(f"{tier}: {pct:.1f}%")
+    
+    # Calculate composite scores for all methods
+    leaderboard_data = []
+    
+    for method_name, metrics in scores.items():
+        composite = calculate_composite_score(metrics, weights)
+        grade = letter_grade(composite)
+        
+        leaderboard_data.append({
+            'Method': method_name,
+            'Composite Score': composite,
+            'Grade': grade,
+            'KTC Score': metrics.get('KTC score', metrics.get('ktc_score', 0)),
+            'Dice (R)': metrics.get('Dice (resistive)', metrics.get('dice_resistive', 0)),
+            'Dice (C)': metrics.get('Dice (conductive)', metrics.get('dice_conductive', 0)),
+            'IoU (R)': metrics.get('IoU (resistive)', metrics.get('iou_resistive', 0)),
+            'IoU (C)': metrics.get('IoU (conductive)', metrics.get('iou_conductive', 0)),
+        })
+    
+    # Sort by composite score (descending)
+    leaderboard_data.sort(key=lambda x: x['Composite Score'], reverse=True)
+    df = pd.DataFrame(leaderboard_data)
+    
+    # Display metrics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Top Method", df.iloc[0]['Method'], 
+                 f"Score: {df.iloc[0]['Composite Score']:.1f}")
+    with col2:
+        st.metric("Average Score", f"{df['Composite Score'].mean():.1f}",
+                 f"Std: ±{df['Composite Score'].std():.1f}")
+    with col3:
+        grade_counts = df['Grade'].value_counts()
+        st.metric("Grade Distribution", 
+                 f"{grade_counts.get('A', 0)}A, {grade_counts.get('B', 0)}B, "
+                 f"{grade_counts.get('C', 0)}C, {grade_counts.get('D', 0)}D")
+    
+    # Interactive bar chart
+    fig = go.Figure()
+    
+    for _, row in df.iterrows():
+        fig.add_trace(go.Bar(
+            name=row['Method'],
+            x=[row['Method']],
+            y=[row['Composite Score']],
+            marker_color=GRADE_COLORS[row['Grade']],
+            text=f"{row['Composite Score']:.1f} ({row['Grade']})",
+            textposition='outside',
+            hovertemplate=(
+                f"<b>{row['Method']}</b><br>"
+                f"Composite: {row['Composite Score']:.1f}<br>"
+                f"Grade: {row['Grade']}<br>"
+                f"KTC: {row['KTC Score']:.4f}<br>"
+                f"Dice (R/C): {row['Dice (R)']:.4f} / {row['Dice (C)']:.4f}<br>"
+                f"<extra></extra>"
+            )
+        ))
+    
+    fig.update_layout(
+        title="Method Rankings by Composite Score",
+        xaxis_title="Method",
+        yaxis_title="Composite Score (0-100)",
+        yaxis_range=[0, 105],
+        showlegend=False,
+        height=400,
+        template="plotly_white"
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Detailed table
+    st.subheader("📊 Detailed Metrics")
+    
+    # Format the dataframe for display
+    display_df = df.copy()
+    display_df['Composite Score'] = display_df['Composite Score'].apply(lambda x: f"{x:.2f}")
+    display_df['KTC Score'] = display_df['KTC Score'].apply(lambda x: f"{x:.4f}")
+    display_df['Dice (R)'] = display_df['Dice (R)'].apply(lambda x: f"{x:.4f}")
+    display_df['Dice (C)'] = display_df['Dice (C)'].apply(lambda x: f"{x:.4f}")
+    display_df['IoU (R)'] = display_df['IoU (R)'].apply(lambda x: f"{x:.4f}")
+    display_df['IoU (C)'] = display_df['IoU (C)'].apply(lambda x: f"{x:.4f}")
+    
+    st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+# =========================================================
+# VIEW 2: DEGRADATION CURVE
+# =========================================================
+
+def view_degradation_curve(scores: Dict, per_run: Dict, method_mapping: Dict):
+    """Degradation curve showing performance across difficulty levels."""
+    
+    st.header("📉 Degradation Curve")
+    st.markdown("Performance trends across different samples/difficulty levels")
+    
+    # Extract method keys from per_run data
+    if not per_run:
+        st.warning("No per-run metrics available. Run the benchmark first.")
+        return
+    
+    # Use display names for selection
+    display_methods = list(scores.keys())
+    
+    # Method selector with display names
+    selected_display_methods = st.multiselect(
+        "Select methods to display:",
+        display_methods,
+        default=display_methods[:3] if len(display_methods) >= 3 else display_methods
+    )
+    
+    if not selected_display_methods:
+        st.info("Please select at least one method to display.")
+        return
+    
+    # Prepare data
+    fig = go.Figure()
+    
+    colors_palette = ['#1D9E75', '#D85A30', '#4A90E2', '#F5A623', '#9B59B6', '#E74C3C', '#1ABC9C']
+    
+    for idx, display_method in enumerate(selected_display_methods):
+        # Get internal key from mapping
+        internal_key = method_mapping.get(display_method)
+        if not internal_key or internal_key not in per_run:
+            continue
+        
+        samples = per_run[internal_key]
+        sample_ids = sorted(samples.keys())
+        ktc_scores = [samples[sid]['ktc_score'] for sid in sample_ids]
+        
+        # Convert sample IDs to numeric for plotting
+        x_values = [int(sid) if sid.isdigit() else idx for idx, sid in enumerate(sample_ids, 1)]
+        
+        fig.add_trace(go.Scatter(
+            x=x_values,
+            y=ktc_scores,
+            mode='lines+markers',
+            name=display_method,
+            line=dict(width=3, color=colors_palette[idx % len(colors_palette)]),
+            marker=dict(size=10),
+            hovertemplate=(
+                f"<b>{display_method}</b><br>"
+                "Sample: %{x}<br>"
+                "KTC Score: %{y:.4f}<br>"
+                "<extra></extra>"
+            )
+        ))
+    
+    fig.update_layout(
+        title="KTC Score Degradation Across Samples",
+        xaxis_title="Sample ID",
+        yaxis_title="KTC Score (lower is better)",
+        height=500,
+        template="plotly_white",
+        hovermode='x unified'
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Statistics table
+    st.subheader("📈 Performance Statistics")
+    
+    stats_data = []
+    for display_method in selected_display_methods:
+        internal_key = method_mapping.get(display_method)
+        if not internal_key or internal_key not in per_run:
+            continue
+        
+        samples = per_run[internal_key]
+        ktc_values = [s['ktc_score'] for s in samples.values()]
+        
+        stats_data.append({
+            'Method': display_method,
+            'Mean KTC': np.mean(ktc_values),
+            'Std Dev': np.std(ktc_values),
+            'Min': np.min(ktc_values),
+            'Max': np.max(ktc_values),
+            'Range': np.max(ktc_values) - np.min(ktc_values)
+        })
+    
+    stats_df = pd.DataFrame(stats_data)
+    stats_df = stats_df.round(4)
+    
+    st.dataframe(stats_df, use_container_width=True, hide_index=True)
+
+# =========================================================
+# VIEW 3: SIDE-BY-SIDE COMPARISON
+# =========================================================
+
+def view_comparison(scores: Dict, per_run: Dict, method_mapping: Dict):
+    """Side-by-side comparison of any two methods on any sample."""
+    
+    st.header("🔍 Side-by-Side Comparison")
+    
+    if not per_run:
+        st.warning("No per-run metrics available.")
+        return
+    
+    # Use display names
+    display_methods = list(scores.keys())
+    
+    # Get sample IDs from first available method
+    first_internal = list(per_run.keys())[0] if per_run else None
+    samples = list(per_run[first_internal].keys()) if first_internal else []
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        method1_display = st.selectbox("Method 1:", display_methods, index=0 if len(display_methods) > 0 else 0)
+    
+    with col2:
+        method2_display = st.selectbox("Method 2:", display_methods, index=1 if len(display_methods) > 1 else 0)
+    
+    with col3:
+        sample_id = st.selectbox("Sample:", samples)
+    
+    if method1_display and method2_display and sample_id:
+        # Map to internal keys
+        method1_internal = method_mapping.get(method1_display)
+        method2_internal = method_mapping.get(method2_display)
+        
+        # Get metrics for both methods
+        metrics1 = per_run.get(method1_internal, {}).get(sample_id, {})
+        metrics2 = per_run.get(method2_internal, {}).get(sample_id, {})
+        
+        # Display metrics comparison
+        st.subheader("📊 Metric Comparison")
+        
+        comparison_data = []
+        for key in metrics1.keys():
+            comparison_data.append({
+                'Metric': key.replace('_', ' ').title(),
+                method1_display: metrics1.get(key, 0),
+                method2_display: metrics2.get(key, 0),
+                'Difference': abs(metrics1.get(key, 0) - metrics2.get(key, 0))
+            })
+        
+        comp_df = pd.DataFrame(comparison_data)
+        
+        # Format numbers
+        for col in [method1_display, method2_display, 'Difference']:
+            comp_df[col] = comp_df[col].apply(lambda x: f"{x:.4f}")
+        
+        st.dataframe(comp_df, use_container_width=True, hide_index=True)
+        
+        # Radar chart
+        st.subheader("📡 Radar Chart")
+        
+        # Select key metrics for radar chart
+        radar_metrics = ['ktc_score', 'dice_resistive', 'dice_conductive', 
+                        'iou_resistive', 'iou_conductive']
+        
+        categories = [m.replace('_', ' ').title() for m in radar_metrics]
+        
+        fig = go.Figure()
+        
+        # Method 1
+        values1 = [metrics1.get(m, 0) for m in radar_metrics]
+        values1.append(values1[0])  # Close the polygon
+        
+        fig.add_trace(go.Scatterpolar(
+            r=values1,
+            theta=categories + [categories[0]],
+            fill='toself',
+            name=method1_display,
+            line_color=COLORS['conductive']
+        ))
+        
+        # Method 2
+        values2 = [metrics2.get(m, 0) for m in radar_metrics]
+        values2.append(values2[0])  # Close the polygon
+        
+        fig.add_trace(go.Scatterpolar(
+            r=values2,
+            theta=categories + [categories[0]],
+            fill='toself',
+            name=method2_display,
+            line_color=COLORS['resistive']
+        ))
+        
+        fig.update_layout(
+            polar=dict(
+                radialaxis=dict(
+                    visible=True,
+                    range=[0, 1]
+                )),
+            showlegend=True,
+            height=500
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Try to load comparison panel first
+        st.subheader("🖼️ Visual Comparison")
+        
+        comparison_panel = load_comparison_panel(sample_id)
+        if comparison_panel:
+            st.markdown(f"**All Methods - Sample {sample_id}**")
+            st.image(comparison_panel, use_container_width=True)
+            st.markdown("---")
+        
+        # Try to load individual method images
+        images = load_images_for_sample(sample_id)
+        
+        if images:
+            img_col1, img_col2 = st.columns(2)
+            
+            # Find matching images for the methods
+            method1_img = None
+            method2_img = None
+            
+            for img_key, img in images.items():
+                if method1_internal and method1_internal.lower() in img_key.lower():
+                    method1_img = img
+                if method2_internal and method2_internal.lower() in img_key.lower():
+                    method2_img = img
+            
+            with img_col1:
+                st.markdown(f"**{method1_display}**")
+                if method1_img:
+                    st.image(method1_img, use_container_width=True)
+                else:
+                    st.info(f"Image not found for {method1_display}")
+            
+            with img_col2:
+                st.markdown(f"**{method2_display}**")
+                if method2_img:
+                    st.image(method2_img, use_container_width=True)
+                else:
+                    st.info(f"Image not found for {method2_display}")
+        elif not comparison_panel:
+            st.info("No visualization images found. Run example_usage.py to generate images.")
+
+# =========================================================
+# VIEW 4: FAILURE GALLERY
+# =========================================================
+
+def view_failure_gallery(scores: Dict, per_run: Dict, method_mapping: Dict):
+    """Gallery showing worst 3 samples per method."""
+    
+    st.header("⚠️ Failure Gallery")
+    st.markdown("Worst performing samples for each method (highest KTC scores)")
+    
+    if not per_run:
+        st.warning("No per-run metrics available.")
+        return
+    
+    for display_method in scores.keys():
+        st.subheader(f"🔴 {display_method}")
+        
+        # Get internal key
+        internal_key = method_mapping.get(display_method)
+        if not internal_key or internal_key not in per_run:
+            st.info(f"No per-run data available for {display_method}")
+            continue
+        
+        samples = per_run[internal_key]
+        
+        # Sort samples by KTC score (descending - worst first)
+        sorted_samples = sorted(
+            samples.items(),
+            key=lambda x: x[1]['ktc_score'],
+            reverse=True
+        )
+        
+        # Take worst 3
+        worst_samples = sorted_samples[:3]
+        
+        # Display in columns
+        cols = st.columns(3)
+        
+        for idx, (sample_id, metrics) in enumerate(worst_samples):
+            with cols[idx]:
+                st.markdown(f"**Sample {sample_id}**")
+                st.metric("KTC Score", f"{metrics['ktc_score']:.4f}")
+                st.caption(f"Dice (R): {metrics.get('dice_resistive', 0):.4f}")
+                st.caption(f"Dice (C): {metrics.get('dice_conductive', 0):.4f}")
+                st.caption(f"IoU (R): {metrics.get('iou_resistive', 0):.4f}")
+                st.caption(f"IoU (C): {metrics.get('iou_conductive', 0):.4f}")
+                
+                # Try to load image from reconstructions directory
+                sample_dir = Path("outputs") / "reconstructions" / "level_1" / f"sample_{sample_id}"
+                img_file = sample_dir / f"{internal_key}.png"
+                
+                if img_file.exists():
+                    st.image(Image.open(img_file), use_container_width=True)
+                else:
+                    # Try error overlay as fallback
+                    error_file = Path("outputs") / "error_overlays" / f"{internal_key}_sample_{sample_id}.png"
+                    if error_file.exists():
+                        st.image(Image.open(error_file), use_container_width=True)
+                    else:
+                        st.caption("🖼️ Image not available")
+        
+        st.markdown("---")
+
+# =========================================================
+# VIEW 5: PER-METRIC RADAR CHART
+# =========================================================
+
+def view_radar_chart(scores: Dict, per_run: Dict):
+    """Comprehensive radar chart for all methods across all metrics."""
+    
+    st.header("📡 Per-Metric Radar Analysis")
+    st.markdown("Compare all methods across different metric dimensions")
+    
+    if not scores:
+        st.warning("No scores available.")
+        return
+    
+    # Select metrics to include
+    st.subheader("Select Metrics")
+    
+    available_metrics = set()
+    for method_scores in scores.values():
+        available_metrics.update(method_scores.keys())
+    
+    available_metrics = sorted(list(available_metrics))
+    
+    selected_metrics = st.multiselect(
+        "Choose metrics to display:",
+        available_metrics,
+        default=available_metrics[:5] if len(available_metrics) >= 5 else available_metrics
+    )
+    
+    if not selected_metrics:
+        st.info("Please select at least one metric.")
+        return
+    
+    # Prepare data
+    fig = go.Figure()
+    
+    colors_palette = ['#1D9E75', '#D85A30', '#4A90E2', '#F5A623', '#9B59B6', '#E74C3C', '#1ABC9C']
+    
+    for idx, (method_name, metrics) in enumerate(scores.items()):
+        # Extract values for selected metrics
+        values = []
+        for metric in selected_metrics:
+            val = metrics.get(metric, 0)
+            # Normalize KTC score (invert since lower is better)
+            if 'ktc' in metric.lower():
+                val = max(0, 1 - val)
+            values.append(val)
+        
+        # Close the polygon
+        values.append(values[0])
+        categories = [m.replace('_', ' ').title() for m in selected_metrics]
+        categories.append(categories[0])
+        
+        fig.add_trace(go.Scatterpolar(
+            r=values,
+            theta=categories,
+            fill='toself',
+            name=method_name,
+            line_color=colors_palette[idx % len(colors_palette)]
+        ))
+    
+    fig.update_layout(
+        polar=dict(
+            radialaxis=dict(
+                visible=True,
+                range=[0, 1]
+            )),
+        showlegend=True,
+        height=600,
+        title="Method Performance Across Selected Metrics"
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Metric statistics
+    st.subheader("📊 Metric Statistics")
+    
+    stats_data = []
+    for metric in selected_metrics:
+        metric_values = []
+        for method_scores in scores.values():
+            val = method_scores.get(metric, 0)
+            # Normalize KTC score
+            if 'ktc' in metric.lower():
+                val = max(0, 1 - val)
+            metric_values.append(val)
+        
+        stats_data.append({
+            'Metric': metric.replace('_', ' ').title(),
+            'Mean': np.mean(metric_values),
+            'Std Dev': np.std(metric_values),
+            'Min': np.min(metric_values),
+            'Max': np.max(metric_values)
+        })
+    
+    stats_df = pd.DataFrame(stats_data)
+    stats_df = stats_df.round(4)
+    
+    st.dataframe(stats_df, use_container_width=True, hide_index=True)
+
+# =========================================================
+# MAIN APP
+# =========================================================
+
+def main():
+    """Main application entry point."""
+    
+    # Title and description
+    st.title("🔬 EIT Reconstruction Dashboard")
+    st.markdown("""
+    Interactive dashboard for analyzing Electrical Impedance Tomography (EIT) reconstruction methods.
+    
+    **Features:**
+    - 🏆 Interactive leaderboard with customizable composite weights
+    - 📉 Performance degradation analysis across samples
+    - 🔍 Side-by-side method comparisons
+    - ⚠️ Failure case analysis
+    - 📡 Multi-dimensional radar charts
+    """)
+    
+    # Load data
+    try:
+        scores, per_run, method_mapping = load_data()
+        
+        if not scores and not per_run:
+            st.error("❌ No data found! Please run the benchmark first to generate scores.json and per_run_metrics.json")
+            st.info("Run: `python example_usage.py` to generate the required data files.")
+            return
+        
+        # Data info
+        with st.expander("ℹ️ Dataset Information"):
+            st.markdown(f"""
+            - **Methods analyzed:** {len(scores)}
+            - **Total samples:** {len(per_run.get(list(per_run.keys())[0], {})) if per_run else 0}
+            - **Total reconstructions:** {sum(len(v) for v in per_run.values()) if per_run else 0}
+            """)
+            
+            if scores:
+                st.markdown("**Available methods:**")
+                for method in scores.keys():
+                    st.markdown(f"  - {method}")
+            
+            if method_mapping:
+                st.markdown("**Method name mapping:**")
+                for display, internal in method_mapping.items():
+                    st.markdown(f"  - `{display}` → `{internal}`")
+        
+        # View tabs
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            "🏆 Leaderboard",
+            "📉 Degradation Curve",
+            "🔍 Comparison",
+            "⚠️ Failures",
+            "📡 Radar Chart"
+        ])
+        
+        with tab1:
+            view_leaderboard(scores, per_run)
+        
+        with tab2:
+            view_degradation_curve(scores, per_run, method_mapping)
+        
+        with tab3:
+            view_comparison(scores, per_run, method_mapping)
+        
+        with tab4:
+            view_failure_gallery(scores, per_run, method_mapping)
+        
+        with tab5:
+            view_radar_chart(scores, per_run)
+        
+    except Exception as e:
+        st.error(f"❌ Error loading data: {str(e)}")
+        st.exception(e)
+
+if __name__ == "__main__":
+    main()

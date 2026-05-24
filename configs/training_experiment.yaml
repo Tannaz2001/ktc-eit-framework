@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Real-data training config — runs the framework's BatchRunner on the
 # 4 real KTC training samples shipped under Codes_Matlab/.
 #
@@ -10,23 +11,44 @@
 # they fall back to np.random.rand when no pyEIT mesh is attached to
 # the DataBatch (which it isn't, by default). Re-enable them only
 # once a real mesh is attached.
+=======
+# Training-data experiment — uses the KTC 2023 training set instead of the
+# held-out evaluation set.  Training samples are numbered 1–4 (not A/B/C).
+# The training data lives under Codes_Matlab/TrainingData/ and the matching
+# ground truths under Codes_Matlab/GroundTruths/.
+#
+# Usage:
+#   python run.py --config configs/training_experiment.yaml
+#
+# To override dataset_root without editing this file, set the environment variable:
+#   export KTC_DATASET_ROOT=/path/to/your/Codes_Matlab   (Linux / macOS)
+#   set    KTC_DATASET_ROOT=C:\path\to\your\Codes_Matlab  (Windows)
+# The env var takes priority over the dataset_root value below.
+>>>>>>> a4fe1cce8f2f5141f23aa337c21dee73f1e5cb6f
 
 data_plugin: TrainingDataPlugin
-dataset_root: Codes_Matlab
-mesh_path: Codes_Matlab/
 
+# Root folder that contains TrainingData/ and GroundTruths/ sub-directories.
+# Override at runtime with the KTC_DATASET_ROOT environment variable.
+dataset_root: Codes_Matlab
+
+<<<<<<< HEAD
 # Training data has 4 real samples numbered 1–4
 levels:
   - 1
+=======
+# Direct path to Mesh_sparse.mat (or the directory that contains it).
+mesh_path: Codes_Matlab/Mesh_sparse.mat
+>>>>>>> a4fe1cce8f2f5141f23aa337c21dee73f1e5cb6f
 
-samples:
-  - "1"
-  - "2"
-  - "3"
-  - "4"
+# Training data only has one difficulty level
+levels: [1]
+
+# Training samples are numbered 1–4 (quoted strings to match YAML spec)
+samples: ['1', '2', '3', '4']
 
 methods:
-  - MockMethodPlugin
-  - BackProjectionPlugin
+  - BackProjection   # linearised back-projection via pyEIT
+  - GaussNewton      # linearised JAC solver via pyEIT
 
-output_dir: outputs/
+output_dir: outputs/training/
