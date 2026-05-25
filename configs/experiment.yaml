@@ -20,18 +20,7 @@ methods:
   - BackProjection
   - GaussNewton
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-# Set KTC_DATASET_ROOT environment variable to override this on your machine
-dataset_root: "F:/university/7th/HIS project/Three Methods Data Loader Evaluation/zenodo_data/EvaluationData/EvaluationData"
-=======
 # dataset_root is overridden at runtime by KTC_DATASET_ROOT env var if set.
 # Default points to the EvaluationData folder inside the repo.
 dataset_root: EvaluationData
->>>>>>> a4fe1cce8f2f5141f23aa337c21dee73f1e5cb6f
-=======
-# dataset_root is overridden at runtime by KTC_DATASET_ROOT env var if set.
-# Default points to the EvaluationData folder inside the repo.
-dataset_root: EvaluationData
->>>>>>> a4fe1cce8f2f5141f23aa337c21dee73f1e5cb6f
 output_dir: outputs/
