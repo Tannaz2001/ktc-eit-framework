@@ -1,5 +1,6 @@
 """
 app.py — Streamlit Dashboard for EIT Reconstruction Analysis
+MODERNIZED DESIGN matching eit_final_dashboard.html
 
 Five Views:
 1. Leaderboard table with composite scores
@@ -28,6 +29,630 @@ import io
 from PIL import Image
 
 # =========================================================
+# MODERN STYLING - Matching eit_final_dashboard.html
+# =========================================================
+
+MODERN_CSS = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+    --sidebar: #0F172A;
+    --sidebar2: #1E293B;
+    --surface: #FFFFFF;
+    --bg: #F1F5F9;
+    --border: #E2E8F0;
+    --text: #0F172A;
+    --text2: #64748B;
+    --text3: #94A3B8;
+    --teal: #0F766E;
+    --teal-light: #CCFBF1;
+    --teal-mid: #14B8A6;
+    --blue: #1D4ED8;
+    --blue-light: #EFF6FF;
+    --coral: #BE123C;
+    --coral-light: #FFF1F2;
+    --amber: #B45309;
+    --amber-light: #FFFBEB;
+    --green: #15803D;
+    --green-light: #F0FDF4;
+    --method-bp: #6366F1;
+    --method-gn: #0EA5E9;
+    --method-un: #10B981;
+}
+
+/* Main App Styling */
+.stApp {
+    background: var(--bg) !important;
+    font-family: 'Space Grotesk', system-ui, sans-serif !important;
+}
+
+/* Main Content Area */
+.main .block-container {
+    padding: 1.5rem 2rem !important;
+    max-width: 100% !important;
+}
+
+/* Headers - Matching eit_final_dashboard sizes */
+h1 {
+    font-family: 'Space Grotesk', system-ui, sans-serif !important;
+    color: var(--text) !important;
+    font-weight: 600 !important;
+    font-size: 1.5rem !important;
+    margin-bottom: 0.5rem !important;
+    line-height: 1.2 !important;
+}
+
+h2 {
+    font-family: 'Space Grotesk', system-ui, sans-serif !important;
+    color: var(--text) !important;
+    font-weight: 600 !important;
+    font-size: 1.25rem !important;
+    border-bottom: 2px solid var(--border) !important;
+    padding-bottom: 0.5rem !important;
+    margin-bottom: 1rem !important;
+    margin-top: 1.5rem !important;
+    line-height: 1.2 !important;
+}
+
+h3 {
+    font-family: 'Space Grotesk', system-ui, sans-serif !important;
+    color: var(--text) !important;
+    font-weight: 600 !important;
+    font-size: 1rem !important;
+    margin-top: 1.25rem !important;
+    margin-bottom: 0.75rem !important;
+    line-height: 1.2 !important;
+}
+
+/* Regular text */
+p, .stMarkdown p {
+    font-size: 13px !important;
+    line-height: 1.5 !important;
+    color: var(--text2) !important;
+}
+
+/* Strong text */
+strong, b {
+    font-weight: 600 !important;
+    color: var(--text) !important;
+}
+
+/* Lists */
+ul, ol {
+    font-size: 13px !important;
+    color: var(--text2) !important;
+    line-height: 1.5 !important;
+}
+
+/* Code blocks */
+code {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 12px !important;
+    background: var(--bg) !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+    color: var(--text) !important;
+}
+
+/* Sidebar Styling */
+section[data-testid="stSidebar"] {
+    background: var(--sidebar) !important;
+    padding-top: 1rem !important;
+}
+
+section[data-testid="stSidebar"] > div {
+    padding-top: 0 !important;
+}
+
+/* Sidebar Logo/Title Area - Compact like eit_final_dashboard */
+section[data-testid="stSidebar"] > div > div:first-child {
+    padding-bottom: 0.5rem !important;
+    border-bottom: 1px solid var(--sidebar2) !important;
+    margin-bottom: 0.75rem !important;
+}
+
+section[data-testid="stSidebar"] * {
+    color: #CBD5E1 !important;
+}
+
+/* Sidebar Headers - Compact sizing like eit_final_dashboard */
+section[data-testid="stSidebar"] h1 {
+    color: #F8FAFC !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.3px !important;
+    margin-bottom: 0.25rem !important;
+    line-height: 1.2 !important;
+}
+
+section[data-testid="stSidebar"] h2 {
+    color: #F8FAFC !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    margin-bottom: 0.5rem !important;
+    margin-top: 0.75rem !important;
+    border-bottom: none !important;
+    padding-bottom: 0 !important;
+    line-height: 1.2 !important;
+}
+
+section[data-testid="stSidebar"] h3 {
+    color: #F8FAFC !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    margin-bottom: 0.4rem !important;
+    margin-top: 0.6rem !important;
+    line-height: 1.2 !important;
+}
+
+/* Sidebar Text and Captions */
+section[data-testid="stSidebar"] .stMarkdown {
+    color: #94A3B8 !important;
+    font-size: 10px !important;
+    line-height: 1.4 !important;
+}
+
+section[data-testid="stSidebar"] .stMarkdown p {
+    font-size: 10px !important;
+    margin-bottom: 0.4rem !important;
+    line-height: 1.4 !important;
+}
+
+section[data-testid="stSidebar"] .stMarkdown strong {
+    font-size: 10px !important;
+    color: #CBD5E1 !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.06em !important;
+}
+
+/* Sidebar Captions - Very compact */
+section[data-testid="stSidebar"] .element-container .stMarkdown:has(> p) p {
+    font-size: 9px !important;
+    color: #64748B !important;
+    margin-top: 0.15rem !important;
+    margin-bottom: 0.15rem !important;
+    line-height: 1.3 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+}
+
+/* Sidebar Buttons - Compact */
+section[data-testid="stSidebar"] button {
+    background: transparent !important;
+    border: 1px solid var(--sidebar2) !important;
+    color: #94A3B8 !important;
+    border-radius: 6px !important;
+    padding: 6px 10px !important;
+    font-family: 'Space Grotesk', sans-serif !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    transition: all 0.15s !important;
+    line-height: 1.2 !important;
+    margin: 2px 0 !important;
+}
+
+section[data-testid="stSidebar"] button:hover {
+    background: var(--sidebar2) !important;
+    color: #E2E8F0 !important;
+}
+
+/* Sidebar Sliders - Compact */
+section[data-testid="stSidebar"] .stSlider {
+    padding: 0.3rem 0 !important;
+    margin-bottom: 0.4rem !important;
+}
+
+section[data-testid="stSidebar"] .stSlider label {
+    font-size: 10px !important;
+    color: #94A3B8 !important;
+    font-weight: 500 !important;
+    margin-bottom: 0.25rem !important;
+    line-height: 1.2 !important;
+}
+
+section[data-testid="stSidebar"] .stSlider label div {
+    font-size: 10px !important;
+}
+
+/* Sidebar Inputs - Compact */
+section[data-testid="stSidebar"] input[type="text"] {
+    font-size: 11px !important;
+    padding: 6px 8px !important;
+    background: var(--sidebar2) !important;
+    border: 1px solid #334155 !important;
+    color: #E2E8F0 !important;
+    border-radius: 6px !important;
+}
+
+section[data-testid="stSidebar"] input[type="text"]::placeholder {
+    color: #64748B !important;
+    font-size: 10px !important;
+}
+
+/* Sidebar Labels */
+section[data-testid="stSidebar"] label {
+    font-size: 10px !important;
+    color: #94A3B8 !important;
+    font-weight: 500 !important;
+    line-height: 1.2 !important;
+}
+
+/* Sidebar Dividers */
+section[data-testid="stSidebar"] hr {
+    margin: 0.75rem 0 !important;
+    border-color: var(--sidebar2) !important;
+}
+
+/* Sidebar Success/Warning/Info messages */
+section[data-testid="stSidebar"] .stAlert {
+    font-size: 10px !important;
+    padding: 6px 10px !important;
+    margin: 0.4rem 0 !important;
+    line-height: 1.3 !important;
+}
+
+/* Sidebar Progress bars */
+section[data-testid="stSidebar"] .stProgress {
+    height: 4px !important;
+    margin: 0.3rem 0 !important;
+}
+
+section[data-testid="stSidebar"] .stProgress > div > div > div {
+    background: var(--teal) !important;
+}
+
+/* Main Content Cards */
+.element-container {
+    background: transparent !important;
+}
+
+div[data-testid="stMetricValue"] {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 24px !important;
+    font-weight: 700 !important;
+    color: var(--text) !important;
+    line-height: 1.2 !important;
+}
+
+div[data-testid="stMetricLabel"] {
+    font-size: 11px !important;
+    color: var(--text2) !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    font-weight: 600 !important;
+    margin-bottom: 0.25rem !important;
+}
+
+div[data-testid="stMetricDelta"] {
+    font-size: 10px !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    margin-top: 0.25rem !important;
+}
+
+/* Tabs - Compact like eit_final_dashboard */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 4px !important;
+    background: transparent !important;
+    border-bottom: 1px solid var(--border) !important;
+}
+
+.stTabs [data-baseweb="tab"] {
+    font-family: 'Space Grotesk', sans-serif !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: var(--text2) !important;
+    padding: 8px 16px !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 8px 8px 0 0 !important;
+    line-height: 1.2 !important;
+}
+
+.stTabs [data-baseweb="tab"]:hover {
+    background: var(--bg) !important;
+    color: var(--text) !important;
+}
+
+.stTabs [aria-selected="true"] {
+    background: white !important;
+    color: var(--teal) !important;
+    border-bottom: 2px solid var(--teal) !important;
+}
+
+/* DataFrames/Tables - Compact like eit_final_dashboard */
+.dataframe {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 12px !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+    overflow: hidden !important;
+}
+
+.dataframe thead th {
+    background: var(--text) !important;
+    color: white !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    font-size: 10px !important;
+    letter-spacing: 0.05em !important;
+    padding: 8px 10px !important;
+    line-height: 1.2 !important;
+}
+
+.dataframe tbody td {
+    padding: 8px 10px !important;
+    border-bottom: 1px solid #F8FAFC !important;
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+}
+
+.dataframe tbody tr:hover {
+    background: #F8FAFC !important;
+}
+
+.dataframe tbody tr:last-child td {
+    border-bottom: none !important;
+}
+
+/* Select Boxes - Compact */
+.stSelectbox > div > div {
+    background: white !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+    font-family: 'Space Grotesk', sans-serif !important;
+    font-size: 12px !important;
+    padding: 6px 10px !important;
+    min-height: 36px !important;
+}
+
+.stSelectbox label {
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    color: var(--text2) !important;
+    margin-bottom: 0.4rem !important;
+}
+
+/* Multiselect - Compact */
+.stMultiSelect > div > div {
+    background: white !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+    font-size: 12px !important;
+    padding: 4px 8px !important;
+}
+
+.stMultiSelect span {
+    font-family: 'Space Grotesk', sans-serif !important;
+    font-size: 11px !important;
+}
+
+.stMultiSelect label {
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    color: var(--text2) !important;
+    margin-bottom: 0.4rem !important;
+}
+
+/* Sidebar Select Boxes - Compact */
+section[data-testid="stSidebar"] .stSelectbox {
+    margin-bottom: 0.5rem !important;
+}
+
+section[data-testid="stSidebar"] .stSelectbox > label {
+    font-size: 10px !important;
+    color: #94A3B8 !important;
+    margin-bottom: 0.25rem !important;
+}
+
+section[data-testid="stSidebar"] .stSelectbox > div > div {
+    background: var(--sidebar2) !important;
+    border: 1px solid #334155 !important;
+    font-size: 11px !important;
+    padding: 6px 8px !important;
+    min-height: 32px !important;
+}
+
+section[data-testid="stSidebar"] .stSelectbox option {
+    font-size: 11px !important;
+}
+
+/* Info/Warning/Error boxes - Compact */
+.stAlert {
+    border-radius: 8px !important;
+    border-left: 4px solid var(--teal) !important;
+    font-family: 'Space Grotesk', sans-serif !important;
+    font-size: 12px !important;
+    padding: 10px 12px !important;
+    line-height: 1.4 !important;
+}
+
+.stAlert p {
+    font-size: 12px !important;
+    margin: 0 !important;
+}
+
+/* Progress bars */
+.stProgress > div > div > div {
+    background: var(--teal) !important;
+    border-radius: 4px !important;
+}
+
+/* Expander - Compact */
+.streamlit-expanderHeader {
+    font-family: 'Space Grotesk', sans-serif !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: var(--text) !important;
+    background: white !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+    padding: 10px 14px !important;
+}
+
+.streamlit-expanderContent {
+    font-size: 12px !important;
+    line-height: 1.5 !important;
+}
+
+/* Captions and small text */
+.stCaption, small {
+    font-size: 11px !important;
+    color: var(--text3) !important;
+    line-height: 1.4 !important;
+}
+
+/* Image captions */
+.stImage > div > div {
+    font-size: 11px !important;
+    color: var(--text2) !important;
+    text-align: center !important;
+    margin-top: 0.5rem !important;
+}
+
+/* Columns - Tighter spacing */
+.row-widget.stHorizontal {
+    gap: 12px !important;
+}
+
+[data-testid="column"] {
+    padding: 0 6px !important;
+}
+
+/* Markdown spacing */
+.stMarkdown {
+    margin-bottom: 0.75rem !important;
+}
+
+.stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
+    margin-top: 1rem !important;
+}
+
+/* Success/Warning/Info messages */
+.stSuccess, .stWarning, .stInfo, .stError {
+    font-size: 12px !important;
+    padding: 8px 12px !important;
+    border-radius: 6px !important;
+    line-height: 1.4 !important;
+}
+
+/* Download button */
+.stDownloadButton > button {
+    font-size: 11px !important;
+    padding: 6px 14px !important;
+}
+
+/* Buttons - Compact */
+.stButton > button {
+    background: var(--teal) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 6px 14px !important;
+    font-family: 'Space Grotesk', sans-serif !important;
+    font-weight: 600 !important;
+    font-size: 11px !important;
+    transition: all 0.15s !important;
+    line-height: 1.4 !important;
+}
+
+.stButton > button:hover {
+    background: var(--teal-mid) !important;
+    transform: translateY(-1px) !important;
+}
+
+/* Custom metric cards - matching eit_final_dashboard */
+.metric-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+}
+
+.metric-card .metric-value {
+    font-size: 24px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text);
+    margin-bottom: 2px;
+    line-height: 1.2;
+}
+
+.metric-card .metric-label {
+    font-size: 11px;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
+.metric-card .metric-sub {
+    font-size: 10px;
+    color: var(--text3);
+    margin-top: 4px;
+    line-height: 1.4;
+}
+
+/* Badge styles */
+.badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'Space Grotesk', sans-serif;
+}
+
+.badge-success {
+    background: var(--green-light);
+    color: var(--green);
+}
+
+.badge-warning {
+    background: var(--amber-light);
+    color: var(--amber);
+}
+
+.badge-danger {
+    background: var(--coral-light);
+    color: var(--coral);
+}
+
+.badge-info {
+    background: var(--blue-light);
+    color: var(--blue);
+}
+
+.badge-teal {
+    background: var(--teal-light);
+    color: var(--teal);
+}
+
+/* Grade badges */
+.grade-A { color: var(--green) !important; font-weight: 700 !important; }
+.grade-B { color: var(--blue) !important; font-weight: 700 !important; }
+.grade-C { color: var(--amber) !important; font-weight: 700 !important; }
+.grade-D { color: var(--coral) !important; font-weight: 700 !important; }
+
+/* Status pills */
+.status-pill {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.status-live {
+    background: var(--green-light);
+    color: var(--green);
+}
+</style>
+"""
+
+# =========================================================
 # CONFIGURATION
 # =========================================================
 
@@ -38,22 +663,29 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Color scheme matching the report
+# Inject modern CSS
+st.markdown(MODERN_CSS, unsafe_allow_html=True)
+
+# Color scheme matching the dashboard
 COLORS = {
     'water': '#1a3a5c',
     'resistive': '#D85A30',
     'conductive': '#1D9E75',
-    'primary': '#1a3a5c',
+    'primary': '#0F172A',
     'success': '#1D9E75',
     'warning': '#F5A623',
-    'danger': '#D85A30'
+    'danger': '#D85A30',
+    'teal': '#0F766E',
+    'method_bp': '#6366F1',
+    'method_gn': '#0EA5E9',
+    'method_un': '#10B981'
 }
 
 GRADE_COLORS = {
-    'A': '#1D9E75',  # green
-    'B': '#4A90E2',  # blue
-    'C': '#F5A623',  # amber
-    'D': '#D85A30'   # red
+    'A': '#15803D',  # green
+    'B': '#1D4ED8',  # blue
+    'C': '#B45309',  # amber
+    'D': '#BE123C'   # coral/red
 }
 
 ALL_LEVELS = [1, 2, 3, 4, 5, 6, 7]
@@ -62,7 +694,7 @@ ALL_LEVELS = [1, 2, 3, 4, 5, 6, 7]
 COLORMAP = ListedColormap([COLORS['water'], COLORS['resistive'], COLORS['conductive']])
 
 # =========================================================
-# DATA LOADING
+# DATA LOADING (UNCHANGED)
 # =========================================================
 
 def create_method_mapping(scores: Dict, per_run: Dict) -> Dict[str, str]:
@@ -109,7 +741,7 @@ def load_data(scores_path: str = "scores.json",
     if scores_file:
         with open(scores_file, 'r') as f:
             scores = json.load(f)
-        st.sidebar.caption(f"📄 Loaded: {scores_file}")
+        st.sidebar.markdown(f'<p style="font-size: 9px; color: #64748B; font-family: \'JetBrains Mono\', monospace; margin: 0.15rem 0;">📄 {scores_file.name}</p>', unsafe_allow_html=True)
     
     # Try per_run_metrics.json in outputs/
     per_run = {}
@@ -120,7 +752,7 @@ def load_data(scores_path: str = "scores.json",
     if per_run_file:
         with open(per_run_file, 'r') as f:
             per_run = json.load(f)
-        st.sidebar.caption(f"📄 Loaded: {per_run_file}")
+        st.sidebar.markdown(f'<p style="font-size: 9px; color: #64748B; font-family: \'JetBrains Mono\', monospace; margin: 0.15rem 0;">📄 {per_run_file.name}</p>', unsafe_allow_html=True)
     
     # Create mapping
     method_mapping = create_method_mapping(scores, per_run)
@@ -169,7 +801,7 @@ def load_comparison_panel(sample_id: str, outputs_dir: str = "outputs") -> Image
     return None
 
 # =========================================================
-# COMPOSITE SCORE CALCULATION
+# COMPOSITE SCORE CALCULATION (UNCHANGED)
 # =========================================================
 
 def calculate_composite_score(metrics: Dict[str, float], weights: Dict[str, float]) -> float:
@@ -230,27 +862,33 @@ def letter_grade(score: float) -> str:
         return 'D'
 
 # =========================================================
-# ADD METHOD AT RUNTIME
+# ADD METHOD AT RUNTIME (UNCHANGED)
 # =========================================================
 
 def sidebar_add_method():
     """Sidebar section to register a new method name at runtime."""
     st.sidebar.markdown("---")
-    st.sidebar.header("➕ Add Method")
-    st.sidebar.caption("Register a method now; connect its backend later.")
+    st.sidebar.markdown("""
+    <div style="margin-bottom: 0.5rem;">
+        <div style="font-size: 9px; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; margin-bottom: 0.5rem;">
+            ADD METHOD
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.sidebar.caption("Register a method now; connect backend later.")
 
     if 'custom_methods' not in st.session_state:
         st.session_state.custom_methods = []
 
     new_name = st.sidebar.text_input("Method name:", key="new_method_input",
-                                     placeholder="e.g. gauss_newton_v2")
-    if st.sidebar.button("Add Method") and new_name.strip():
+                                     placeholder="e.g. gauss_newton_v2", label_visibility="collapsed")
+    if st.sidebar.button("➕ Add Method", use_container_width=True) and new_name.strip():
         name = new_name.strip()
         if name not in st.session_state.custom_methods:
             st.session_state.custom_methods.append(name)
-            st.sidebar.success(f"Added: {name}")
+            st.sidebar.success(f"✓ Added: {name}")
         else:
-            st.sidebar.warning("Method already in list.")
+            st.sidebar.warning("Already in list")
 
     if st.session_state.custom_methods:
         st.sidebar.markdown("**Custom methods:**")
@@ -279,11 +917,18 @@ def all_methods(scores: Dict) -> List[str]:
 def view_leaderboard(scores: Dict, per_run: Dict):
     """Interactive leaderboard with composite weight editor."""
     
-    st.header("🏆 Leaderboard")
+    st.markdown("## 🏆 Leaderboard")
     
     # Sidebar: Weight Editor
-    st.sidebar.header("⚙️ Composite Score Weights")
-    st.sidebar.markdown("Adjust the weights for each metric tier to see how rankings change:")
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("""
+    <div style="margin-bottom: 0.75rem;">
+        <div style="font-size: 9px; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; margin-bottom: 0.5rem;">
+            COMPOSITE WEIGHTS
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.sidebar.markdown('<p style="font-size: 10px; color: #94A3B8; margin-bottom: 0.75rem; line-height: 1.4;">Adjust weights for each metric tier:</p>', unsafe_allow_html=True)
     
     # Initialize session state for weights if not exists
     if 'weights' not in st.session_state:
@@ -298,7 +943,7 @@ def view_leaderboard(scores: Dict, per_run: Dict):
     # Weight sliders
     weights = {}
     weights['tier1'] = st.sidebar.slider(
-        "Tier 1: KTC Score (Primary)",
+        "Tier 1: KTC Score",
         0.0, 1.0, st.session_state.weights['tier1'], 0.05,
         help="KTC benchmark score - lower is better"
     )
@@ -324,7 +969,7 @@ def view_leaderboard(scores: Dict, per_run: Dict):
     )
     
     # Normalize button
-    if st.sidebar.button("⚖️ Normalize Weights to 1.0"):
+    if st.sidebar.button("⚖️ Normalize", use_container_width=True):
         total = sum(weights.values())
         if total > 0:
             weights = {k: v/total for k, v in weights.items()}
@@ -332,15 +977,20 @@ def view_leaderboard(scores: Dict, per_run: Dict):
             st.rerun()
     
     # Reset button
-    if st.sidebar.button("🔄 Reset to Defaults"):
+    if st.sidebar.button("🔄 Reset", use_container_width=True):
         st.session_state.weights = {
             'tier1': 0.40, 'tier2': 0.25, 'tier3': 0.20, 'tier4': 0.10, 'tier5': 0.05
         }
         st.rerun()
     
     # Show weight distribution
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("**Current Weight Distribution:**")
+    st.sidebar.markdown("""
+    <div style="margin-top: 0.75rem;">
+        <div style="font-size: 9px; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; margin-bottom: 0.5rem;">
+            CURRENT DISTRIBUTION
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     total_weight = sum(weights.values())
     for tier, weight in weights.items():
         pct = (weight / total_weight * 100) if total_weight > 0 else 0
@@ -350,7 +1000,32 @@ def view_leaderboard(scores: Dict, per_run: Dict):
     # Calculate composite scores for all methods
     leaderboard_data = []
     
+    # Define distinct colors for each method - these stay consistent
+    method_color_palette = [
+        '#6366F1',  # Indigo
+        '#0EA5E9',  # Cyan
+        '#10B981',  # Green
+        '#F59E0B',  # Amber
+        '#EC4899',  # Pink
+        '#8B5CF6',  # Purple
+        '#14B8A6',  # Teal
+        '#F97316',  # Orange
+        '#06B6D4',  # Sky
+        '#84CC16',  # Lime
+        '#EF4444',  # Red
+        '#6366F1',  # Indigo (repeat for more methods)
+    ]
+    
+    # Create consistent color mapping for methods
+    if 'method_colors' not in st.session_state:
+        st.session_state.method_colors = {}
+    
     for method_name, metrics in scores.items():
+        # Assign color if method doesn't have one yet
+        if method_name not in st.session_state.method_colors:
+            color_index = len(st.session_state.method_colors) % len(method_color_palette)
+            st.session_state.method_colors[method_name] = method_color_palette[color_index]
+        
         composite = calculate_composite_score(metrics, weights)
         grade = letter_grade(composite)
         
@@ -358,6 +1033,7 @@ def view_leaderboard(scores: Dict, per_run: Dict):
             'Method': method_name,
             'Composite Score': composite,
             'Grade': grade,
+            'Color': st.session_state.method_colors[method_name],
             'KTC Score': metrics.get('KTC score', metrics.get('ktc_score', 0)),
             'Dice (R)': metrics.get('Dice (resistive)', metrics.get('dice_resistive', 0)),
             'Dice (C)': metrics.get('Dice (conductive)', metrics.get('dice_conductive', 0)),
@@ -369,29 +1045,83 @@ def view_leaderboard(scores: Dict, per_run: Dict):
     leaderboard_data.sort(key=lambda x: x['Composite Score'], reverse=True)
     df = pd.DataFrame(leaderboard_data)
     
-    # Display metrics
-    col1, col2, col3 = st.columns(3)
+    # Display metrics in modern card style
+    col1, col2, col3, col4 = st.columns(4)
+    
     with col1:
-        st.metric("Top Method", df.iloc[0]['Method'], 
-                 f"Score: {df.iloc[0]['Composite Score']:.1f}")
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value">{df.iloc[0]['Composite Score']:.1f}</div>
+            <div class="metric-label">Top Score</div>
+            <div class="metric-sub">{df.iloc[0]['Method']}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
     with col2:
-        st.metric("Average Score", f"{df['Composite Score'].mean():.1f}",
-                 f"Std: ±{df['Composite Score'].std():.1f}")
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value">{df['Composite Score'].mean():.1f}</div>
+            <div class="metric-label">Average Score</div>
+            <div class="metric-sub">±{df['Composite Score'].std():.1f} std</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
     with col3:
         grade_counts = df['Grade'].value_counts()
-        st.metric("Grade Distribution", 
-                 f"{grade_counts.get('A', 0)}A, {grade_counts.get('B', 0)}B, "
-                 f"{grade_counts.get('C', 0)}C, {grade_counts.get('D', 0)}D")
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value">{len(df)}</div>
+            <div class="metric-label">Methods Evaluated</div>
+            <div class="metric-sub">{grade_counts.get('A', 0)}A, {grade_counts.get('B', 0)}B, {grade_counts.get('C', 0)}C, {grade_counts.get('D', 0)}D</div>
+        </div>
+        """, unsafe_allow_html=True)
     
-    # Interactive bar chart
+    with col4:
+        best_ktc = df['KTC Score'].min()
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value">{best_ktc:.4f}</div>
+            <div class="metric-label">Best KTC Score</div>
+            <div class="metric-sub">Lower is better</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Interactive bar chart - Each method gets unique persistent color
     fig = go.Figure()
     
-    for _, row in df.iterrows():
+    # Assign unique colors to each method (colors stay with method, not position)
+    method_color_palette = [
+        '#6366F1',  # Indigo
+        '#0EA5E9',  # Cyan
+        '#10B981',  # Green
+        '#F59E0B',  # Amber
+        '#EF4444',  # Red
+        '#8B5CF6',  # Purple
+        '#EC4899',  # Pink
+        '#14B8A6',  # Teal
+        '#F97316',  # Orange
+        '#06B6D4',  # Sky
+        '#84CC16',  # Lime
+        '#A855F7',  # Violet
+    ]
+    
+    # Create a persistent color mapping for all methods
+    all_method_names = sorted(scores.keys())  # Use original scores dict for consistency
+    method_colors = {}
+    for idx, method in enumerate(all_method_names):
+        method_colors[method] = method_color_palette[idx % len(method_color_palette)]
+    
+    # Plot bars with persistent method colors
+    for idx, row in df.iterrows():
+        method_color = method_colors.get(row['Method'], '#64748B')  # Fallback to gray
+        
         fig.add_trace(go.Bar(
             name=row['Method'],
             x=[row['Method']],
             y=[row['Composite Score']],
-            marker_color=GRADE_COLORS[row['Grade']],
+            marker_color=method_color,
             text=f"{row['Composite Score']:.1f} ({row['Grade']})",
             textposition='outside',
             hovertemplate=(
@@ -411,13 +1141,14 @@ def view_leaderboard(scores: Dict, per_run: Dict):
         yaxis_range=[0, 105],
         showlegend=False,
         height=400,
-        template="plotly_white"
+        template="plotly_white",
+        font=dict(family="Space Grotesk, sans-serif")
     )
     
     st.plotly_chart(fig, use_container_width=True)
     
     # Detailed table
-    st.subheader("📊 Detailed Metrics")
+    st.markdown("### 📊 Detailed Metrics")
     
     # Format the dataframe for display
     display_df = df.copy()
@@ -437,7 +1168,7 @@ def view_leaderboard(scores: Dict, per_run: Dict):
 def view_degradation_curve(scores: Dict, per_run: Dict, method_mapping: Dict):
     """Degradation curve showing performance across difficulty levels."""
     
-    st.header("📉 Degradation Curve")
+    st.markdown("## 📉 Degradation Curve")
     st.markdown("Performance trends across different samples/difficulty levels")
     
     # Extract method keys from per_run data
@@ -464,7 +1195,8 @@ def view_degradation_curve(scores: Dict, per_run: Dict, method_mapping: Dict):
     # Prepare data
     fig = go.Figure()
     
-    colors_palette = ['#1D9E75', '#D85A30', '#4A90E2', '#F5A623', '#9B59B6', '#E74C3C', '#1ABC9C']
+    colors_palette = [COLORS['method_bp'], COLORS['method_gn'], COLORS['method_un'], 
+                      '#9B59B6', '#E74C3C', '#1ABC9C', '#F39C12']
     
     for idx, display_method in enumerate(selected_display_methods):
         # Get internal key from mapping
@@ -500,13 +1232,14 @@ def view_degradation_curve(scores: Dict, per_run: Dict, method_mapping: Dict):
         yaxis_title="KTC Score (lower is better)",
         height=500,
         template="plotly_white",
-        hovermode='x unified'
+        hovermode='x unified',
+        font=dict(family="Space Grotesk, sans-serif")
     )
     
     st.plotly_chart(fig, use_container_width=True)
     
     # Statistics table
-    st.subheader("📈 Performance Statistics")
+    st.markdown("### 📈 Performance Statistics")
     
     stats_data = []
     for display_method in selected_display_methods:
@@ -538,7 +1271,7 @@ def view_degradation_curve(scores: Dict, per_run: Dict, method_mapping: Dict):
 def view_comparison(scores: Dict, per_run: Dict, method_mapping: Dict):
     """Side-by-side comparison of any two methods on any sample."""
     
-    st.header("🔍 Side-by-Side Comparison")
+    st.markdown("## 🔍 Side-by-Side Comparison")
     
     if not per_run:
         st.warning("No per-run metrics available.")
@@ -580,7 +1313,7 @@ def view_comparison(scores: Dict, per_run: Dict, method_mapping: Dict):
         metrics2 = per_run.get(method2_internal, {}).get(sample_id, {}) if not m2_pending else {}
         
         # Display metrics comparison
-        st.subheader("📊 Metric Comparison")
+        st.markdown("### 📊 Metric Comparison")
         
         comparison_data = []
         for key in metrics1.keys():
@@ -600,7 +1333,7 @@ def view_comparison(scores: Dict, per_run: Dict, method_mapping: Dict):
         st.dataframe(comp_df, use_container_width=True, hide_index=True)
         
         # Radar chart
-        st.subheader("📡 Radar Chart")
+        st.markdown("### 📡 Radar Chart")
         
         # Select key metrics for radar chart
         radar_metrics = ['ktc_score', 'dice_resistive', 'dice_conductive', 
@@ -619,7 +1352,7 @@ def view_comparison(scores: Dict, per_run: Dict, method_mapping: Dict):
             theta=categories + [categories[0]],
             fill='toself',
             name=method1_display,
-            line_color=COLORS['conductive']
+            line_color=COLORS['method_bp']
         ))
         
         # Method 2
@@ -631,7 +1364,7 @@ def view_comparison(scores: Dict, per_run: Dict, method_mapping: Dict):
             theta=categories + [categories[0]],
             fill='toself',
             name=method2_display,
-            line_color=COLORS['resistive']
+            line_color=COLORS['method_gn']
         ))
         
         fig.update_layout(
@@ -641,13 +1374,14 @@ def view_comparison(scores: Dict, per_run: Dict, method_mapping: Dict):
                     range=[0, 1]
                 )),
             showlegend=True,
-            height=500
+            height=500,
+            font=dict(family="Space Grotesk, sans-serif")
         )
         
         st.plotly_chart(fig, use_container_width=True)
         
         # Try to load comparison panel first
-        st.subheader("🖼️ Visual Comparison")
+        st.markdown("### 🖼️ Visual Comparison")
         
         comparison_panel = load_comparison_panel(sample_id)
         if comparison_panel:
@@ -693,7 +1427,7 @@ def view_comparison(scores: Dict, per_run: Dict, method_mapping: Dict):
 def view_failure_gallery(scores: Dict, per_run: Dict, method_mapping: Dict):
     """Gallery showing worst 3 samples per method."""
     
-    st.header("⚠️ Failure Gallery")
+    st.markdown("## ⚠️ Failure Gallery")
     st.markdown("Worst performing samples for each method (highest KTC scores)")
     
     if not per_run:
@@ -701,7 +1435,7 @@ def view_failure_gallery(scores: Dict, per_run: Dict, method_mapping: Dict):
         return
     
     for display_method in scores.keys():
-        st.subheader(f"🔴 {display_method}")
+        st.markdown(f"### 🔴 {display_method}")
         
         # Get internal key
         internal_key = method_mapping.get(display_method)
@@ -726,12 +1460,18 @@ def view_failure_gallery(scores: Dict, per_run: Dict, method_mapping: Dict):
         
         for idx, (sample_id, metrics) in enumerate(worst_samples):
             with cols[idx]:
-                st.markdown(f"**Sample {sample_id}**")
-                st.metric("KTC Score", f"{metrics['ktc_score']:.4f}")
-                st.caption(f"Dice (R): {metrics.get('dice_resistive', 0):.4f}")
-                st.caption(f"Dice (C): {metrics.get('dice_conductive', 0):.4f}")
-                st.caption(f"IoU (R): {metrics.get('iou_resistive', 0):.4f}")
-                st.caption(f"IoU (C): {metrics.get('iou_conductive', 0):.4f}")
+                st.markdown(f"""
+                <div class="metric-card">
+                    <div class="metric-label">Sample {sample_id}</div>
+                    <div class="metric-value" style="font-size: 20px;">{metrics['ktc_score']:.4f}</div>
+                    <div class="metric-sub">
+                        Dice (R): {metrics.get('dice_resistive', 0):.4f}<br>
+                        Dice (C): {metrics.get('dice_conductive', 0):.4f}<br>
+                        IoU (R): {metrics.get('iou_resistive', 0):.4f}<br>
+                        IoU (C): {metrics.get('iou_conductive', 0):.4f}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
                 
                 # Try to load image from reconstructions directory
                 sample_dir = Path("outputs") / "reconstructions" / "level_1" / f"sample_{sample_id}"
@@ -756,7 +1496,7 @@ def view_failure_gallery(scores: Dict, per_run: Dict, method_mapping: Dict):
 def view_radar_chart(scores: Dict, per_run: Dict):
     """Comprehensive radar chart for all methods across all metrics."""
     
-    st.header("📡 Per-Metric Radar Analysis")
+    st.markdown("## 📡 Per-Metric Radar Analysis")
     st.markdown("Compare all methods across different metric dimensions")
     
     if not scores:
@@ -764,7 +1504,7 @@ def view_radar_chart(scores: Dict, per_run: Dict):
         return
     
     # Select metrics to include
-    st.subheader("Select Metrics")
+    st.markdown("### Select Metrics")
     
     available_metrics = set()
     for method_scores in scores.values():
@@ -785,7 +1525,8 @@ def view_radar_chart(scores: Dict, per_run: Dict):
     # Prepare data
     fig = go.Figure()
     
-    colors_palette = ['#1D9E75', '#D85A30', '#4A90E2', '#F5A623', '#9B59B6', '#E74C3C', '#1ABC9C']
+    colors_palette = [COLORS['method_bp'], COLORS['method_gn'], COLORS['method_un'],
+                      '#9B59B6', '#E74C3C', '#1ABC9C', '#F39C12']
     
     for idx, (method_name, metrics) in enumerate(scores.items()):
         # Extract values for selected metrics
@@ -818,13 +1559,14 @@ def view_radar_chart(scores: Dict, per_run: Dict):
             )),
         showlegend=True,
         height=600,
-        title="Method Performance Across Selected Metrics"
+        title="Method Performance Across Selected Metrics",
+        font=dict(family="Space Grotesk, sans-serif")
     )
     
     st.plotly_chart(fig, use_container_width=True)
     
     # Metric statistics
-    st.subheader("📊 Metric Statistics")
+    st.markdown("### 📊 Metric Statistics")
     
     stats_data = []
     for metric in selected_metrics:
@@ -856,18 +1598,36 @@ def view_radar_chart(scores: Dict, per_run: Dict):
 def main():
     """Main application entry point."""
     
-    # Title and description
-    st.title("🔬 EIT Reconstruction Dashboard")
+    # Sidebar Title - Compact like eit_final_dashboard
+    st.sidebar.markdown("""
+    <div style="padding: 0 0 0.75rem 0; border-bottom: 1px solid #1E293B; margin-bottom: 0.75rem;">
+        <h1 style="font-size: 14px; font-weight: 700; color: #F8FAFC; letter-spacing: -0.3px; margin: 0;">
+            EIT BENCHMARKING
+        </h1>
+        <p style="font-size: 10px; color: #475569; margin: 0.25rem 0 0 0; font-family: 'JetBrains Mono', monospace;">
+            Real Data Analysis v1.0
+        </p>
+        <span style="display: inline-block; font-size: 9px; padding: 2px 7px; background: #0F766E22; border: 1px solid #0F766E44; color: #2DD4BF; border-radius: 20px; margin-top: 0.5rem; font-family: 'JetBrains Mono', monospace;">
+            LIVE DASHBOARD
+        </span>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Header with modern badge
+    st.markdown("""
+    <div style="margin-bottom: 1.5rem;">
+        <h1 style="display: inline-block; margin-right: 1rem;">🔬 EIT Reconstruction Dashboard</h1>
+        <span class="badge badge-teal">REAL DATA</span>
+    </div>
+    """, unsafe_allow_html=True)
+    
     st.markdown("""
     Interactive dashboard for analyzing Electrical Impedance Tomography (EIT) reconstruction methods.
     
-    **Features:**
-    - 🏆 Interactive leaderboard with customizable composite weights
-    - 📉 Performance degradation analysis across samples
-    - 🔍 Side-by-side method comparisons
-    - ⚠️ Failure case analysis
-    - 📡 Multi-dimensional radar charts
+    **Features:** 🏆 Interactive leaderboard • 📉 Performance degradation • 🔍 Method comparisons • ⚠️ Failure analysis • 📡 Radar charts
     """)
+    
+    st.markdown("---")
     
     sidebar_add_method()
 
@@ -879,23 +1639,35 @@ def main():
             st.info("Run: `python example_usage.py` to generate the required data files.")
             return
         
-        # Data info
-        with st.expander("ℹ️ Dataset Information"):
-            st.markdown(f"""
-            - **Methods analyzed:** {len(scores)}
-            - **Total samples:** {len(per_run.get(list(per_run.keys())[0], {})) if per_run else 0}
-            - **Total reconstructions:** {sum(len(v) for v in per_run.values()) if per_run else 0}
-            """)
+        # Data info in modern expandable card
+        with st.expander("ℹ️ Dataset Information", expanded=False):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.markdown(f"""
+                <div class="metric-card">
+                    <div class="metric-value" style="font-size: 20px;">{len(scores)}</div>
+                    <div class="metric-label">Methods Analyzed</div>
+                </div>
+                """, unsafe_allow_html=True)
+            with col2:
+                st.markdown(f"""
+                <div class="metric-card">
+                    <div class="metric-value" style="font-size: 20px;">{len(per_run.get(list(per_run.keys())[0], {})) if per_run else 0}</div>
+                    <div class="metric-label">Total Samples</div>
+                </div>
+                """, unsafe_allow_html=True)
+            with col3:
+                st.markdown(f"""
+                <div class="metric-card">
+                    <div class="metric-value" style="font-size: 20px;">{sum(len(v) for v in per_run.values()) if per_run else 0}</div>
+                    <div class="metric-label">Total Reconstructions</div>
+                </div>
+                """, unsafe_allow_html=True)
             
             if scores:
                 st.markdown("**Available methods:**")
                 for method in scores.keys():
-                    st.markdown(f"  - {method}")
-            
-            if method_mapping:
-                st.markdown("**Method name mapping:**")
-                for display, internal in method_mapping.items():
-                    st.markdown(f"  - `{display}` → `{internal}`")
+                    st.markdown(f"  • {method}")
         
         # View tabs
         tab1, tab2, tab3, tab4, tab5 = st.tabs([
