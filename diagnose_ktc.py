@@ -324,11 +324,26 @@ def check_training_data(root: str, results: _Results) -> None:
     td_dir = os.path.join(root, "TrainingData")
     gt_dir = os.path.join(root, "GroundTruths")
 
+    # Training data always lives in Codes_Matlab/ regardless of --root.
+    # If not found under root, check the standard fallback locations.
     if not os.path.isdir(td_dir):
-        _warn(f"TrainingData/ not found under '{root}'  (expected {td_dir})")
-        _info("Skipping training-data check.")
-        results.record("Training data", _Results.WARN)
-        return
+        fallback_roots = ["Codes_Matlab", os.path.join(os.path.dirname(root), "Codes_Matlab")]
+        fallback_found = None
+        for fb in fallback_roots:
+            if os.path.isdir(os.path.join(fb, "TrainingData")):
+                fallback_found = fb
+                break
+
+        if fallback_found:
+            _info(f"TrainingData/ not under '{root}' — found at standard location:")
+            td_dir = os.path.join(fallback_found, "TrainingData")
+            gt_dir = os.path.join(fallback_found, "GroundTruths")
+        else:
+            _warn(f"TrainingData/ not found under '{root}' or 'Codes_Matlab/'")
+            _info("Training data is only needed for the training experiment config.")
+            _info("Evaluation experiments do not require it.")
+            results.record("Training data", _Results.WARN)
+            return
 
     _ok(f"TrainingData folder : {td_dir}")
 
