@@ -138,26 +138,49 @@ class BatchRunner:
     def _load_reference(self, dataset_root: str) -> np.ndarray | None:
         """Load the empty-tank reference voltages from ``ref.mat``.
 
-        Looks for ``<dataset_root>/ref.mat``.  Returns a flat float32 array of
-        shape ``(N,)`` on success, or ``None`` if the file is absent.
+        Checks these locations in order:
+          1. ``<dataset_root>/ref.mat``          (evaluation layout)
+          2. ``<dataset_root>/TrainingData/ref.mat``  (training layout)
+
+        Tries multiple key names: ``Uelref``, ``Uel``, ``Uref``, ``ref``.
+        Returns a flat float32 array of shape ``(N,)`` on success, or
+        ``None`` if the file is absent at both locations.
         """
         if not dataset_root:
             return None
 
-        ref_path = os.path.join(dataset_root, "ref.mat")
-        if not os.path.exists(ref_path):
+        candidates = [
+            os.path.join(dataset_root, "ref.mat"),
+            os.path.join(dataset_root, "TrainingData", "ref.mat"),
+        ]
+        ref_keys = ["Uelref", "Uel", "Uref", "ref"]
+
+        ref_path = next((p for p in candidates if os.path.exists(p)), None)
+
+        if ref_path is None:
             console.print(
-                f"[yellow]ref.mat not found at '{ref_path}' — "
-                f"reconstruction methods will use mean-subtraction fallback.[/yellow]"
+                f"[yellow]ref.mat not found — tried:[/yellow]\n"
+                + "\n".join(f"  [yellow]{p}[/yellow]" for p in candidates)
+                + "\n[yellow]Reconstruction methods will use mean-subtraction fallback.[/yellow]"
             )
             return None
 
         try:
             mat = scipy.io.loadmat(ref_path, squeeze_me=True, struct_as_record=False)
-            ref = np.asarray(mat["Uel"], dtype=np.float32).ravel()
+            key = next((k for k in ref_keys if k in mat), None)
+            if key is None:
+                pub = [k for k in mat if not k.startswith("_")]
+                warnings.warn(
+                    f"ref.mat loaded but no voltage key found. "
+                    f"Keys present: {pub}. Using mean-subtraction fallback.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                return None
+            ref = np.asarray(mat[key], dtype=np.float32).ravel()
             console.print(
                 f"[green]Reference voltages loaded:[/green] {ref_path} "
-                f"(shape {ref.shape})"
+                f"(key='{key}', shape {ref.shape})"
             )
             return ref
         except Exception as exc:
