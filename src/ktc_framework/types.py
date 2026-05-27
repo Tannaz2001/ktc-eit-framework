@@ -21,3 +21,4 @@ class DataBatch(NamedTuple):
     sample_id: str                 # str e.g. 'level1_A'     — unique sample identifier
     mesh: Any = None               # dict from Mesh_sparse.mat via scipy.io.loadmat, or None
     reference_voltages: Any = None # shape (N,) float32      — empty-tank voltages from ref.mat
+    measurement_patterns: Any = None # shape (31, 32) float32 — measurement-pattern matrix from Mpat in ref.mat

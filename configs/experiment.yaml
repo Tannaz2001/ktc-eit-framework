@@ -1,5 +1,5 @@
 data_plugin: KTCDataPlugin
-mesh_path: Codes_Matlab/
+mesh_path: Codes_Matlab/Mesh_sparse.mat
 
 levels:
   - 1
