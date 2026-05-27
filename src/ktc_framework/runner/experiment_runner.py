@@ -282,6 +282,7 @@ class BatchRunner:
             sample_id          = raw_batch.sample_id,
             mesh               = self.mesh,
             reference_voltages = self.ref_voltages,
+            measurement_patterns=getattr(raw_batch, "measurement_patterns", None),
         )
 
         # ── load method ───────────────────────────────────────────────────
