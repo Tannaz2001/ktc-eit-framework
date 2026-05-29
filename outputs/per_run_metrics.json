@@ -77,39 +77,39 @@
   },
   "gauss_newton": {
     "1": {
-      "ktc_score": -0.00838,
-      "dice_resistive": 0.10293906810035842,
-      "dice_conductive": 0.07540115282754323,
-      "iou_resistive": 0.054262394195888755,
-      "iou_conductive": 0.03917759430144083,
-      "hd95_resistive": 146.81825497048084,
-      "hd95_conductive": 151.0979810847305
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0,
+      "hd95_resistive": 0.0,
+      "hd95_conductive": 0.0
     },
     "2": {
-      "ktc_score": -0.041711,
-      "dice_resistive": 0.1012522535691663,
-      "dice_conductive": 0.05476203309437827,
-      "iou_resistive": 0.05332580578936563,
-      "iou_conductive": 0.028151842615683015,
-      "hd95_resistive": 133.00037555191133,
-      "hd95_conductive": 171.04794648854818
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
+      "dice_conductive": 0.0,
+      "iou_resistive": 0.0,
+      "iou_conductive": 0.0,
+      "hd95_resistive": 0.0,
+      "hd95_conductive": 0.0
     },
     "3": {
-      "ktc_score": 0.001508,
+      "ktc_score": 0.0,
       "dice_resistive": 0.0,
-      "dice_conductive": 0.11503438022672366,
+      "dice_conductive": 0.0,
       "iou_resistive": 0.0,
-      "iou_conductive": 0.06102730947451444,
+      "iou_conductive": 0.0,
       "hd95_resistive": 0.0,
-      "hd95_conductive": 123.65516352398397
+      "hd95_conductive": 0.0
     },
     "4": {
-      "ktc_score": -0.000125,
-      "dice_resistive": 0.058649448479956956,
+      "ktc_score": 0.0,
+      "dice_resistive": 0.0,
       "dice_conductive": 0.0,
-      "iou_resistive": 0.030210643015521066,
+      "iou_resistive": 0.0,
       "iou_conductive": 0.0,
-      "hd95_resistive": 121.69634341261039,
+      "hd95_resistive": 0.0,
       "hd95_conductive": 0.0
     }
   }
