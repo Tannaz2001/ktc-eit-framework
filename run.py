@@ -28,18 +28,6 @@ def main() -> None:
         print(f"[ERROR] Config validation failed: {e}")
         raise SystemExit(1)
     # -----------------------------
-<<<<<<< HEAD
-<<<<<<< HEAD
-    # Dataset path: prefer KTC_DATASET_ROOT env var, else use config['dataset_root'].
-    dataset_path = os.environ.get("KTC_DATASET_ROOT") or config.get("dataset_root")
-    if not dataset_path:
-        raise ValueError(
-            "No dataset_root in config and KTC_DATASET_ROOT env var is not set."
-        )
-    print(f"[INFO] Using dataset path: {dataset_path}")
-=======
-=======
->>>>>>> a4fe1cce8f2f5141f23aa337c21dee73f1e5cb6f
     # Dataset root: env var overrides config value; config value is the fallback
     dataset_path = os.environ.get("KTC_DATASET_ROOT") or config.get("dataset_root", "")
     if dataset_path:
@@ -47,10 +35,6 @@ def main() -> None:
         config["dataset_root"] = dataset_path
     else:
         print("[WARN] KTC_DATASET_ROOT not set and no dataset_root in config — data loading may fail.")
-<<<<<<< HEAD
->>>>>>> a4fe1cce8f2f5141f23aa337c21dee73f1e5cb6f
-=======
->>>>>>> a4fe1cce8f2f5141f23aa337c21dee73f1e5cb6f
 
     # mesh_path is always relative to the project root, NOT dataset_root.
     # (Mesh_sparse.mat lives in Codes_Matlab/, independent of the dataset location.)
