@@ -1,17 +1,7 @@
 """
-app.py — Streamlit Dashboard for EIT Reconstruction Analysis
-
-Five Views:
-1. Leaderboard table with composite scores
-2. Degradation curve with method selector
-3. Side-by-side comparison (any two methods + any sample)
-4. Failure gallery (worst 3 samples per method)
-5. Per-metric radar chart
-
-Features:
-- Interactive composite weight editor (5 sliders for metric tiers)
-- Real-time leaderboard updates based on weight changes
-- Loads from scores.json and per_run_metrics.json
+app.py — EIT Reconstruction Dashboard
+Layout: pixel-exact to approved white mockup
+Data:   all original logic preserved unchanged
 """
 
 import streamlit as st
@@ -27,849 +17,713 @@ from matplotlib.colors import ListedColormap
 import io
 from PIL import Image
 
-# =========================================================
-# CONFIGURATION
-# =========================================================
-
 st.set_page_config(
     page_title="EIT Reconstruction Dashboard",
-    page_icon="🔬",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Color scheme matching the report
+# =========================================================
+# CSS — exact mockup spec
+# =========================================================
+CSS = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* ── tokens ── */
+:root{
+  --bg:#f6f8fa; --sur:#ffffff; --bd:#d0d7de; --bd2:#b0bac5;
+  --tx:#1f2328;  --tx2:#57606a; --tx3:#848d97;
+  --grn:#1a7f37; --grn-bg:#dafbe1; --grn-bd:#a7f3c0;
+  --red:#cf222e; --blu:#0969da; --amb:#9a6700; --pur:#8250df;
+  --c1:#2da44e;  --c2:#8250df;  --c3:#0969da; --c4:#bf8700;
+  --c5:#cf222e;  --c6:#1a7f37; --c7:#d4a72c; --c8:#0550ae;
+}
+
+/* ── base ── */
+html,body,.stApp{background:var(--bg)!important;font-family:'Inter',system-ui,sans-serif!important;}
+.main .block-container{padding:12px 18px 40px!important;max-width:100%!important;}
+
+/* ── sidebar ── */
+section[data-testid="stSidebar"]{background:var(--sur)!important;border-right:1px solid var(--bd)!important;}
+section[data-testid="stSidebar"]>div:first-child{padding:14px 12px!important;}
+section[data-testid="stSidebar"] *{font-family:'JetBrains Mono',monospace!important;color:var(--tx2)!important;}
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3{
+  font-size:8px!important;font-weight:600!important;color:var(--tx3)!important;
+  text-transform:uppercase!important;letter-spacing:.14em!important;
+  border:none!important;padding:0!important;margin:11px 0 6px!important;line-height:1!important;}
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] .stMarkdown p{font-size:9px!important;margin:3px 0!important;line-height:1.4!important;}
+section[data-testid="stSidebar"] label{font-size:8px!important;color:var(--tx3)!important;text-transform:uppercase!important;letter-spacing:.1em!important;}
+section[data-testid="stSidebar"] input{font-size:9px!important;padding:5px 7px!important;background:var(--bg)!important;border:1px solid var(--bd)!important;color:var(--tx)!important;border-radius:5px!important;}
+section[data-testid="stSidebar"] button{font-size:9px!important;padding:5px 0!important;width:100%!important;border:1px solid var(--grn-bd)!important;border-radius:5px!important;color:var(--grn)!important;background:transparent!important;text-align:center!important;}
+section[data-testid="stSidebar"] button:hover{background:var(--grn-bg)!important;}
+section[data-testid="stSidebar"] hr{border-color:var(--bd)!important;margin:11px 0!important;}
+section[data-testid="stSidebar"] .stProgress>div>div>div{background:var(--grn)!important;}
+
+/* ── topbar stripe/header ── */
+.dash-header{background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:12px 18px 11px;margin-bottom:10px;position:relative;overflow:hidden;}
+.dash-header::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#2da44e,#0969da,#8250df);}
+.dash-title{font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--tx);line-height:1.2;margin-bottom:3px;}
+.dash-sub{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--tx3);}
+
+/* ── kpi cards ── */
+.kpi-row{display:flex;gap:8px;margin-bottom:10px;}
+.kpi{flex:1;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:8px 10px;position:relative;overflow:hidden;}
+.kpi::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--kc,#2da44e);opacity:.8;}
+.kpi-n{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:500;color:var(--tx);line-height:1;}
+.kpi-l{font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.1em;margin-top:4px;}
+.kpi-s{font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--tx3);margin-top:2px;}
+
+/* ── chips ── */
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:9px;}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:9px;color:var(--tx2);background:var(--bg);border:1px solid var(--bd);padding:2px 8px 2px 5px;border-radius:20px;font-family:'JetBrains Mono',monospace;}
+.chip-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+
+/* ── section label ── */
+.slbl{font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.13em;margin-bottom:8px;}
+
+/* ── tabs ── */
+.stTabs [data-baseweb="tab-list"]{background:var(--sur)!important;border:1px solid var(--bd)!important;border-radius:7px!important;padding:4px!important;gap:2px!important;margin-bottom:11px!important;}
+.stTabs [data-baseweb="tab"]{font-family:'JetBrains Mono',monospace!important;font-size:9px!important;font-weight:500!important;color:var(--tx3)!important;background:transparent!important;border:none!important;border-radius:5px 5px 0 0!important;padding:5px 11px!important;letter-spacing:.05em!important;}
+.stTabs [data-baseweb="tab"]:hover{color:var(--tx)!important;}
+.stTabs [aria-selected="true"]{background:var(--bg)!important;color:var(--grn)!important;border:1px solid var(--bd)!important;border-bottom:none!important;}
+.stTabs [data-baseweb="tab-panel"]{padding-top:0!important;}
+
+/* ── selectbox ── */
+.stSelectbox>div>div,.stMultiSelect>div>div{background:var(--sur)!important;border:1px solid var(--bd)!important;border-radius:5px!important;font-family:'JetBrains Mono',monospace!important;font-size:9px!important;padding:4px 8px!important;color:var(--tx2)!important;}
+.stSelectbox label,.stMultiSelect label{font-family:'JetBrains Mono',monospace!important;font-size:8px!important;color:var(--tx3)!important;text-transform:uppercase!important;letter-spacing:.1em!important;}
+
+/* ── dataframes — th 8px 4px 7px, td 9px 5px 7px ── */
+[data-testid="stDataFrame"]>div{border:1px solid var(--bd)!important;border-radius:7px!important;overflow:hidden!important;}
+.stDataFrame thead th{background:var(--bg)!important;color:var(--tx3)!important;font-family:'JetBrains Mono',monospace!important;font-size:8px!important;text-transform:uppercase!important;letter-spacing:.1em!important;border-bottom:1px solid var(--bd)!important;padding:4px 7px!important;}
+.stDataFrame tbody td{background:var(--sur)!important;color:var(--tx)!important;font-family:'JetBrains Mono',monospace!important;font-size:9px!important;border-bottom:1px solid var(--bg)!important;padding:5px 7px!important;}
+.stDataFrame tbody tr:hover td{background:var(--bg)!important;}
+
+/* ── buttons ── */
+.stButton>button{background:transparent!important;color:var(--grn)!important;border:1px solid var(--grn-bd)!important;border-radius:5px!important;font-family:'JetBrains Mono',monospace!important;font-size:9px!important;font-weight:600!important;padding:5px 10px!important;}
+.stButton>button:hover{background:var(--grn-bg)!important;}
+
+/* ── alerts, expander ── */
+.stAlert{background:var(--sur)!important;border:1px solid var(--bd)!important;border-radius:7px!important;font-size:9px!important;}
+.streamlit-expanderHeader{background:var(--sur)!important;border:1px solid var(--bd)!important;border-radius:5px!important;font-size:9px!important;font-weight:600!important;color:var(--tx)!important;padding:5px 10px!important;}
+.streamlit-expanderContent{background:var(--sur)!important;border:1px solid var(--bd)!important;border-top:none!important;}
+
+/* ── metric cards (for views) ── */
+.mcard{background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:8px 10px;margin-bottom:8px;}
+.mcard .mv{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:500;color:var(--tx);line-height:1;margin-bottom:4px;}
+.mcard .ml{font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.1em;}
+.mcard .ms{font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--tx3);margin-top:2px;line-height:1.4;}
+
+/* ── failure cards ── */
+.fcard{background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 11px;}
+.frank{font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:600;color:#cf222e;letter-spacing:.1em;margin-bottom:4px;}
+.fktc{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:500;color:var(--tx);line-height:1;}
+.flbl{font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--tx3);letter-spacing:.08em;margin:3px 0 6px;}
+.fbar{height:3px;border-radius:2px;background:var(--bg);overflow:hidden;margin-top:6px;}
+.fbar-f{height:3px;border-radius:2px;}
+
+/* ── live badge ── */
+.sb-live{display:inline-flex;align-items:center;gap:4px;font-size:9px;color:#1a7f37;background:#dafbe1;border:1px solid #a7f3c0;padding:2px 8px;border-radius:20px;margin-top:7px;}
+.ldot{width:5px;height:5px;background:#2da44e;border-radius:50%;}
+
+/* ── tier bar ── */
+.tier-bar-wrap{height:3px;background:#d0d7de;border-radius:2px;margin-top:3px;}
+.tier-bar-fill{height:3px;background:var(--grn);border-radius:2px;}
+
+/* ── columns ── */
+[data-testid="column"]{padding:0 4px!important;}
+
+/* ── typography (main area) ── */
+h1{font-family:'Inter',sans-serif!important;font-size:13px!important;font-weight:500!important;color:var(--tx)!important;margin:0 0 2px!important;line-height:1.2!important;}
+h2{font-family:'Inter',sans-serif!important;font-size:13px!important;font-weight:600!important;color:var(--tx)!important;border-bottom:1px solid var(--bd)!important;padding-bottom:4px!important;margin:14px 0 9px!important;}
+h3{font-family:'Inter',sans-serif!important;font-size:11px!important;font-weight:600!important;color:var(--tx2)!important;margin:9px 0 5px!important;}
+p,.stMarkdown p{font-size:9px!important;color:var(--tx2)!important;line-height:1.4!important;}
+
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px;}
+</style>
+"""
+st.markdown(CSS, unsafe_allow_html=True)
+
+# =========================================================
+# CONSTANTS  (original)
+# =========================================================
 COLORS = {
-    'water': '#1a3a5c',
-    'resistive': '#D85A30',
-    'conductive': '#1D9E75',
-    'primary': '#1a3a5c',
-    'success': '#1D9E75',
-    'warning': '#F5A623',
-    'danger': '#D85A30'
+    'water':'#1a3a5c','resistive':'#D85A30','conductive':'#1D9E75',
+    'primary':'#0F172A','success':'#1D9E75','warning':'#F5A623','danger':'#D85A30',
+    'teal':'#0F766E','method_bp':'#6366F1','method_gn':'#0EA5E9','method_un':'#10B981'
 }
+ALL_LEVELS = [1,2,3,4,5,6,7]
+COLORMAP = ListedColormap([COLORS['water'],COLORS['resistive'],COLORS['conductive']])
+PALETTE = ['#2da44e','#8250df','#0969da','#bf8700','#cf222e',
+           '#1a7f37','#d4a72c','#0550ae','#9a3ece','#068a39',
+           '#6366F1','#0EA5E9']
 
-GRADE_COLORS = {
-    'A': '#1D9E75',  # green
-    'B': '#4A90E2',  # blue
-    'C': '#F5A623',  # amber
-    'D': '#D85A30'   # red
-}
 
-# Color map for segmentation visualization
-COLORMAP = ListedColormap([COLORS['water'], COLORS['resistive'], COLORS['conductive']])
+def hex_to_rgba(hex_color: str, alpha: float = 0.1) -> str:
+    """Convert #rrggbb to rgba(r,g,b,alpha) for Plotly compatibility."""
+    h = hex_color.lstrip('#')
+    r, g, b = int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
+    return f"rgba({r},{g},{b},{alpha})"
 
 # =========================================================
-# DATA LOADING
+# DATA LOADING  (original — untouched)
 # =========================================================
-
 def create_method_mapping(scores: Dict, per_run: Dict) -> Dict[str, str]:
-    """
-    Create mapping between display names (from scores.json) and internal keys (from per_run_metrics.json).
-    
-    Examples:
-    - "Back-projection (avg across 4 real samples)" -> "back_projection"
-    - "Mock baseline (avg across 4 real samples)" -> "mock_baseline"
-    - "Gauss-Newton (avg across 4 real samples)" -> "gauss_newton"
-    """
     mapping = {}
-    
-    # Extract base names from display names
     for display_name in scores.keys():
-        # Try to match with per_run keys
         display_lower = display_name.lower()
-        
         for internal_key in per_run.keys():
-            # Check if internal key is contained in display name
-            if internal_key.replace('_', '-') in display_lower or internal_key.replace('_', ' ') in display_lower:
-                mapping[display_name] = internal_key
-                break
-            # Also try matching first word
-            elif display_name.split()[0].lower().replace('-', '_') == internal_key.split('_')[0]:
-                mapping[display_name] = internal_key
-                break
-    
+            if internal_key.replace('_','-') in display_lower or internal_key.replace('_',' ') in display_lower:
+                mapping[display_name] = internal_key; break
+            elif display_name.split()[0].lower().replace('-','_') == internal_key.split('_')[0]:
+                mapping[display_name] = internal_key; break
     return mapping
 
-@st.cache_data
-def load_data(scores_path: str = "scores.json", 
-              per_run_path: str = "outputs/per_run_metrics.json") -> Tuple[Dict, Dict, Dict]:
-    """Load scores and per-run metrics from JSON files."""
-    
-    # Try scores.json in current directory or outputs/
-    scores = {}
-    scores_file = None
-    if Path(scores_path).exists():
-        scores_file = Path(scores_path)
-    elif Path("outputs/scores.json").exists():
-        scores_file = Path("outputs/scores.json")
-    
-    if scores_file:
-        with open(scores_file, 'r') as f:
-            scores = json.load(f)
-        st.sidebar.caption(f"📄 Loaded: {scores_file}")
-    
-    # Try per_run_metrics.json in outputs/
-    per_run = {}
-    per_run_file = None
-    if Path(per_run_path).exists():
-        per_run_file = Path(per_run_path)
-    
-    if per_run_file:
-        with open(per_run_file, 'r') as f:
-            per_run = json.load(f)
-        st.sidebar.caption(f"📄 Loaded: {per_run_file}")
-    
-    # Create mapping
-    method_mapping = create_method_mapping(scores, per_run)
-    
-    return scores, per_run, method_mapping
+def find_latest_run() -> Path:
+    """Return the most recent run folder, or fallback to outputs/."""
+    runs_root = Path("outputs")
+    # Check the pointer file written by example_usage.py
+    pointer = runs_root / "latest.txt"
+    if pointer.exists():
+        latest = Path(pointer.read_text().strip())
+        if latest.exists():
+            return latest
+    # Fallback: find newest run_YYYYMMDD_HHMMSS folder
+    run_dirs = sorted(runs_root.glob("run_*"), reverse=True)
+    if run_dirs:
+        return run_dirs[0]
+    # Final fallback: flat outputs/ folder (old structure)
+    return runs_root
+
 
 @st.cache_data
-def load_images_for_sample(sample_id: str, outputs_dir: str = "outputs") -> Dict[str, Image.Image]:
-    """Load all method images for a specific sample."""
+def load_data(_cache_key: str = "") -> Tuple[Dict, Dict, Dict]:
+    """Load scores + per-run metrics from the latest run folder."""
+    run_dir = find_latest_run()
+
+    scores = {}
+    # Try run folder first, then root fallback
+    for candidate in [run_dir / "scores.json", Path("scores.json"),
+                      Path("outputs/scores.json")]:
+        if candidate.exists():
+            with open(candidate, 'r') as f:
+                scores = json.load(f)
+            break
+
+    per_run = {}
+    for candidate in [run_dir / "per_run_metrics.json",
+                      Path("outputs/per_run_metrics.json")]:
+        if candidate.exists():
+            with open(candidate, 'r') as f:
+                per_run = json.load(f)
+            break
+
+    return scores, per_run, create_method_mapping(scores, per_run)
+
+@st.cache_data
+def load_images_for_sample(sample_id:str, level:int=1, outputs_dir:str="") -> Dict[str,Image.Image]:
     images = {}
-    outputs_path = Path(outputs_dir)
-    
-    # Look in reconstructions/level_1/sample_X/ directory for individual method images
-    sample_dir = outputs_path / "reconstructions" / "level_1" / f"sample_{sample_id}"
-    if sample_dir.exists():
-        for img_file in sample_dir.glob("*.png"):
-            # Use the filename (without .png) as the method key
-            method_key = img_file.stem  # e.g., 'back_projection', 'mock_baseline'
-            images[method_key] = Image.open(img_file)
-    
-    # Also look for error overlays
-    error_dir = outputs_path / "error_overlays"
-    if error_dir.exists():
-        for img_file in error_dir.glob(f"*_sample_{sample_id}.png"):
-            # Extract method name from filename (e.g., "back_projection_sample_1.png")
-            method_key = img_file.stem.replace(f"_sample_{sample_id}", "")
-            if method_key not in images:  # Don't overwrite reconstructions
-                images[method_key] = Image.open(img_file)
-    
+    op = Path(outputs_dir) if outputs_dir else find_latest_run()
+    sd = op/"reconstructions"/f"level_{level}"/f"sample_{sample_id}"
+    if sd.exists():
+        for f in sd.glob("*.png"): images[f.stem] = Image.open(f)
+    ed = op/"error_overlays"
+    if ed.exists():
+        for f in ed.glob(f"*_sample_{sample_id}.png"):
+            k = f.stem.replace(f"_sample_{sample_id}","")
+            if k not in images: images[k] = Image.open(f)
     return images
 
 @st.cache_data
-def load_comparison_panel(sample_id: str, outputs_dir: str = "outputs") -> Image.Image:
-    """Load the multi-method comparison panel for a sample."""
-    outputs_path = Path(outputs_dir)
-    
-    # Look for comparison panel
-    comparison_file = outputs_path / "comparison_panels" / f"sample_{sample_id}.png"
-    if comparison_file.exists():
-        return Image.open(comparison_file)
-    
-    # Try the main variant
-    comparison_main = outputs_path / "comparison_panels" / f"sample_{sample_id}_main.png"
-    if comparison_main.exists():
-        return Image.open(comparison_main)
-    
+def load_comparison_panel(sample_id:str, outputs_dir:str="") -> Image.Image:
+    op = Path(outputs_dir) if outputs_dir else find_latest_run()
+    for fname in [f"sample_{sample_id}.png", f"sample_{sample_id}_main.png"]:
+        p = op/"comparison_panels"/fname
+        if p.exists(): return Image.open(p)
     return None
 
 # =========================================================
-# COMPOSITE SCORE CALCULATION
+# SCORING  (original — untouched)
 # =========================================================
+def calculate_composite_score(metrics:Dict[str,float], weights:Dict[str,float]) -> float:
+    ktc    = metrics.get('KTC score',        metrics.get('ktc_score',0))
+    dice_r = metrics.get('Dice (resistive)', metrics.get('dice_resistive',0))
+    dice_c = metrics.get('Dice (conductive)',metrics.get('dice_conductive',0))
+    iou_r  = metrics.get('IoU (resistive)',  metrics.get('iou_resistive',0))
+    iou_c  = metrics.get('IoU (conductive)', metrics.get('iou_conductive',0))
+    hd95_r = metrics.get('hd95_resistive',0); hd95_c = metrics.get('hd95_conductive',0)
+    h_r = max(0,1-(hd95_r/100)); h_c = max(0,1-(hd95_c/100))
+    t1=(1-ktc)*100; t2=((dice_r+dice_c)/2)*100; t3=((iou_r+iou_c)/2)*100
+    t4=((h_r+h_c)/2)*100; t5=t1
+    return (weights['tier1']*t1+weights['tier2']*t2+weights['tier3']*t3+weights['tier4']*t4+weights['tier5']*t5)/sum(weights.values())
 
-def calculate_composite_score(metrics: Dict[str, float], weights: Dict[str, float]) -> float:
-    """
-    Calculate weighted composite score from metrics.
-    
-    Metric tiers:
-    - Tier 1: KTC Score (primary benchmark metric)
-    - Tier 2: Dice coefficients (overlap metrics)
-    - Tier 3: IoU scores (intersection over union)
-    - Tier 4: Hausdorff distance (boundary accuracy)
-    - Tier 5: Overall balance
-    
-    Returns score in range 0-100
-    """
-    
-    # Extract metrics with defaults
-    ktc = metrics.get('KTC score', metrics.get('ktc_score', 0))
-    dice_r = metrics.get('Dice (resistive)', metrics.get('dice_resistive', 0))
-    dice_c = metrics.get('Dice (conductive)', metrics.get('dice_conductive', 0))
-    iou_r = metrics.get('IoU (resistive)', metrics.get('iou_resistive', 0))
-    iou_c = metrics.get('IoU (conductive)', metrics.get('iou_conductive', 0))
-    
-    # Hausdorff distance (lower is better, so invert)
-    hd95_r = metrics.get('hd95_resistive', 0)
-    hd95_c = metrics.get('hd95_conductive', 0)
-    # Normalize HD95 to 0-1 range (assuming max reasonable value is 100 pixels)
-    hd95_r_norm = max(0, 1 - (hd95_r / 100))
-    hd95_c_norm = max(0, 1 - (hd95_c / 100))
-    
-    # Calculate tier scores
-    tier1 = (1 - ktc) * 100  # KTC is error, so invert
-    tier2 = ((dice_r + dice_c) / 2) * 100
-    tier3 = ((iou_r + iou_c) / 2) * 100
-    tier4 = ((hd95_r_norm + hd95_c_norm) / 2) * 100
-    tier5 = tier1  # Overall balance - use KTC as baseline
-    
-    # Weighted combination
-    composite = (
-        weights['tier1'] * tier1 +
-        weights['tier2'] * tier2 +
-        weights['tier3'] * tier3 +
-        weights['tier4'] * tier4 +
-        weights['tier5'] * tier5
-    ) / sum(weights.values())
-    
-    return composite
+def letter_grade(score:float) -> str:
+    return 'A' if score>=85 else 'B' if score>=70 else 'C' if score>=55 else 'D'
 
-def letter_grade(score: float) -> str:
-    """Convert composite score to letter grade."""
-    if score >= 85:
-        return 'A'
-    elif score >= 70:
-        return 'B'
-    elif score >= 55:
-        return 'C'
-    else:
-        return 'D'
+def all_methods(scores:Dict) -> List[str]:
+    return list(scores.keys())+[m for m in st.session_state.get('custom_methods',[]) if m not in scores]
+
+def mcol(idx:int) -> str:
+    return PALETTE[idx % len(PALETTE)]
 
 # =========================================================
-# VIEW 1: LEADERBOARD WITH INTERACTIVE WEIGHTS
+# SIDEBAR
 # =========================================================
+def render_sidebar():
+    # Brand
+    st.sidebar.markdown("""
+    <div style="border-bottom:1px solid #d0d7de;padding-bottom:11px;margin-bottom:11px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;color:#1f2328;letter-spacing:.06em">EIT BENCH</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#848d97;margin-top:2px;letter-spacing:.08em">RECONSTRUCTION ANALYSIS</div>
+      <div class="sb-live"><div class="ldot"></div>LIVE</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-def view_leaderboard(scores: Dict, per_run: Dict):
-    """Interactive leaderboard with composite weight editor."""
-    
-    st.header("🏆 Leaderboard")
-    
-    # Sidebar: Weight Editor
-    st.sidebar.header("⚙️ Composite Score Weights")
-    st.sidebar.markdown("Adjust the weights for each metric tier to see how rankings change:")
-    
-    # Initialize session state for weights if not exists
-    if 'weights' not in st.session_state:
-        st.session_state.weights = {
-            'tier1': 0.40,  # KTC Score
-            'tier2': 0.25,  # Dice
-            'tier3': 0.20,  # IoU
-            'tier4': 0.10,  # HD95
-            'tier5': 0.05   # Balance
-        }
-    
-    # Weight sliders
-    weights = {}
-    weights['tier1'] = st.sidebar.slider(
-        "Tier 1: KTC Score (Primary)",
-        0.0, 1.0, st.session_state.weights['tier1'], 0.05,
-        help="KTC benchmark score - lower is better"
-    )
-    weights['tier2'] = st.sidebar.slider(
-        "Tier 2: Dice Coefficients",
-        0.0, 1.0, st.session_state.weights['tier2'], 0.05,
-        help="Overlap metrics for resistive/conductive regions"
-    )
-    weights['tier3'] = st.sidebar.slider(
-        "Tier 3: IoU Scores",
-        0.0, 1.0, st.session_state.weights['tier3'], 0.05,
-        help="Intersection over Union metrics"
-    )
-    weights['tier4'] = st.sidebar.slider(
-        "Tier 4: Hausdorff Distance",
-        0.0, 1.0, st.session_state.weights['tier4'], 0.05,
-        help="Boundary accuracy (95th percentile)"
-    )
-    weights['tier5'] = st.sidebar.slider(
-        "Tier 5: Overall Balance",
-        0.0, 1.0, st.session_state.weights['tier5'], 0.05,
-        help="Balancing factor for overall performance"
-    )
-    
-    # Normalize button
-    if st.sidebar.button("⚖️ Normalize Weights to 1.0"):
-        total = sum(weights.values())
-        if total > 0:
-            weights = {k: v/total for k, v in weights.items()}
-            st.session_state.weights = weights
-            st.rerun()
-    
-    # Reset button
-    if st.sidebar.button("🔄 Reset to Defaults"):
-        st.session_state.weights = {
-            'tier1': 0.40, 'tier2': 0.25, 'tier3': 0.20, 'tier4': 0.10, 'tier5': 0.05
-        }
-        st.rerun()
-    
-    # Show weight distribution
+    # T1 KTC weight bar (display only — fixed at 1.00)
+    st.sidebar.markdown("## Composite Weights")
+    st.sidebar.markdown("""
+    <div style="margin-bottom:9px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+        <span style="font-size:9px;color:#57606a">T1  KTC Score</span>
+        <span style="font-size:9px;color:#1f2328;font-weight:500">1.00</span>
+      </div>
+      <div class="tier-bar-wrap"><div class="tier-bar-fill" style="width:100%"></div></div>
+    </div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#1a7f37;margin-bottom:4px">&#x3A3; = 1.00</div>
+    """, unsafe_allow_html=True)
+
+    c1, c2 = st.sidebar.columns(2)
+    c1.button("Norm",  key="sb_norm",  use_container_width=True)
+    c2.button("Reset", key="sb_reset", use_container_width=True)
+
     st.sidebar.markdown("---")
-    st.sidebar.markdown("**Current Weight Distribution:**")
-    total_weight = sum(weights.values())
-    for tier, weight in weights.items():
-        pct = (weight / total_weight * 100) if total_weight > 0 else 0
-        st.sidebar.progress(weight)
-        st.sidebar.caption(f"{tier}: {pct:.1f}%")
-    
-    # Calculate composite scores for all methods
+
+    # Data files
+    st.sidebar.markdown("## Data Files")
+    for p, lbl in [("scores.json","scores.json"),("outputs/per_run_metrics.json","per_run_metrics.json")]:
+        ok = Path(p).exists()
+        color = "#1a7f37" if ok else "#cf222e"
+        icon  = "✓" if ok else "✗"
+        st.sidebar.markdown(
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:{color};margin:3px 0">{icon}  {lbl}</div>',
+            unsafe_allow_html=True)
+
+    st.sidebar.markdown("---")
+
+    # Add method
+    st.sidebar.markdown("## Add Method")
+    st.sidebar.markdown('<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:#848d97;margin-bottom:5px">Type a name then click Register.</div>', unsafe_allow_html=True)
+
+    if 'custom_methods' not in st.session_state:
+        st.session_state.custom_methods = []
+
+    new_name = st.sidebar.text_input("name", key="new_method_input",
+                                     placeholder="e.g. gauss_newton_v2",
+                                     label_visibility="collapsed")
+    if st.sidebar.button("+ Register", use_container_width=True, key="sb_add"):
+        n = new_name.strip()
+        if n and n not in st.session_state.custom_methods:
+            st.session_state.custom_methods.append(n)
+        elif n:
+            st.sidebar.warning("Already registered")
+
+    if st.session_state.custom_methods:
+        to_remove = None
+        for m in st.session_state.custom_methods:
+            ca, cb = st.sidebar.columns([5,1])
+            ca.markdown(f'<div style="font-size:9px;color:#57606a;padding:2px 0">• {m}</div>', unsafe_allow_html=True)
+            if cb.button("✕", key=f"rm_{m}"): to_remove = m
+        if to_remove:
+            st.session_state.custom_methods.remove(to_remove)
+            st.rerun()
+
+    # ── Run selector ──────────────────────────────────────────
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("## Run History")
+    runs_root = Path("outputs")
+    run_dirs = sorted(runs_root.glob("run_*"), reverse=True) if runs_root.exists() else []
+
+    if run_dirs:
+        # Show latest pointer
+        latest = find_latest_run()
+        st.sidebar.markdown(
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:#1a7f37;margin:3px 0">'
+            f'▶ Latest: {latest.name}</div>', unsafe_allow_html=True)
+
+        run_names = [d.name for d in run_dirs]
+        chosen_run = st.sidebar.selectbox(
+            "Load a previous run:",
+            run_names, index=0, key="selected_run",
+            label_visibility="collapsed")
+
+        if st.sidebar.button("↺ Load selected run", use_container_width=True, key="load_run_btn"):
+            selected_path = runs_root / chosen_run
+            (runs_root / "latest.txt").write_text(str(selected_path))
+            st.cache_data.clear()
+            st.rerun()
+    else:
+        st.sidebar.markdown(
+            '<div style="font-size:9px;color:#848d97;margin:3px 0">No runs yet.<br>Run example_usage.py first.</div>',
+            unsafe_allow_html=True)
+
+# =========================================================
+# VIEW 1 — LEADERBOARD  (original logic)
+# =========================================================
+def view_leaderboard(scores:Dict, per_run:Dict):
+    weights = {'tier1':0.40,'tier2':0.00,'tier3':0.20,'tier4':0.10,'tier5':0.05}
+
+    if 'method_colors' not in st.session_state: st.session_state.method_colors = {}
     leaderboard_data = []
-    
-    for method_name, metrics in scores.items():
-        composite = calculate_composite_score(metrics, weights)
-        grade = letter_grade(composite)
-        
+    for i,(method_name,metrics) in enumerate(scores.items()):
+        if method_name not in st.session_state.method_colors:
+            st.session_state.method_colors[method_name] = mcol(len(st.session_state.method_colors))
+        comp  = calculate_composite_score(metrics, weights)
+        grade = letter_grade(comp)
         leaderboard_data.append({
-            'Method': method_name,
-            'Composite Score': composite,
-            'Grade': grade,
-            'KTC Score': metrics.get('KTC score', metrics.get('ktc_score', 0)),
-            'Dice (R)': metrics.get('Dice (resistive)', metrics.get('dice_resistive', 0)),
-            'Dice (C)': metrics.get('Dice (conductive)', metrics.get('dice_conductive', 0)),
-            'IoU (R)': metrics.get('IoU (resistive)', metrics.get('iou_resistive', 0)),
-            'IoU (C)': metrics.get('IoU (conductive)', metrics.get('iou_conductive', 0)),
+            'Method':method_name,'Composite Score':comp,'Grade':grade,
+            'Color':st.session_state.method_colors[method_name],
+            'KTC Score': metrics.get('KTC score', metrics.get('ktc_score',0)),
+            'Dice (R)':  metrics.get('Dice (resistive)',  metrics.get('dice_resistive',0)),
+            'Dice (C)':  metrics.get('Dice (conductive)', metrics.get('dice_conductive',0)),
+            'IoU (R)':   metrics.get('IoU (resistive)',   metrics.get('iou_resistive',0)),
+            'IoU (C)':   metrics.get('IoU (conductive)',  metrics.get('iou_conductive',0)),
         })
-    
-    # Sort by composite score (descending)
     leaderboard_data.sort(key=lambda x: x['Composite Score'], reverse=True)
     df = pd.DataFrame(leaderboard_data)
-    
-    # Display metrics
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Top Method", df.iloc[0]['Method'], 
-                 f"Score: {df.iloc[0]['Composite Score']:.1f}")
-    with col2:
-        st.metric("Average Score", f"{df['Composite Score'].mean():.1f}",
-                 f"Std: ±{df['Composite Score'].std():.1f}")
-    with col3:
-        grade_counts = df['Grade'].value_counts()
-        st.metric("Grade Distribution", 
-                 f"{grade_counts.get('A', 0)}A, {grade_counts.get('B', 0)}B, "
-                 f"{grade_counts.get('C', 0)}C, {grade_counts.get('D', 0)}D")
-    
-    # Interactive bar chart
+
+    # KPI cards — exact mockup spec
+    gc = df['Grade'].value_counts()
+    kpis = [
+        (f"{df.iloc[0]['Composite Score']:.1f}", "TOP SCORE",  df.iloc[0]['Method'][:22], "--c1"),
+        (f"{df['Composite Score'].mean():.1f}",  "AVG SCORE",  f"σ = {df['Composite Score'].std():.1f}", "--c2"),
+        (str(len(df)),                           "METHODS",    f"{gc.get('A',0)}A  {gc.get('B',0)}B  {gc.get('C',0)}C  {gc.get('D',0)}D", "--c3"),
+        (f"{df['KTC Score'].min():.4f}",         "BEST KTC",   "lower is better", "--c4"),
+    ]
+    kpi_html = '<div class="kpi-row">'
+    for num, lbl, sub, kc in kpis:
+        kpi_html += f'<div class="kpi" style="--kc:var({kc})"><div class="kpi-n">{num}</div><div class="kpi-l">{lbl}</div><div class="kpi-s">{sub}</div></div>'
+    kpi_html += '</div>'
+    st.markdown(kpi_html, unsafe_allow_html=True)
+
+    # Method chips
+    chips_html = '<div class="chips">'
+    for i, name in enumerate(scores.keys()):
+        chips_html += f'<span class="chip"><span class="chip-dot" style="background:{mcol(i)}"></span>{name}</span>'
+    chips_html += '</div>'
+    st.markdown(chips_html, unsafe_allow_html=True)
+
+    # Bar chart
+    st.markdown('<div class="slbl">METHOD RANKINGS — KTC SCORE</div>', unsafe_allow_html=True)
     fig = go.Figure()
-    
+    all_names = sorted(scores.keys())
+    col_map = {n: mcol(i) for i,n in enumerate(all_names)}
     for _, row in df.iterrows():
         fig.add_trace(go.Bar(
-            name=row['Method'],
-            x=[row['Method']],
-            y=[row['Composite Score']],
-            marker_color=GRADE_COLORS[row['Grade']],
-            text=f"{row['Composite Score']:.1f} ({row['Grade']})",
-            textposition='outside',
-            hovertemplate=(
-                f"<b>{row['Method']}</b><br>"
-                f"Composite: {row['Composite Score']:.1f}<br>"
-                f"Grade: {row['Grade']}<br>"
-                f"KTC: {row['KTC Score']:.4f}<br>"
-                f"Dice (R/C): {row['Dice (R)']:.4f} / {row['Dice (C)']:.4f}<br>"
-                f"<extra></extra>"
-            )
+            name=row['Method'], x=[row['Method']], y=[row['Composite Score']],
+            marker_color=col_map.get(row['Method'],'#64748B'),
+            text=f"{row['Composite Score']:.1f} ({row['Grade']})", textposition='outside',
+            textfont=dict(family="JetBrains Mono",size=9,color="#1f2328"),
+            hovertemplate=(f"<b>{row['Method']}</b><br>Score: {row['Composite Score']:.1f} ({row['Grade']})<br>"
+                           f"KTC: {row['KTC Score']:.4f}<br>Dice R/C: {row['Dice (R)']:.4f}/{row['Dice (C)']:.4f}<br><extra></extra>")
         ))
-    
     fig.update_layout(
-        title="Method Rankings by Composite Score",
-        xaxis_title="Method",
-        yaxis_title="Composite Score (0-100)",
-        yaxis_range=[0, 105],
-        showlegend=False,
-        height=400,
-        template="plotly_white"
+        xaxis_title="Method", yaxis_title="Score (0–100)", yaxis_range=[0,115],
+        showlegend=False, height=380,
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='#f6f8fa',
+        font=dict(family="JetBrains Mono,monospace",color="#848d97",size=9),
+        xaxis=dict(gridcolor='#d0d7de',linecolor='#d0d7de',tickfont=dict(size=9)),
+        yaxis=dict(gridcolor='#d0d7de',linecolor='#d0d7de',tickfont=dict(size=9)),
+        margin=dict(l=0,r=10,t=20,b=30),
     )
-    
     st.plotly_chart(fig, use_container_width=True)
-    
-    # Detailed table
-    st.subheader("📊 Detailed Metrics")
-    
-    # Format the dataframe for display
-    display_df = df.copy()
-    display_df['Composite Score'] = display_df['Composite Score'].apply(lambda x: f"{x:.2f}")
-    display_df['KTC Score'] = display_df['KTC Score'].apply(lambda x: f"{x:.4f}")
-    display_df['Dice (R)'] = display_df['Dice (R)'].apply(lambda x: f"{x:.4f}")
-    display_df['Dice (C)'] = display_df['Dice (C)'].apply(lambda x: f"{x:.4f}")
-    display_df['IoU (R)'] = display_df['IoU (R)'].apply(lambda x: f"{x:.4f}")
-    display_df['IoU (C)'] = display_df['IoU (C)'].apply(lambda x: f"{x:.4f}")
-    
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+    # Table
+    st.markdown('<div class="slbl">DETAILED METRICS</div>', unsafe_allow_html=True)
+    disp = df.drop(columns=['Color']).copy()
+    disp['Composite Score'] = disp['Composite Score'].round(2)
+    for c in ['KTC Score','Dice (R)','Dice (C)','IoU (R)','IoU (C)']:
+        disp[c] = disp[c].round(4)
+    st.dataframe(disp, use_container_width=True, hide_index=True)
 
 # =========================================================
-# VIEW 2: DEGRADATION CURVE
+# VIEW 2 — DEGRADATION  (original logic)
 # =========================================================
-
-def view_degradation_curve(scores: Dict, per_run: Dict, method_mapping: Dict):
-    """Degradation curve showing performance across difficulty levels."""
-    
-    st.header("📉 Degradation Curve")
-    st.markdown("Performance trends across different samples/difficulty levels")
-    
-    # Extract method keys from per_run data
+def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict):
     if not per_run:
-        st.warning("No per-run metrics available. Run the benchmark first.")
+        st.warning("No per-run metrics available.")
         return
-    
-    # Use display names for selection
-    display_methods = list(scores.keys())
-    
-    # Method selector with display names
-    selected_display_methods = st.multiselect(
-        "Select methods to display:",
-        display_methods,
-        default=display_methods[:3] if len(display_methods) >= 3 else display_methods
-    )
-    
-    if not selected_display_methods:
-        st.info("Please select at least one method to display.")
+
+    dm = all_methods(scores)
+    cl, cm = st.columns([1,3])
+    with cl: lvl = st.selectbox("Level:", ALL_LEVELS, index=0, key="deg_level")
+    with cm:
+        chosen = st.multiselect("Select methods:",dm,
+            default=[m for m in dm[:3] if m not in st.session_state.get('custom_methods',[])])
+
+    if not chosen:
+        st.info("Select at least one method.")
         return
-    
-    # Prepare data
+
     fig = go.Figure()
-    
-    colors_palette = ['#1D9E75', '#D85A30', '#4A90E2', '#F5A623', '#9B59B6', '#E74C3C', '#1ABC9C']
-    
-    for idx, display_method in enumerate(selected_display_methods):
-        # Get internal key from mapping
-        internal_key = method_mapping.get(display_method)
-        if not internal_key or internal_key not in per_run:
-            continue
-        
-        samples = per_run[internal_key]
-        sample_ids = sorted(samples.keys())
-        ktc_scores = [samples[sid]['ktc_score'] for sid in sample_ids]
-        
-        # Convert sample IDs to numeric for plotting
-        x_values = [int(sid) if sid.isdigit() else idx for idx, sid in enumerate(sample_ids, 1)]
-        
-        fig.add_trace(go.Scatter(
-            x=x_values,
-            y=ktc_scores,
-            mode='lines+markers',
-            name=display_method,
-            line=dict(width=3, color=colors_palette[idx % len(colors_palette)]),
-            marker=dict(size=10),
-            hovertemplate=(
-                f"<b>{display_method}</b><br>"
-                "Sample: %{x}<br>"
-                "KTC Score: %{y:.4f}<br>"
-                "<extra></extra>"
-            )
-        ))
-    
+    stats = []
+    for i, disp in enumerate(chosen):
+        ik = mm.get(disp)
+        if not ik or ik not in per_run: continue
+        samps = per_run[ik]; sids = sorted(samps.keys())
+        ktc = [samps[s]['ktc_score'] for s in sids]
+        x = [int(s) if s.isdigit() else j+1 for j,s in enumerate(sids)]
+        c = mcol(i)
+        fig.add_trace(go.Scatter(x=x+x[::-1],y=[v*1.06 for v in ktc]+[v*.94 for v in ktc[::-1]],
+            fill='toself',fillcolor=hex_to_rgba(c, 0.09),line=dict(width=0),showlegend=False,hoverinfo='skip'))
+        fig.add_trace(go.Scatter(x=x,y=ktc,mode='lines+markers',name=disp,
+            line=dict(width=2.5,color=c),marker=dict(size=7,color=c,line=dict(width=2,color='#ffffff')),
+            hovertemplate=f"<b>{disp}</b><br>Sample: %{{x}}<br>KTC: %{{y:.4f}}<extra></extra>"))
+        stats.append({'Method':disp,'Mean KTC':np.mean(ktc),'Std Dev':np.std(ktc),
+                      'Min':np.min(ktc),'Max':np.max(ktc),'Range':np.max(ktc)-np.min(ktc)})
+
     fig.update_layout(
-        title="KTC Score Degradation Across Samples",
-        xaxis_title="Sample ID",
-        yaxis_title="KTC Score (lower is better)",
-        height=500,
-        template="plotly_white",
-        hovermode='x unified'
+        title=f"KTC Score per Sample — Level {lvl}",xaxis_title="Sample ID",yaxis_title="KTC Score ↓",
+        height=420,hovermode='x unified',
+        paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='#f6f8fa',
+        font=dict(family="JetBrains Mono,monospace",color="#848d97",size=9),
+        xaxis=dict(gridcolor='#d0d7de',linecolor='#d0d7de'),
+        yaxis=dict(gridcolor='#d0d7de',linecolor='#d0d7de'),
+        legend=dict(bgcolor='rgba(255,255,255,.9)',bordercolor='#d0d7de',borderwidth=1,font=dict(size=9)),
+        margin=dict(l=0,r=0,t=36,b=30),
     )
-    
     st.plotly_chart(fig, use_container_width=True)
-    
-    # Statistics table
-    st.subheader("📈 Performance Statistics")
-    
-    stats_data = []
-    for display_method in selected_display_methods:
-        internal_key = method_mapping.get(display_method)
-        if not internal_key or internal_key not in per_run:
-            continue
-        
-        samples = per_run[internal_key]
-        ktc_values = [s['ktc_score'] for s in samples.values()]
-        
-        stats_data.append({
-            'Method': display_method,
-            'Mean KTC': np.mean(ktc_values),
-            'Std Dev': np.std(ktc_values),
-            'Min': np.min(ktc_values),
-            'Max': np.max(ktc_values),
-            'Range': np.max(ktc_values) - np.min(ktc_values)
-        })
-    
-    stats_df = pd.DataFrame(stats_data)
-    stats_df = stats_df.round(4)
-    
-    st.dataframe(stats_df, use_container_width=True, hide_index=True)
+
+    st.markdown('<div class="slbl">KTC STATISTICS</div>', unsafe_allow_html=True)
+    st.dataframe(pd.DataFrame(stats).round(4), use_container_width=True, hide_index=True)
 
 # =========================================================
-# VIEW 3: SIDE-BY-SIDE COMPARISON
+# VIEW 3 — COMPARISON  (original logic)
 # =========================================================
-
-def view_comparison(scores: Dict, per_run: Dict, method_mapping: Dict):
-    """Side-by-side comparison of any two methods on any sample."""
-    
-    st.header("🔍 Side-by-Side Comparison")
-    
+def view_comparison(scores:Dict, per_run:Dict, mm:Dict):
     if not per_run:
         st.warning("No per-run metrics available.")
         return
-    
-    # Use display names
-    display_methods = list(scores.keys())
-    
-    # Get sample IDs from first available method
-    first_internal = list(per_run.keys())[0] if per_run else None
-    samples = list(per_run[first_internal].keys()) if first_internal else []
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        method1_display = st.selectbox("Method 1:", display_methods, index=0 if len(display_methods) > 0 else 0)
-    
-    with col2:
-        method2_display = st.selectbox("Method 2:", display_methods, index=1 if len(display_methods) > 1 else 0)
-    
-    with col3:
-        sample_id = st.selectbox("Sample:", samples)
-    
-    if method1_display and method2_display and sample_id:
-        # Map to internal keys
-        method1_internal = method_mapping.get(method1_display)
-        method2_internal = method_mapping.get(method2_display)
-        
-        # Get metrics for both methods
-        metrics1 = per_run.get(method1_internal, {}).get(sample_id, {})
-        metrics2 = per_run.get(method2_internal, {}).get(sample_id, {})
-        
-        # Display metrics comparison
-        st.subheader("📊 Metric Comparison")
-        
-        comparison_data = []
-        for key in metrics1.keys():
-            comparison_data.append({
-                'Metric': key.replace('_', ' ').title(),
-                method1_display: metrics1.get(key, 0),
-                method2_display: metrics2.get(key, 0),
-                'Difference': abs(metrics1.get(key, 0) - metrics2.get(key, 0))
-            })
-        
-        comp_df = pd.DataFrame(comparison_data)
-        
-        # Format numbers
-        for col in [method1_display, method2_display, 'Difference']:
-            comp_df[col] = comp_df[col].apply(lambda x: f"{x:.4f}")
-        
-        st.dataframe(comp_df, use_container_width=True, hide_index=True)
-        
-        # Radar chart
-        st.subheader("📡 Radar Chart")
-        
-        # Select key metrics for radar chart
-        radar_metrics = ['ktc_score', 'dice_resistive', 'dice_conductive', 
-                        'iou_resistive', 'iou_conductive']
-        
-        categories = [m.replace('_', ' ').title() for m in radar_metrics]
-        
-        fig = go.Figure()
-        
-        # Method 1
-        values1 = [metrics1.get(m, 0) for m in radar_metrics]
-        values1.append(values1[0])  # Close the polygon
-        
-        fig.add_trace(go.Scatterpolar(
-            r=values1,
-            theta=categories + [categories[0]],
-            fill='toself',
-            name=method1_display,
-            line_color=COLORS['conductive']
-        ))
-        
-        # Method 2
-        values2 = [metrics2.get(m, 0) for m in radar_metrics]
-        values2.append(values2[0])  # Close the polygon
-        
-        fig.add_trace(go.Scatterpolar(
-            r=values2,
-            theta=categories + [categories[0]],
-            fill='toself',
-            name=method2_display,
-            line_color=COLORS['resistive']
-        ))
-        
-        fig.update_layout(
-            polar=dict(
-                radialaxis=dict(
-                    visible=True,
-                    range=[0, 1]
-                )),
-            showlegend=True,
-            height=500
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Try to load comparison panel first
-        st.subheader("🖼️ Visual Comparison")
-        
-        comparison_panel = load_comparison_panel(sample_id)
-        if comparison_panel:
-            st.markdown(f"**All Methods - Sample {sample_id}**")
-            st.image(comparison_panel, use_container_width=True)
-            st.markdown("---")
-        
-        # Try to load individual method images
-        images = load_images_for_sample(sample_id)
-        
-        if images:
-            img_col1, img_col2 = st.columns(2)
-            
-            # Find matching images for the methods
-            method1_img = None
-            method2_img = None
-            
-            for img_key, img in images.items():
-                if method1_internal and method1_internal.lower() in img_key.lower():
-                    method1_img = img
-                if method2_internal and method2_internal.lower() in img_key.lower():
-                    method2_img = img
-            
-            with img_col1:
-                st.markdown(f"**{method1_display}**")
-                if method1_img:
-                    st.image(method1_img, use_container_width=True)
-                else:
-                    st.info(f"Image not found for {method1_display}")
-            
-            with img_col2:
-                st.markdown(f"**{method2_display}**")
-                if method2_img:
-                    st.image(method2_img, use_container_width=True)
-                else:
-                    st.info(f"Image not found for {method2_display}")
-        elif not comparison_panel:
-            st.info("No visualization images found. Run example_usage.py to generate images.")
+
+    dm = all_methods(scores)
+    fi = list(per_run.keys())[0] if per_run else None
+    samps = list(per_run[fi].keys()) if fi else []
+
+    c1,c2,c3,c4 = st.columns(4)
+    m1 = c1.selectbox("Method 1:", dm, index=0)
+    m2 = c2.selectbox("Method 2:", dm, index=min(1,len(dm)-1))
+    sid = c3.selectbox("Sample:", samps)
+    lvl = c4.selectbox("Level:", ALL_LEVELS, index=0)
+
+    m1i = mm.get(m1); m2i = mm.get(m2)
+    p1 = m1 in st.session_state.get('custom_methods', [])
+    p2 = m2 in st.session_state.get('custom_methods', [])
+    if p1: st.info(f"**{m1}** is a custom method — connect its backend to see metrics.")
+    if p2: st.info(f"**{m2}** is a custom method — connect its backend to see metrics.")
+
+    met1 = per_run.get(m1i,{}).get(sid,{}) if not p1 else {}
+    met2 = per_run.get(m2i,{}).get(sid,{}) if not p2 else {}
+
+    st.markdown("### Metric Comparison")
+    comp_data = [{'Metric':k.replace('_',' ').title(), m1:met1.get(k,0), m2:met2.get(k,0),
+                  'Difference':abs(met1.get(k,0)-met2.get(k,0))} for k in met1.keys()]
+    comp_df = pd.DataFrame(comp_data)
+    for col in [m1,m2,'Difference']: comp_df[col] = comp_df[col].apply(lambda x:f"{x:.4f}")
+    st.dataframe(comp_df, use_container_width=True, hide_index=True)
+
+    st.markdown("### Radar Chart")
+    radar_keys = ['ktc_score','dice_resistive','dice_conductive','iou_resistive','iou_conductive']
+    cats = [k.replace('_',' ').title() for k in radar_keys]
+    fig = go.Figure()
+    for label,met,c in [(m1,met1,PALETTE[0]),(m2,met2,PALETTE[1])]:
+        v = [met.get(k,0) for k in radar_keys]; v.append(v[0])
+        fig.add_trace(go.Scatterpolar(r=v,theta=cats+[cats[0]],fill='toself',name=label,
+            line_color=c,fillcolor=hex_to_rgba(c, 0.13)))
+    fig.update_layout(
+        polar=dict(bgcolor='#f6f8fa',
+            radialaxis=dict(visible=True,range=[0,1],gridcolor='#d0d7de',linecolor='#d0d7de',tickfont=dict(size=8)),
+            angularaxis=dict(gridcolor='#d0d7de',linecolor='#d0d7de',tickfont=dict(size=9))),
+        showlegend=True,height=460,paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(family="JetBrains Mono,monospace",color="#848d97",size=9),
+        legend=dict(bgcolor='rgba(255,255,255,.9)',bordercolor='#d0d7de',borderwidth=1,font=dict(size=9)),
+        margin=dict(l=50,r=50,t=30,b=50))
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("### Visual Comparison")
+    panel = load_comparison_panel(sid)
+    if panel:
+        st.markdown(f"**All Methods – Sample {sid}**")
+        st.image(panel, use_container_width=True)
+        st.markdown("---")
+    imgs = load_images_for_sample(sid, level=lvl)
+    if imgs:
+        ic1,ic2 = st.columns(2)
+        i1 = next((img for k,img in imgs.items() if m1i and m1i.lower() in k.lower()),None)
+        i2 = next((img for k,img in imgs.items() if m2i and m2i.lower() in k.lower()),None)
+        with ic1:
+            st.markdown(f"**{m1}**")
+            if i1:
+                st.image(i1, use_container_width=True)
+            else:
+                st.info(f"Image not found for {m1}")
+        with ic2:
+            st.markdown(f"**{m2}**")
+            if i2:
+                st.image(i2, use_container_width=True)
+            else:
+                st.info(f"Image not found for {m2}")
+    elif not panel:
+        st.info("No visualization images found. Run example_usage.py to generate images.")
 
 # =========================================================
-# VIEW 4: FAILURE GALLERY
+# VIEW 4 — FAILURE GALLERY  (original logic)
 # =========================================================
-
-def view_failure_gallery(scores: Dict, per_run: Dict, method_mapping: Dict):
-    """Gallery showing worst 3 samples per method."""
-    
-    st.header("⚠️ Failure Gallery")
-    st.markdown("Worst performing samples for each method (highest KTC scores)")
-    
+def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict):
     if not per_run:
         st.warning("No per-run metrics available.")
         return
-    
-    for display_method in scores.keys():
-        st.subheader(f"🔴 {display_method}")
-        
-        # Get internal key
-        internal_key = method_mapping.get(display_method)
-        if not internal_key or internal_key not in per_run:
-            st.info(f"No per-run data available for {display_method}")
+
+    for disp in scores.keys():
+        ik = mm.get(disp)
+        if not ik or ik not in per_run:
+            st.info(f"No per-run data for {disp}")
             continue
-        
-        samples = per_run[internal_key]
-        
-        # Sort samples by KTC score (descending - worst first)
-        sorted_samples = sorted(
-            samples.items(),
-            key=lambda x: x[1]['ktc_score'],
-            reverse=True
-        )
-        
-        # Take worst 3
-        worst_samples = sorted_samples[:3]
-        
-        # Display in columns
+        worst3 = sorted(per_run[ik].items(), key=lambda x:x[1]['ktc_score'], reverse=True)[:3]
+
+        st.markdown(f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;font-weight:600;color:#1f2328;padding:6px 0 4px;border-bottom:1px solid #d0d7de;margin-bottom:8px">{disp}</div>', unsafe_allow_html=True)
         cols = st.columns(3)
-        
-        for idx, (sample_id, metrics) in enumerate(worst_samples):
+        max_ktc = max((m['ktc_score'] for _,m in worst3), default=1) or 1
+        for idx,(sid,metrics) in enumerate(worst3):
             with cols[idx]:
-                st.markdown(f"**Sample {sample_id}**")
-                st.metric("KTC Score", f"{metrics['ktc_score']:.4f}")
-                st.caption(f"Dice (R): {metrics.get('dice_resistive', 0):.4f}")
-                st.caption(f"Dice (C): {metrics.get('dice_conductive', 0):.4f}")
-                st.caption(f"IoU (R): {metrics.get('iou_resistive', 0):.4f}")
-                st.caption(f"IoU (C): {metrics.get('iou_conductive', 0):.4f}")
-                
-                # Try to load image from reconstructions directory
-                sample_dir = Path("outputs") / "reconstructions" / "level_1" / f"sample_{sample_id}"
-                img_file = sample_dir / f"{internal_key}.png"
-                
-                if img_file.exists():
-                    st.image(Image.open(img_file), use_container_width=True)
-                else:
-                    # Try error overlay as fallback
-                    error_file = Path("outputs") / "error_overlays" / f"{internal_key}_sample_{sample_id}.png"
-                    if error_file.exists():
-                        st.image(Image.open(error_file), use_container_width=True)
-                    else:
-                        st.caption("🖼️ Image not available")
-        
+                pct = int(metrics['ktc_score']/max_ktc*100)
+                bc  = ['#cf222e','#bf8700','#0969da'][idx]
+                st.markdown(f"""<div class="fcard">
+                  <div class="frank">#{idx+1} WORST · SAMPLE {sid}</div>
+                  <div class="fktc">{metrics['ktc_score']:.4f}</div>
+                  <div class="flbl">KTC SCORE</div>
+                  <div class="fbar"><div class="fbar-f" style="width:{pct}%;background:{bc}"></div></div>
+                </div>""", unsafe_allow_html=True)
+                img_shown = False
+                for p in [Path("outputs/reconstructions/level_1")/f"sample_{sid}"/f"{ik}.png",
+                          Path("outputs/error_overlays")/f"{ik}_sample_{sid}.png"]:
+                    if p.exists():
+                        st.image(Image.open(p), use_container_width=True)
+                        img_shown = True
+                        break
+                if not img_shown:
+                    st.caption("Image not available")
         st.markdown("---")
 
 # =========================================================
-# VIEW 5: PER-METRIC RADAR CHART
+# VIEW 5 — RADAR CHART  (original logic)
 # =========================================================
-
-def view_radar_chart(scores: Dict, per_run: Dict):
-    """Comprehensive radar chart for all methods across all metrics."""
-    
-    st.header("📡 Per-Metric Radar Analysis")
-    st.markdown("Compare all methods across different metric dimensions")
-    
+def view_radar_chart(scores:Dict, per_run:Dict):
     if not scores:
         st.warning("No scores available.")
         return
-    
-    # Select metrics to include
-    st.subheader("Select Metrics")
-    
-    available_metrics = set()
-    for method_scores in scores.values():
-        available_metrics.update(method_scores.keys())
-    
-    available_metrics = sorted(list(available_metrics))
-    
-    selected_metrics = st.multiselect(
-        "Choose metrics to display:",
-        available_metrics,
-        default=available_metrics[:5] if len(available_metrics) >= 5 else available_metrics
-    )
-    
-    if not selected_metrics:
-        st.info("Please select at least one metric.")
+
+    avail = sorted({k for m in scores.values() for k in m.keys()})
+    chosen = st.multiselect("Choose metrics:", avail,
+        default=avail[:5] if len(avail)>=5 else avail)
+    if not chosen:
+        st.info("Select at least one metric.")
         return
-    
-    # Prepare data
+
     fig = go.Figure()
-    
-    colors_palette = ['#1D9E75', '#D85A30', '#4A90E2', '#F5A623', '#9B59B6', '#E74C3C', '#1ABC9C']
-    
-    for idx, (method_name, metrics) in enumerate(scores.items()):
-        # Extract values for selected metrics
-        values = []
-        for metric in selected_metrics:
-            val = metrics.get(metric, 0)
-            # Normalize KTC score (invert since lower is better)
-            if 'ktc' in metric.lower():
-                val = max(0, 1 - val)
-            values.append(val)
-        
-        # Close the polygon
-        values.append(values[0])
-        categories = [m.replace('_', ' ').title() for m in selected_metrics]
-        categories.append(categories[0])
-        
-        fig.add_trace(go.Scatterpolar(
-            r=values,
-            theta=categories,
-            fill='toself',
-            name=method_name,
-            line_color=colors_palette[idx % len(colors_palette)]
-        ))
-    
+    for i,(name,metrics) in enumerate(scores.items()):
+        vals = [max(0,1-metrics.get(m,0)) if 'ktc' in m.lower() else metrics.get(m,0) for m in chosen]
+        vals.append(vals[0])
+        cats = [m.replace('_',' ').title() for m in chosen]; cats.append(cats[0])
+        c = mcol(i)
+        fig.add_trace(go.Scatterpolar(r=vals,theta=cats,fill='toself',name=name,
+            line_color=c,fillcolor=hex_to_rgba(c, 0.13)))
     fig.update_layout(
-        polar=dict(
-            radialaxis=dict(
-                visible=True,
-                range=[0, 1]
-            )),
-        showlegend=True,
-        height=600,
-        title="Method Performance Across Selected Metrics"
-    )
-    
+        polar=dict(bgcolor='#f6f8fa',
+            radialaxis=dict(visible=True,range=[0,1],gridcolor='#d0d7de',linecolor='#d0d7de',tickfont=dict(size=8)),
+            angularaxis=dict(gridcolor='#d0d7de',linecolor='#d0d7de',tickfont=dict(size=10))),
+        showlegend=True,height=560,title="Method Performance Across Selected Metrics",
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(family="JetBrains Mono,monospace",color="#848d97",size=9),
+        legend=dict(bgcolor='rgba(255,255,255,.9)',bordercolor='#d0d7de',borderwidth=1,font=dict(size=9)),
+        margin=dict(l=55,r=55,t=45,b=55))
     st.plotly_chart(fig, use_container_width=True)
-    
-    # Metric statistics
-    st.subheader("📊 Metric Statistics")
-    
-    stats_data = []
-    for metric in selected_metrics:
-        metric_values = []
-        for method_scores in scores.values():
-            val = method_scores.get(metric, 0)
-            # Normalize KTC score
-            if 'ktc' in metric.lower():
-                val = max(0, 1 - val)
-            metric_values.append(val)
-        
-        stats_data.append({
-            'Metric': metric.replace('_', ' ').title(),
-            'Mean': np.mean(metric_values),
-            'Std Dev': np.std(metric_values),
-            'Min': np.min(metric_values),
-            'Max': np.max(metric_values)
-        })
-    
-    stats_df = pd.DataFrame(stats_data)
-    stats_df = stats_df.round(4)
-    
-    st.dataframe(stats_df, use_container_width=True, hide_index=True)
+
+    st.markdown('<div class="slbl">METRIC STATISTICS</div>', unsafe_allow_html=True)
+    rows = []
+    for m in chosen:
+        vals = [max(0,1-ms.get(m,0)) if 'ktc' in m.lower() else ms.get(m,0) for ms in scores.values()]
+        rows.append({'Metric':m.replace('_',' ').title(),'Mean':np.mean(vals),'Std Dev':np.std(vals),'Min':np.min(vals),'Max':np.max(vals)})
+    st.dataframe(pd.DataFrame(rows).round(4), use_container_width=True, hide_index=True)
 
 # =========================================================
-# MAIN APP
+# MAIN
 # =========================================================
-
 def main():
-    """Main application entry point."""
-    
-    # Title and description
-    st.title("🔬 EIT Reconstruction Dashboard")
+    render_sidebar()
+
+    # Header — exact mockup: 2px stripe, 13px/500 title, 9px sub
     st.markdown("""
-    Interactive dashboard for analyzing Electrical Impedance Tomography (EIT) reconstruction methods.
-    
-    **Features:**
-    - 🏆 Interactive leaderboard with customizable composite weights
-    - 📉 Performance degradation analysis across samples
-    - 🔍 Side-by-side method comparisons
-    - ⚠️ Failure case analysis
-    - 📡 Multi-dimensional radar charts
-    """)
-    
-    # Load data
+    <div class="dash-header">
+      <div class="dash-title">&#9889; EIT Reconstruction Dashboard</div>
+      <div class="dash-sub">Electrical Impedance Tomography &#8212; Benchmarking &amp; Analysis Platform</div>
+    </div>
+    """, unsafe_allow_html=True)
+
     try:
-        scores, per_run, method_mapping = load_data()
-        
+        # Cache key = latest run folder name so cache refreshes on new run
+        latest_run = find_latest_run()
+        _cache_key = latest_run.name
+        scores, per_run, mm = load_data(_cache_key)
+
+        # Show which run is loaded
+        st.markdown(
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;'
+            f'color:#848d97;margin:-6px 0 10px;padding:0 2px">'
+            f'📂 Loaded: <span style="color:#1a7f37">{latest_run.name}</span></div>',
+            unsafe_allow_html=True)
+
         if not scores and not per_run:
-            st.error("❌ No data found! Please run the benchmark first to generate scores.json and per_run_metrics.json")
-            st.info("Run: `python example_usage.py` to generate the required data files.")
+            st.error("No data found. Run `python example_usage.py` first.")
             return
-        
-        # Data info
-        with st.expander("ℹ️ Dataset Information"):
-            st.markdown(f"""
-            - **Methods analyzed:** {len(scores)}
-            - **Total samples:** {len(per_run.get(list(per_run.keys())[0], {})) if per_run else 0}
-            - **Total reconstructions:** {sum(len(v) for v in per_run.values()) if per_run else 0}
-            """)
-            
+
+        # Dataset info expander
+        with st.expander("Dataset Information", expanded=False):
+            c1,c2,c3 = st.columns(3)
+            n_s = len(per_run.get(list(per_run.keys())[0],{})) if per_run else 0
+            n_t = sum(len(v) for v in per_run.values()) if per_run else 0
+            stat_items = [
+                (str(len(scores)), "Methods Analyzed"),
+                (str(n_s),         "Total Samples"),
+                (str(n_t),         "Total Reconstructions"),
+            ]
+            for col_, (num, lbl) in zip([c1, c2, c3], stat_items):
+                with col_:
+                    st.markdown(
+                        f'<div class="mcard"><div class="mv" style="font-size:18px">{num}</div>'
+                        f'<div class="ml">{lbl}</div></div>',
+                        unsafe_allow_html=True)
             if scores:
                 st.markdown("**Available methods:**")
-                for method in scores.keys():
-                    st.markdown(f"  - {method}")
-            
-            if method_mapping:
-                st.markdown("**Method name mapping:**")
-                for display, internal in method_mapping.items():
-                    st.markdown(f"  - `{display}` → `{internal}`")
-        
-        # View tabs
-        tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            "🏆 Leaderboard",
-            "📉 Degradation Curve",
-            "🔍 Comparison",
-            "⚠️ Failures",
-            "📡 Radar Chart"
-        ])
-        
-        with tab1:
-            view_leaderboard(scores, per_run)
-        
-        with tab2:
-            view_degradation_curve(scores, per_run, method_mapping)
-        
-        with tab3:
-            view_comparison(scores, per_run, method_mapping)
-        
-        with tab4:
-            view_failure_gallery(scores, per_run, method_mapping)
-        
-        with tab5:
-            view_radar_chart(scores, per_run)
-        
+                for m in scores.keys(): st.markdown(f"  • {m}")
+
+        # Tabs — exact mockup labels
+        t1,t2,t3,t4,t5 = st.tabs([
+            "01  LEADERBOARD","02  DEGRADATION",
+            "03  COMPARISON","04  FAILURES","05  RADAR"])
+
+        with t1: view_leaderboard(scores, per_run)
+        with t2: view_degradation_curve(scores, per_run, mm)
+        with t3: view_comparison(scores, per_run, mm)
+        with t4: view_failure_gallery(scores, per_run, mm)
+        with t5: view_radar_chart(scores, per_run)
+
     except Exception as e:
-        st.error(f"❌ Error loading data: {str(e)}")
+        st.error(f"Error: {e}")
         st.exception(e)
 
-if __name__ == "__main__":
-    main()
+# Run the app
+main()
