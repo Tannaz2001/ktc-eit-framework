@@ -184,27 +184,51 @@ def create_method_mapping(scores: Dict, per_run: Dict) -> Dict[str, str]:
                 mapping[display_name] = internal_key; break
     return mapping
 
+def find_latest_run() -> Path:
+    """Return the most recent run folder, or fallback to outputs/."""
+    runs_root = Path("outputs")
+    # Check the pointer file written by example_usage.py
+    pointer = runs_root / "latest.txt"
+    if pointer.exists():
+        latest = Path(pointer.read_text().strip())
+        if latest.exists():
+            return latest
+    # Fallback: find newest run_YYYYMMDD_HHMMSS folder
+    run_dirs = sorted(runs_root.glob("run_*"), reverse=True)
+    if run_dirs:
+        return run_dirs[0]
+    # Final fallback: flat outputs/ folder (old structure)
+    return runs_root
+
+
 @st.cache_data
-def load_data(scores_path:str="scores.json", per_run_path:str="outputs/per_run_metrics.json") -> Tuple[Dict,Dict,Dict]:
+def load_data(_cache_key: str = "") -> Tuple[Dict, Dict, Dict]:
+    """Load scores + per-run metrics from the latest run folder."""
+    run_dir = find_latest_run()
+
     scores = {}
-    scores_file = None
-    if Path(scores_path).exists(): scores_file = Path(scores_path)
-    elif Path("outputs/scores.json").exists(): scores_file = Path("outputs/scores.json")
-    if scores_file:
-        with open(scores_file,'r') as f: scores = json.load(f)
-        _ = st.sidebar.markdown(f'<div style="font-size:9px;color:#848d97;margin:2px 0">📄 {scores_file.name}</div>', unsafe_allow_html=True)
+    # Try run folder first, then root fallback
+    for candidate in [run_dir / "scores.json", Path("scores.json"),
+                      Path("outputs/scores.json")]:
+        if candidate.exists():
+            with open(candidate, 'r') as f:
+                scores = json.load(f)
+            break
 
     per_run = {}
-    if Path(per_run_path).exists():
-        with open(per_run_path,'r') as f: per_run = json.load(f)
-        _ = st.sidebar.markdown('<div style="font-size:9px;color:#848d97;margin:2px 0">📄 per_run_metrics.json</div>', unsafe_allow_html=True)
+    for candidate in [run_dir / "per_run_metrics.json",
+                      Path("outputs/per_run_metrics.json")]:
+        if candidate.exists():
+            with open(candidate, 'r') as f:
+                per_run = json.load(f)
+            break
 
     return scores, per_run, create_method_mapping(scores, per_run)
 
 @st.cache_data
-def load_images_for_sample(sample_id:str, level:int=1, outputs_dir:str="outputs") -> Dict[str,Image.Image]:
+def load_images_for_sample(sample_id:str, level:int=1, outputs_dir:str="") -> Dict[str,Image.Image]:
     images = {}
-    op = Path(outputs_dir)
+    op = Path(outputs_dir) if outputs_dir else find_latest_run()
     sd = op/"reconstructions"/f"level_{level}"/f"sample_{sample_id}"
     if sd.exists():
         for f in sd.glob("*.png"): images[f.stem] = Image.open(f)
@@ -216,8 +240,8 @@ def load_images_for_sample(sample_id:str, level:int=1, outputs_dir:str="outputs"
     return images
 
 @st.cache_data
-def load_comparison_panel(sample_id:str, outputs_dir:str="outputs") -> Image.Image:
-    op = Path(outputs_dir)
+def load_comparison_panel(sample_id:str, outputs_dir:str="") -> Image.Image:
+    op = Path(outputs_dir) if outputs_dir else find_latest_run()
     for fname in [f"sample_{sample_id}.png", f"sample_{sample_id}_main.png"]:
         p = op/"comparison_panels"/fname
         if p.exists(): return Image.open(p)
@@ -317,6 +341,35 @@ def render_sidebar():
         if to_remove:
             st.session_state.custom_methods.remove(to_remove)
             st.rerun()
+
+    # ── Run selector ──────────────────────────────────────────
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("## Run History")
+    runs_root = Path("outputs")
+    run_dirs = sorted(runs_root.glob("run_*"), reverse=True) if runs_root.exists() else []
+
+    if run_dirs:
+        # Show latest pointer
+        latest = find_latest_run()
+        st.sidebar.markdown(
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:#1a7f37;margin:3px 0">'
+            f'▶ Latest: {latest.name}</div>', unsafe_allow_html=True)
+
+        run_names = [d.name for d in run_dirs]
+        chosen_run = st.sidebar.selectbox(
+            "Load a previous run:",
+            run_names, index=0, key="selected_run",
+            label_visibility="collapsed")
+
+        if st.sidebar.button("↺ Load selected run", use_container_width=True, key="load_run_btn"):
+            selected_path = runs_root / chosen_run
+            (runs_root / "latest.txt").write_text(str(selected_path))
+            st.cache_data.clear()
+            st.rerun()
+    else:
+        st.sidebar.markdown(
+            '<div style="font-size:9px;color:#848d97;margin:3px 0">No runs yet.<br>Run example_usage.py first.</div>',
+            unsafe_allow_html=True)
 
 # =========================================================
 # VIEW 1 — LEADERBOARD  (original logic)
@@ -467,7 +520,8 @@ def view_comparison(scores:Dict, per_run:Dict, mm:Dict):
     lvl = c4.selectbox("Level:", ALL_LEVELS, index=0)
 
     m1i = mm.get(m1); m2i = mm.get(m2)
-    p1  = m1 in st.session_state.get('custom_methods',[]); p2 = m2 in st.session_state.get('custom_methods',[])
+    p1 = m1 in st.session_state.get('custom_methods', [])
+    p2 = m2 in st.session_state.get('custom_methods', [])
     if p1: st.info(f"**{m1}** is a custom method — connect its backend to see metrics.")
     if p2: st.info(f"**{m2}** is a custom method — connect its backend to see metrics.")
 
@@ -502,7 +556,9 @@ def view_comparison(scores:Dict, per_run:Dict, mm:Dict):
     st.markdown("### Visual Comparison")
     panel = load_comparison_panel(sid)
     if panel:
-        st.markdown(f"**All Methods – Sample {sid}**"); st.image(panel, use_container_width=True); st.markdown("---")
+        st.markdown(f"**All Methods – Sample {sid}**")
+        st.image(panel, use_container_width=True)
+        st.markdown("---")
     imgs = load_images_for_sample(sid, level=lvl)
     if imgs:
         ic1,ic2 = st.columns(2)
@@ -618,7 +674,17 @@ def main():
     """, unsafe_allow_html=True)
 
     try:
-        scores, per_run, mm = load_data()
+        # Cache key = latest run folder name so cache refreshes on new run
+        latest_run = find_latest_run()
+        _cache_key = latest_run.name
+        scores, per_run, mm = load_data(_cache_key)
+
+        # Show which run is loaded
+        st.markdown(
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;'
+            f'color:#848d97;margin:-6px 0 10px;padding:0 2px">'
+            f'📂 Loaded: <span style="color:#1a7f37">{latest_run.name}</span></div>',
+            unsafe_allow_html=True)
 
         if not scores and not per_run:
             st.error("No data found. Run `python example_usage.py` first.")
@@ -629,12 +695,17 @@ def main():
             c1,c2,c3 = st.columns(3)
             n_s = len(per_run.get(list(per_run.keys())[0],{})) if per_run else 0
             n_t = sum(len(v) for v in per_run.values()) if per_run else 0
-            for col_,(num,lbl) in zip([c1,c2,c3],[
-                (str(len(scores)),"Methods Analyzed"),
-                (str(n_s),"Total Samples"),
-                (str(n_t),"Total Reconstructions")]):
+            stat_items = [
+                (str(len(scores)), "Methods Analyzed"),
+                (str(n_s),         "Total Samples"),
+                (str(n_t),         "Total Reconstructions"),
+            ]
+            for col_, (num, lbl) in zip([c1, c2, c3], stat_items):
                 with col_:
-                    st.markdown(f'<div class="mcard"><div class="mv" style="font-size:18px">{num}</div><div class="ml">{lbl}</div></div>', unsafe_allow_html=True)
+                    st.markdown(
+                        f'<div class="mcard"><div class="mv" style="font-size:18px">{num}</div>'
+                        f'<div class="ml">{lbl}</div></div>',
+                        unsafe_allow_html=True)
             if scores:
                 st.markdown("**Available methods:**")
                 for m in scores.keys(): st.markdown(f"  • {m}")
