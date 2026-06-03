@@ -68,21 +68,29 @@ REAL_METHODS = {
 TRAINING_DATA_ROOT = "Codes_Matlab"       # contains TrainingData/ + GroundTruths/
 TRAINING_SAMPLES   = ["1", "2", "3", "4"] # the 4 real .mat samples shipped with the framework
 
-# Simple directory structure - no timestamps
-OUTPUTS_DIR = Path("outputs")
-REPORTS_DIR = Path("reports")
+# ── Timestamped run folder so every run is preserved ──────────
+RUN_ID      = datetime.now().strftime("%Y%m%d_%H%M%S")
+RUNS_ROOT   = Path("outputs")           # all runs live here
+OUTPUTS_DIR = RUNS_ROOT / f"run_{RUN_ID}"   # THIS run's folder
+REPORTS_DIR = Path("reports") / f"run_{RUN_ID}"
 
-# Create organized subdirectories
-COMPARISON_DIR = OUTPUTS_DIR / "comparison_panels"
+# Write a pointer file so app.py always knows which run is latest
+RUNS_ROOT.mkdir(parents=True, exist_ok=True)
+(RUNS_ROOT / "latest.txt").write_text(str(OUTPUTS_DIR))
+
+# Organised subdirectories inside this run
+COMPARISON_DIR    = OUTPUTS_DIR / "comparison_panels"
 ERROR_OVERLAY_DIR = OUTPUTS_DIR / "error_overlays"
-CHARTS_DIR = OUTPUTS_DIR / "charts"
+CHARTS_DIR        = OUTPUTS_DIR / "charts"
 RECONSTRUCTIONS_DIR = OUTPUTS_DIR / "reconstructions"
 VISUALIZATION_DIR = OUTPUTS_DIR / "visualization"
 
-# Create all directories
-for directory in [OUTPUTS_DIR, REPORTS_DIR, COMPARISON_DIR, ERROR_OVERLAY_DIR, 
+for directory in [OUTPUTS_DIR, REPORTS_DIR, COMPARISON_DIR, ERROR_OVERLAY_DIR,
                   CHARTS_DIR, RECONSTRUCTIONS_DIR, VISUALIZATION_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
+
+print(f"Run ID: {RUN_ID}")
+print(f"Saving to: {OUTPUTS_DIR.resolve()}")
 
 
 print("=" * 60)
@@ -374,8 +382,12 @@ report_scores = {
         "KTC score":         float(np.mean([per_run_metrics["gauss_newton"][s]["ktc_score"]         for s in TRAINING_SAMPLES])),
     },
 }
-with open("scores.json", "w") as f:
+# Save scores both in run folder AND as scores.json for backward compat
+with open(OUTPUTS_DIR / "scores.json", "w") as f:
     json.dump(report_scores, f, indent=4)
+# Also write to root scores.json for dashboard backward compat
+import shutil
+shutil.copy(OUTPUTS_DIR / "scores.json", "scores.json")
 
 # Also persist the detailed per-run real metrics next to the figures
 with (OUTPUTS_DIR / "per_run_metrics.json").open("w") as f:

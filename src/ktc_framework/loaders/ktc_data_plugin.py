@@ -16,6 +16,7 @@ works whether the caller uses the Zenodo layout or a re-arranged copy:
 from __future__ import annotations
 
 import os
+from os import path
 import warnings
 from typing import Optional
 
@@ -235,7 +236,7 @@ class KTCDataPlugin:
                 f"  level={level}, sample='{sample}' → num='{num}'"
             )
 
-        voltages, injection = self._load_data(data_path)
+        voltages, injection, mpat = self._load_data(data_path)
         ground_truth        = self._load_gt(gt_path)
 
         return DataBatch(
@@ -246,57 +247,67 @@ class KTCDataPlugin:
             sample_id          = f"level{level}_{sample}",
             mesh               = None,   # filled by BatchRunner._run_one
             reference_voltages = None,   # filled by BatchRunner._run_one
+            measurement_patterns=mpat,
         )
 
     # ── private helpers ─────────────────────────────────────────────────────
 
     def _load_data(
         self, path: str
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """Extract ``Uel`` (voltages) and ``Inj`` (injection patterns).
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Extract Uel, Inj, and Mpat from KTC data file.
 
-        Parameters
-        ----------
-        path:
-            Absolute path to the data ``.mat`` file.
-
-        Returns
-        -------
-        tuple[np.ndarray, np.ndarray]
-            * ``voltages``   — shape ``(2356,)`` float32, flattened.
-            * ``injection``  — shape ``(32, 76)`` float32.
-
-        Raises
-        ------
-        ValueError
-            If ``'Uel'`` is not present in the loaded file.
+        Evaluation data files usually contain Uel only.
+        If Inj or Mpat are missing, they are loaded from ref.mat.
         """
         mat = _load_mat(path)
 
-        # ── Uel: mandatory voltage measurement vector ──────────────────────
+        # Uel: mandatory voltage measurement vector
         if "Uel" not in mat:
             raise ValueError(
                 f"Key 'Uel' not found in {path}. "
                 f"Available keys: {[k for k in mat if not k.startswith('_')]}"
             )
-        voltages = np.asarray(mat["Uel"], dtype=np.float32).ravel()   # (2356,)
 
-        # ── Inj: injection-pattern matrix — optional ───────────────────────
+        voltages = np.asarray(mat["Uel"], dtype=np.float32).ravel()
+
+        protocol = None
+
+        # Inj: load from data file if available, otherwise from ref.mat
         if "Inj" in mat:
             injection = np.asarray(mat["Inj"], dtype=np.float32)
-            # h5py loads HDF5 datasets transposed relative to scipy
-            if injection.ndim == 2 and injection.shape == (76, 32):
-                injection = injection.T                                 # → (32, 76)
         else:
-            warnings.warn(
-                f"'Inj' key not found in {path} — "
-                f"using default zeros(32, 76) placeholder.",
-                RuntimeWarning,
-                stacklevel=3,
-            )
-            injection = np.zeros((32, 76), dtype=np.float32)
+            protocol = self._load_protocol_from_ref(path)
+            injection = protocol["Inj"]
 
-        return voltages, injection
+        if injection.ndim == 2 and injection.shape == (76, 32):
+            injection = injection.T
+
+        if injection.shape != (32, 76):
+            raise ValueError(
+                f"Invalid Inj shape in {path}: {injection.shape}. "
+                f"Expected (32, 76)."
+            )
+
+        # Mpat: load from data file if available, otherwise from ref.mat
+        if "Mpat" in mat:
+            mpat = np.asarray(mat["Mpat"], dtype=np.float32)
+        else:
+            if protocol is None:
+                protocol = self._load_protocol_from_ref(path)
+
+            mpat = protocol["Mpat"]
+
+        if mpat.ndim == 2 and mpat.shape == (31, 32):
+            mpat = mpat.T
+
+        if mpat.shape != (32, 31):
+            raise ValueError(
+                f"Invalid Mpat shape in {path}: {mpat.shape}. "
+                f"Expected (32, 31)."
+            )
+
+        return voltages, injection, mpat
 
     def _load_gt(self, path: str) -> np.ndarray:
         """Load the ground-truth segmentation mask.
@@ -365,3 +376,112 @@ class KTCDataPlugin:
             return np.zeros((256, 256), dtype=np.uint8)
 
         return gt.astype(np.uint8)
+
+    def _default_mpat(self) -> np.ndarray:
+        """Create default adjacent voltage measurement pattern with shape (32, 31)."""
+        mpat = np.zeros((32, 31), dtype=np.float32)
+
+        for i in range(31):
+            mpat[i, i] = 1.0
+            mpat[i + 1, i] = -1.0
+        return mpat
+    
+    def _load_protocol_from_ref(self, data_path: str) -> dict[str, np.ndarray]:
+        """Load Inj/Injref and Mpat from ref.mat."""
+
+        from pathlib import Path
+
+        data_path = Path(data_path)
+
+        candidates = [
+            data_path.parent / "ref.mat",
+            data_path.parent.parent / "ref.mat",
+            data_path.parent.parent.parent / "ref.mat",
+            Path("EvaluationData") / "ref.mat",
+            Path("Codes_Matlab") / "TrainingData" / "ref.mat",
+        ]
+
+        for ref_path in candidates:
+            if not ref_path.exists():
+                continue
+
+            ref_mat = _load_mat(str(ref_path))
+
+            if "Injref" in ref_mat:
+                injection = np.asarray(ref_mat["Injref"], dtype=np.float32)
+            elif "Inj" in ref_mat:
+                injection = np.asarray(ref_mat["Inj"], dtype=np.float32)
+            else:
+                continue
+
+            if "Mpat" not in ref_mat:
+                continue
+
+            mpat = np.asarray(ref_mat["Mpat"], dtype=np.float32)
+
+            if injection.ndim == 2 and injection.shape == (76, 32):
+                injection = injection.T
+
+            if mpat.ndim == 2 and mpat.shape == (31, 32):
+                mpat = mpat.T
+
+            if injection.shape == (32, 76) and mpat.shape == (32, 31):
+                return {
+                    "Inj": injection,
+                    "Mpat": mpat,
+                }
+
+        raise FileNotFoundError(
+            "Could not load Inj/Injref and Mpat from ref.mat. Tried: "
+            + ", ".join(str(p) for p in candidates)
+        )   
+
+    def _load_protocol_from_ref(self, data_path: str) -> dict[str, np.ndarray]:
+        """Load Inj/Injref and Mpat from ref.mat."""
+
+        from pathlib import Path
+
+        data_path = Path(data_path)
+
+        candidates = [
+            data_path.parent / "ref.mat",
+            data_path.parent.parent / "ref.mat",
+            data_path.parent.parent.parent / "ref.mat",
+            Path("EvaluationData") / "ref.mat",
+            Path("Codes_Matlab") / "TrainingData" / "ref.mat",
+        ]
+
+        for ref_path in candidates:
+            if not ref_path.exists():
+                continue
+
+            ref_mat = _load_mat(str(ref_path))
+
+            if "Injref" in ref_mat:
+                injection = np.asarray(ref_mat["Injref"], dtype=np.float32)
+            elif "Inj" in ref_mat:
+                injection = np.asarray(ref_mat["Inj"], dtype=np.float32)
+            else:
+                continue
+
+            if "Mpat" not in ref_mat:
+                continue
+
+            mpat = np.asarray(ref_mat["Mpat"], dtype=np.float32)
+
+            if injection.ndim == 2 and injection.shape == (76, 32):
+                injection = injection.T
+
+            if mpat.ndim == 2 and mpat.shape == (31, 32):
+                mpat = mpat.T
+
+            if injection.shape == (32, 76) and mpat.shape == (32, 31):
+                return {
+                    "Inj": injection,
+                    "Mpat": mpat,
+                }
+
+        raise FileNotFoundError(
+            "Could not load Inj/Injref and Mpat from ref.mat. Tried: "
+            + ", ".join(str(p) for p in candidates)
+        )
