@@ -380,23 +380,36 @@ def rasterize(ds: np.ndarray, mesh_obj) -> np.ndarray:
         )
 
     # ------------------------------------------------------------------
-    # Step 2 — Build the 256×256 pixel grid over [−1, 1] × [−1, 1].
-    # The KTC tank is a unit circle centred at the origin.
-    # xi / yi are the pixel centre coordinates along x / y.
-    # np.meshgrid gives (256, 256) coordinate arrays for griddata.
+    # Step 2 — Build the 256×256 pixel grid over the actual mesh extent.
+    #
+    # IMPORTANT: the KTC mesh is in physical units (metres).  Mesh_sparse.mat
+    # stores nodes in the range [-0.115, 0.115] m (tank radius ≈ 0.115 m),
+    # NOT the normalised [-1, 1] range.  Hardcoding [-1, 1] would make the
+    # mesh nodes occupy only ~1% of the grid, filling the rest with
+    # fill_value=0 from griddata — producing an almost entirely zero image.
+    #
+    # Fix: derive the grid bounds from the actual scatter-point extent and
+    # add a small margin so boundary nodes are never clipped.
     # ------------------------------------------------------------------
     grid_size = 256
-    xi = np.linspace(-1.0, 1.0, grid_size)   # x pixel centres
-    yi = np.linspace(-1.0, 1.0, grid_size)   # y pixel centres
-    gx, gy = np.meshgrid(xi, yi)              # each (256, 256)
+
+    margin = 0.02 * (scatter_pts[:, 0].max() - scatter_pts[:, 0].min())
+    x_min = scatter_pts[:, 0].min() - margin
+    x_max = scatter_pts[:, 0].max() + margin
+    y_min = scatter_pts[:, 1].min() - margin
+    y_max = scatter_pts[:, 1].max() + margin
+
+    xi = np.linspace(x_min, x_max, grid_size)   # x pixel centres
+    yi = np.linspace(y_min, y_max, grid_size)   # y pixel centres
+    gx, gy = np.meshgrid(xi, yi)                 # each (256, 256)
 
     # ------------------------------------------------------------------
     # Step 3 — Scattered-data interpolation.
     # griddata(points, values, (xi, yi), method='linear')
     #   points : (n_pts, 2) scatter coordinates (centroids or nodes)
-    #   values : (n_elements,)  ds values at each centroid
-    #   result : (256, 256)     interpolated image
-    # Pixels outside the convex hull of centroids get fill_value=0.0.
+    #   values : (n_pts,)   ds values at each scatter point
+    #   result : (256, 256) interpolated image
+    # Pixels outside the convex hull of scatter points get fill_value=0.0.
     # ------------------------------------------------------------------
     grid = griddata(
         scatter_pts,         # scatter points (centroids or nodes)
@@ -407,11 +420,12 @@ def rasterize(ds: np.ndarray, mesh_obj) -> np.ndarray:
     )                        # (256, 256) float64
 
     # ------------------------------------------------------------------
-    # Step 4 — Circular mask: zero out everything outside the tank.
-    # The tank boundary is the unit circle: x² + y² = 1.
-    # Pixels with x² + y² > 1 are outside the physical domain.
+    # Step 4 — Circular mask: zero out pixels outside the tank boundary.
+    # The tank is a circle of radius r_tank centred at the origin.
+    # We estimate r_tank from the maximum node distance from centre.
     # ------------------------------------------------------------------
-    outside_tank = (gx ** 2 + gy ** 2) > 1.0
+    r_tank = np.sqrt((scatter_pts[:, 0] ** 2 + scatter_pts[:, 1] ** 2).max())
+    outside_tank = (gx ** 2 + gy ** 2) > r_tank ** 2
     grid[outside_tank] = 0.0
 
     return grid.astype(np.float32)           # (256, 256) float32

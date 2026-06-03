@@ -354,18 +354,18 @@ class GaussNewton(MethodPlugin):
             ds = self._jac.solve(v1, self._v_ref, normalize=True)
 
             # ── Step 3: rasterise to 256×256 pixel grid ────────────────────
-            # rasterize() interpolates per-element ds values at element
-            # centroids onto a uniform 256×256 grid spanning [-1,1]×[-1,1],
-            # then zeros out pixels outside the unit circle (tank boundary).
-            sigma_map = rasterize(ds.real, self._mesh_obj)  # (256,256) float32
-            # .real: JAC can return complex ds in some configurations;
-            # we take the real part which encodes the conductivity change.
+            # Negate ds before rasterising: pyEIT's JAC computes ds = -H @ dv,
+            # so resistive inclusions produce NEGATIVE ds (like BP).
+            # segment() assigns label 1 to HIGH values, so flip the sign so
+            # resistive regions become the positive peak in the image.
+            # .real: JAC can return complex ds; real part = conductivity change.
+            sigma_map = rasterize(-ds.real, self._mesh_obj)  # (256,256) float32
 
             # ── Step 4: segment into discrete labels ────────────────────────
             # segment() applies double-Otsu thresholding:
-            #   label 0 → background / water
-            #   label 1 → resistive inclusion (lower Δσ)
-            #   label 2 → conductive inclusion (higher Δσ)
+            #   label 0 → background / water (low values after negation)
+            #   label 1 → resistive inclusion (high values after negation)
+            #   label 2 → conductive inclusion (highest values after negation)
             labels = segment(sigma_map)   # (256, 256) int
             labels = labels.astype(np.uint8)
 

@@ -365,16 +365,20 @@ class BackProjection(MethodPlugin):
             # ds shape: (n_elements,) = (3073,)  — per-element Δσ
 
             # ── Step 3: rasterise to 256×256 grid ──────────────────────────
-            # rasterize() interpolates element centroids → pixel grid and
-            # applies a unit-circle mask (pixels outside tank → 0.0).
-            sigma_map = rasterize(ds, self._mesh_obj)   # (256, 256) float32
+            # rasterize() interpolates node/centroid values onto the mesh
+            # domain and applies a circular tank mask (outside → 0.0).
+            # Negate ds before rasterising: pyEIT's BP computes ds = -H @ dv,
+            # so resistive inclusions (higher measured voltage → positive dv)
+            # produce NEGATIVE ds.  segment() assigns label 1 to HIGH values,
+            # so we flip the sign to make resistive regions the positive peak.
+            sigma_map = rasterize(-ds, self._mesh_obj)  # (256, 256) float32
 
             # ── Step 4: segment into discrete labels ────────────────────────
             # segment() applies double-Otsu thresholding:
-            #   label 0 → background / water
-            #   label 1 → resistive inclusion (lower conductivity)
-            #   label 2 → conductive inclusion (higher conductivity)
-            labels = segment(sigma_map)                 # (256, 256) int/uint8
+            #   label 0 → background / water (low values after negation)
+            #   label 1 → resistive inclusion (high values after negation)
+            #   label 2 → conductive inclusion (highest values after negation)
+            labels = segment(sigma_map)                  # (256, 256) int/uint8
             labels = labels.astype(np.uint8)
 
             # ── Step 5: validate and return ─────────────────────────────────
