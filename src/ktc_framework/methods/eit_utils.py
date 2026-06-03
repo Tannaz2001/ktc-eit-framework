@@ -348,31 +348,36 @@ def rasterize(ds: np.ndarray, mesh_obj) -> np.ndarray:
     """
 
     # ------------------------------------------------------------------
-    # Step 1 — Element centroids.
-    # mesh_obj.node  : (n_nodes, 2)   — x, y coordinates of each node
-    # mesh_obj.element: (n_elements, 3) — indices of three corner nodes
-    # Indexing node by element gives (n_elements, 3, 2); mean over axis=1
-    # gives the centroid of each triangle.
+    # Step 1 — Parse mesh arrays.
+    # PyEITMesh stores nodes as (n_nodes, 3) for 2-D meshes — the third
+    # column is z = 0.  Slice to (n_nodes, 2) so griddata works in 2-D.
     # ------------------------------------------------------------------
-    # PyEITMesh stores nodes as (n_nodes, 3) even for 2-D meshes — it appends
-    # a z = 0 column.  We only need the first two (x, y) columns for griddata.
     nodes    = np.asarray(mesh_obj.node,    dtype=np.float64)[:, :2]  # (n_nodes, 2)
     elements = np.asarray(mesh_obj.element, dtype=np.int32)           # (n_elements, 3)
 
-    ds_flat = np.asarray(ds, dtype=np.float64).ravel()
-
+    ds_flat    = np.asarray(ds, dtype=np.float64).ravel()
     n_nodes    = nodes.shape[0]
     n_elements = elements.shape[0]
 
+    # ------------------------------------------------------------------
+    # Step 2 — Choose scatter points based on ds length.
+    #
+    # pyEIT JAC  returns per-element ds  → shape (n_elements,)
+    #            scatter points = element centroids
+    # pyEIT BP   returns per-node ds     → shape (n_nodes,)
+    #            scatter points = node coordinates directly
+    #
+    # Element centroids: mean of three corner node positions.
+    # mesh_obj.node[mesh_obj.element] → (n_elements, 3, 2)
+    # .mean(axis=1)                   → (n_elements, 2)
+    # ------------------------------------------------------------------
     if ds_flat.shape[0] == n_elements:
-        # Per-element values — use element centroids as scatter points.
-        # Centroid = arithmetic mean of the three corner positions.
-        scatter_pts = nodes[elements].mean(axis=1)             # (n_elements, 2)
+        centroids   = nodes[elements].mean(axis=1)   # (n_elements, 2)
+        scatter_pts = centroids
     elif ds_flat.shape[0] == n_nodes:
-        # Per-node values — pyEIT's BP solver returns (n_nodes,) because
-        # its back-projection matrix H has shape (n_nodes, n_meas_tot).
-        # Use node coordinates directly as scatter points.
-        scatter_pts = nodes                                    # (n_nodes, 2)
+        # BP smear matrix H has shape (n_nodes, n_meas_tot), so ds is
+        # per-node.  Use node coordinates directly as scatter points.
+        scatter_pts = nodes                          # (n_nodes, 2)
     else:
         raise ValueError(
             f"rasterize: ds length {ds_flat.shape[0]} matches neither "
@@ -380,52 +385,69 @@ def rasterize(ds: np.ndarray, mesh_obj) -> np.ndarray:
         )
 
     # ------------------------------------------------------------------
-    # Step 2 — Build the 256×256 pixel grid over the actual mesh extent.
+    # Step 3 — Derive grid bounds from the actual node extent.
     #
-    # IMPORTANT: the KTC mesh is in physical units (metres).  Mesh_sparse.mat
-    # stores nodes in the range [-0.115, 0.115] m (tank radius ≈ 0.115 m),
-    # NOT the normalised [-1, 1] range.  Hardcoding [-1, 1] would make the
-    # mesh nodes occupy only ~1% of the grid, filling the rest with
-    # fill_value=0 from griddata — producing an almost entirely zero image.
+    # CRITICAL: the KTC mesh is in physical metres.  Mesh_sparse.mat
+    # nodes span ≈ [-0.115, 0.115] m (tank radius ≈ 0.115 m).
+    # Hardcoding [-1, 1] would make the mesh fill only ~1 % of the grid,
+    # leaving 99 % as fill_value = 0 — effectively a blank image.
     #
-    # Fix: derive the grid bounds from the actual scatter-point extent and
-    # add a small margin so boundary nodes are never clipped.
+    # Use nodes (not scatter_pts) for bounds so the grid always covers
+    # the full mesh regardless of whether ds is per-element or per-node.
     # ------------------------------------------------------------------
+    x_min, x_max = nodes[:, 0].min(), nodes[:, 0].max()
+    y_min, y_max = nodes[:, 1].min(), nodes[:, 1].max()
+
     grid_size = 256
-
-    margin = 0.02 * (scatter_pts[:, 0].max() - scatter_pts[:, 0].min())
-    x_min = scatter_pts[:, 0].min() - margin
-    x_max = scatter_pts[:, 0].max() + margin
-    y_min = scatter_pts[:, 1].min() - margin
-    y_max = scatter_pts[:, 1].max() + margin
-
     xi = np.linspace(x_min, x_max, grid_size)   # x pixel centres
     yi = np.linspace(y_min, y_max, grid_size)   # y pixel centres
     gx, gy = np.meshgrid(xi, yi)                 # each (256, 256)
 
     # ------------------------------------------------------------------
-    # Step 3 — Scattered-data interpolation.
-    # griddata(points, values, (xi, yi), method='linear')
+    # Step 4 — Scattered-data interpolation.
+    # griddata(points, values, (gx, gy), method='linear')
     #   points : (n_pts, 2) scatter coordinates (centroids or nodes)
     #   values : (n_pts,)   ds values at each scatter point
-    #   result : (256, 256) interpolated image
-    # Pixels outside the convex hull of scatter points get fill_value=0.0.
+    #   result : (256, 256) interpolated image; pixels outside the
+    #            convex hull of scatter_pts receive fill_value = 0.0
     # ------------------------------------------------------------------
     grid = griddata(
-        scatter_pts,         # scatter points (centroids or nodes)
-        ds_flat,             # scatter values
-        (gx, gy),            # query grid
+        scatter_pts,   # scatter points — centroids (JAC) or nodes (BP)
+        ds_flat,       # per-element or per-node values
+        (gx, gy),      # 256×256 query grid
         method="linear",
         fill_value=0.0,
-    )                        # (256, 256) float64
+    )                  # (256, 256) float64
 
     # ------------------------------------------------------------------
-    # Step 4 — Circular mask: zero out pixels outside the tank boundary.
-    # The tank is a circle of radius r_tank centred at the origin.
-    # We estimate r_tank from the maximum node distance from centre.
+    # Step 5 — Circular tank mask.
+    # Derive the tank centre and radius analytically from the node
+    # coordinate extent rather than assuming the origin is the centre
+    # or that the radius is 1.0 m.
+    #   cx, cy  = midpoint of the bounding box
+    #   radius  = half the x-extent (tank is circular, so x ≈ y range)
+    # Pixels where (x-cx)² + (y-cy)² > radius² are outside the tank
+    # and are set to 0.
     # ------------------------------------------------------------------
-    r_tank = np.sqrt((scatter_pts[:, 0] ** 2 + scatter_pts[:, 1] ** 2).max())
-    outside_tank = (gx ** 2 + gy ** 2) > r_tank ** 2
-    grid[outside_tank] = 0.0
+    cx     = (x_min + x_max) * 0.5
+    cy     = (y_min + y_max) * 0.5
+    radius = (x_max - x_min) * 0.5          # half the x-width
 
-    return grid.astype(np.float32)           # (256, 256) float32
+    outside_tank             = (gx - cx) ** 2 + (gy - cy) ** 2 > radius ** 2
+    grid[outside_tank]       = 0.0
+
+    # ------------------------------------------------------------------
+    # Step 6 — Normalise to [0, 1].
+    # segment() uses Otsu thresholding, which partitions the histogram
+    # of pixel values.  When the absolute range of sigma_map is very
+    # small (e.g. < 1e-3) the histogram is essentially a single spike
+    # and Otsu collapses every pixel to label 0.  Normalising to [0, 1]
+    # before segmentation preserves relative contrast regardless of the
+    # physical magnitude of the conductivity change.
+    # The 1e-8 guard prevents division by zero for flat (all-same) maps.
+    # ------------------------------------------------------------------
+    g_min = grid.min()
+    g_max = grid.max()
+    grid  = (grid - g_min) / (g_max - g_min + 1e-8)
+
+    return grid.astype(np.float32)           # (256, 256) float32, range [0, 1]
