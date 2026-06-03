@@ -342,6 +342,48 @@ def render_sidebar():
             st.session_state.custom_methods.remove(to_remove)
             st.rerun()
 
+    # ── Run Benchmark Button ───────────────────────────────────
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("## Run Benchmark")
+    config_options = {
+        "Full Benchmark (42 runs)": "configs/ktc_all_methods.yaml",
+        "Training Data (4 samples)": "configs/training_experiment.yaml",
+        "Mock / Smoke Test": "configs/mock_experiment.yaml",
+    }
+    chosen_config = st.sidebar.selectbox(
+        "Config:", list(config_options.keys()), key="run_config_sel",
+        label_visibility="collapsed")
+
+    if st.sidebar.button("▶  Run Now", use_container_width=True, key="run_btn"):
+        import subprocess, sys, os
+        config_path = config_options[chosen_config]
+        env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+        with st.spinner(f"Running benchmark — {chosen_config} …"):
+            try:
+                # Step 1 — run the benchmark
+                r1 = subprocess.run(
+                    [sys.executable, "run.py", "--config", config_path],
+                    capture_output=True, text=True, encoding="utf-8",
+                    errors="replace", cwd=str(Path.cwd()), env=env
+                )
+                if r1.returncode != 0:
+                    st.sidebar.error(f"Benchmark failed:\n{r1.stderr[-500:]}")
+                else:
+                    # Step 2 — prepare dashboard data
+                    r2 = subprocess.run(
+                        [sys.executable, "prepare_dashboard.py"],
+                        capture_output=True, text=True, encoding="utf-8",
+                        errors="replace", cwd=str(Path.cwd()), env=env
+                    )
+                    if r2.returncode != 0:
+                        st.sidebar.error(f"Prepare failed:\n{r2.stderr[-300:]}")
+                    else:
+                        st.cache_data.clear()
+                        st.sidebar.success("Done! Dashboard updated.")
+                        st.rerun()
+            except Exception as ex:
+                st.sidebar.error(f"Error: {ex}")
+
     # ── Run selector ──────────────────────────────────────────
     st.sidebar.markdown("---")
     st.sidebar.markdown("## Run History")
@@ -392,6 +434,8 @@ def view_leaderboard(scores:Dict, per_run:Dict):
             'Dice (C)':  metrics.get('Dice (conductive)', metrics.get('dice_conductive',0)),
             'IoU (R)':   metrics.get('IoU (resistive)',   metrics.get('iou_resistive',0)),
             'IoU (C)':   metrics.get('IoU (conductive)',  metrics.get('iou_conductive',0)),
+            'HD95 (R)':  metrics.get('hd95_resistive',  0),
+            'HD95 (C)':  metrics.get('hd95_conductive', 0),
         })
     leaderboard_data.sort(key=lambda x: x['Composite Score'], reverse=True)
     df = pd.DataFrame(leaderboard_data)
@@ -446,8 +490,9 @@ def view_leaderboard(scores:Dict, per_run:Dict):
     st.markdown('<div class="slbl">DETAILED METRICS</div>', unsafe_allow_html=True)
     disp = df.drop(columns=['Color']).copy()
     disp['Composite Score'] = disp['Composite Score'].round(2)
-    for c in ['KTC Score','Dice (R)','Dice (C)','IoU (R)','IoU (C)']:
-        disp[c] = disp[c].round(4)
+    for c in ['KTC Score','Dice (R)','Dice (C)','IoU (R)','IoU (C)','HD95 (R)','HD95 (C)']:
+        if c in disp.columns:
+            disp[c] = disp[c].round(4)
     st.dataframe(disp, use_container_width=True, hide_index=True)
 
 # =========================================================
@@ -472,22 +517,46 @@ def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict):
     fig = go.Figure()
     stats = []
     for i, disp in enumerate(chosen):
-        ik = mm.get(disp)
-        if not ik or ik not in per_run: continue
-        samps = per_run[ik]; sids = sorted(samps.keys())
-        ktc = [samps[s]['ktc_score'] for s in sids]
-        x = [int(s) if s.isdigit() else j+1 for j,s in enumerate(sids)]
+        ik = mm.get(disp, disp)
+        if ik not in per_run: continue
+        samps = per_run[ik]
+
+        # Group by level — average KTC across samples A/B/C per level
+        level_scores: dict = {}
+        for run_key, metrics in samps.items():
+            lv = metrics.get("level")
+            if lv is not None:
+                level_scores.setdefault(int(lv), []).append(metrics.get("ktc_score", 0))
+
+        if not level_scores:
+            continue
+
+        levels_x = sorted(level_scores.keys())
+        ktc_avg  = [float(np.mean(level_scores[lv])) for lv in levels_x]
+        ktc_min  = [float(np.min(level_scores[lv]))  for lv in levels_x]
+        ktc_max  = [float(np.max(level_scores[lv]))  for lv in levels_x]
+
         c = mcol(i)
-        fig.add_trace(go.Scatter(x=x+x[::-1],y=[v*1.06 for v in ktc]+[v*.94 for v in ktc[::-1]],
-            fill='toself',fillcolor=hex_to_rgba(c, 0.09),line=dict(width=0),showlegend=False,hoverinfo='skip'))
-        fig.add_trace(go.Scatter(x=x,y=ktc,mode='lines+markers',name=disp,
-            line=dict(width=2.5,color=c),marker=dict(size=7,color=c,line=dict(width=2,color='#ffffff')),
-            hovertemplate=f"<b>{disp}</b><br>Sample: %{{x}}<br>KTC: %{{y:.4f}}<extra></extra>"))
-        stats.append({'Method':disp,'Mean KTC':np.mean(ktc),'Std Dev':np.std(ktc),
-                      'Min':np.min(ktc),'Max':np.max(ktc),'Range':np.max(ktc)-np.min(ktc)})
+        # Shaded band (min/max range)
+        fig.add_trace(go.Scatter(
+            x=levels_x + levels_x[::-1],
+            y=ktc_max + ktc_min[::-1],
+            fill='toself', fillcolor=hex_to_rgba(c, 0.10),
+            line=dict(width=0), showlegend=False, hoverinfo='skip'))
+        # Average line
+        fig.add_trace(go.Scatter(
+            x=levels_x, y=ktc_avg, mode='lines+markers', name=disp,
+            line=dict(width=2.5, color=c),
+            marker=dict(size=7, color=c, line=dict(width=2, color='#ffffff')),
+            hovertemplate=f"<b>{disp}</b><br>Level: %{{x}}<br>Avg KTC: %{{y:.4f}}<extra></extra>"))
+
+        stats.append({'Method': disp, 'Mean KTC': np.mean(ktc_avg),
+                      'Std Dev': np.std(ktc_avg), 'Min': np.min(ktc_avg),
+                      'Max': np.max(ktc_avg), 'Range': np.max(ktc_avg)-np.min(ktc_avg)})
 
     fig.update_layout(
-        title=f"KTC Score per Sample — Level {lvl}",xaxis_title="Sample ID",yaxis_title="KTC Score ↓",
+        title="KTC Score vs Difficulty Level (avg across samples A/B/C)",
+        xaxis_title="Level (1=easiest → 7=hardest)", yaxis_title="KTC Score ↑",
         height=420,hovermode='x unified',
         paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='#f6f8fa',
         font=dict(family="JetBrains Mono,monospace",color="#848d97",size=9),
@@ -525,15 +594,22 @@ def view_comparison(scores:Dict, per_run:Dict, mm:Dict):
     if p1: st.info(f"**{m1}** is a custom method — connect its backend to see metrics.")
     if p2: st.info(f"**{m2}** is a custom method — connect its backend to see metrics.")
 
-    met1 = per_run.get(m1i,{}).get(sid,{}) if not p1 else {}
-    met2 = per_run.get(m2i,{}).get(sid,{}) if not p2 else {}
+    met1 = per_run.get(m1i or m1, {}).get(sid, {}) if not p1 else {}
+    met2 = per_run.get(m2i or m2, {}).get(sid, {}) if not p2 else {}
 
     st.markdown("### Metric Comparison")
-    comp_data = [{'Metric':k.replace('_',' ').title(), m1:met1.get(k,0), m2:met2.get(k,0),
-                  'Difference':abs(met1.get(k,0)-met2.get(k,0))} for k in met1.keys()]
-    comp_df = pd.DataFrame(comp_data)
-    for col in [m1,m2,'Difference']: comp_df[col] = comp_df[col].apply(lambda x:f"{x:.4f}")
-    st.dataframe(comp_df, use_container_width=True, hide_index=True)
+    if not met1 and not met2:
+        st.warning(f"No data found for sample '{sid}'. Run `python prepare_dashboard.py` to refresh.")
+    else:
+        numeric_keys = [k for k in met1.keys() if isinstance(met1.get(k), (int, float))]
+        comp_data = [{'Metric':k.replace('_',' ').title(), m1:met1.get(k,0), m2:met2.get(k,0),
+                      'Difference':abs(met1.get(k,0)-met2.get(k,0))} for k in numeric_keys]
+        comp_df = pd.DataFrame(comp_data)
+        if not comp_df.empty:
+            for col in [m1, m2, 'Difference']:
+                if col in comp_df.columns:
+                    comp_df[col] = comp_df[col].apply(lambda x: f"{x:.4f}")
+        st.dataframe(comp_df, use_container_width=True, hide_index=True)
 
     st.markdown("### Radar Chart")
     radar_keys = ['ktc_score','dice_resistive','dice_conductive','iou_resistive','iou_conductive']
@@ -660,6 +736,78 @@ def view_radar_chart(scores:Dict, per_run:Dict):
     st.dataframe(pd.DataFrame(rows).round(4), use_container_width=True, hide_index=True)
 
 # =========================================================
+# VIEW 6 — ALL RUNS  (same as terminal table)
+# =========================================================
+def view_all_runs(per_run: Dict):
+    """Show every individual run — same as terminal Experiment Summary + Degradation Slope."""
+
+    if not per_run:
+        st.warning("No per-run data available. Click 'Run Now' in the sidebar or run `python prepare_dashboard.py`.")
+        return
+
+    # ── Build full runs table ─────────────────────────────────
+    rows = []
+    for method, runs in per_run.items():
+        for run_key, metrics in runs.items():
+            rows.append({
+                "Method":     method,
+                "Level":      metrics.get("level", run_key),
+                "Sample":     metrics.get("sample", run_key),
+                "KTC Score":  round(metrics.get("ktc_score", 0), 3),
+                "Dice Res.":  round(metrics.get("dice_resistive", 0), 3),
+                "Dice Cond.": round(metrics.get("dice_conductive", 0), 3),
+                "HD95 Res.":  round(metrics.get("hd95_resistive", 0), 1),
+                "HD95 Cond.": round(metrics.get("hd95_conductive", 0), 1),
+                "Runtime ms": round(metrics.get("runtime_ms", 0), 1),
+                "Grade":      metrics.get("grade", "-"),
+            })
+
+    df = pd.DataFrame(rows).sort_values(["Method", "Level", "Sample"]).reset_index(drop=True)
+
+    # ── Table 1: Experiment Summary ───────────────────────────
+    st.markdown("### Experiment Summary")
+    col1, col2 = st.columns(2)
+    methods_list = ["All"] + sorted(df["Method"].unique().tolist())
+    sel_method = col1.selectbox("Method:", methods_list, key="ar_method")
+    levels_list = ["All"] + sorted(df["Level"].unique().tolist())
+    sel_level = col2.selectbox("Level:", levels_list, key="ar_level")
+
+    filtered = df.copy()
+    if sel_method != "All":
+        filtered = filtered[filtered["Method"] == sel_method]
+    if sel_level != "All":
+        filtered = filtered[filtered["Level"] == sel_level]
+
+    st.markdown(f"**{len(filtered)} / {len(df)} runs**")
+    st.dataframe(filtered, use_container_width=True, hide_index=True)
+
+    # ── Table 2: Degradation Slope ────────────────────────────
+    st.markdown("### Degradation Slope by Method")
+    slope_rows = []
+    for method, runs in per_run.items():
+        level_scores: Dict[int, list] = {}
+        for metrics in runs.values():
+            lv = metrics.get("level")
+            if lv is not None:
+                level_scores.setdefault(int(lv), []).append(metrics.get("ktc_score", 0))
+        levels_sorted = sorted(level_scores.keys())
+        avg_scores = [float(np.mean(level_scores[lv])) for lv in levels_sorted]
+        if len(levels_sorted) >= 2:
+            slope = float(np.polyfit(levels_sorted, avg_scores, 1)[0])
+        else:
+            slope = 0.0
+        direction = "degrades" if slope < 0 else "improves"
+        slope_rows.append({
+            "Method":          method,
+            "Slope (per level)": round(slope, 4),
+            "Direction":       f"▼ {direction}" if slope < 0 else f"▲ {direction}",
+        })
+
+    st.dataframe(pd.DataFrame(slope_rows), use_container_width=True, hide_index=True)
+    st.caption("Steeper negative slope = method degrades faster at harder levels")
+
+
+# =========================================================
 # MAIN
 # =========================================================
 def main():
@@ -711,15 +859,17 @@ def main():
                 for m in scores.keys(): st.markdown(f"  • {m}")
 
         # Tabs — exact mockup labels
-        t1,t2,t3,t4,t5 = st.tabs([
+        t1,t2,t3,t4,t5,t6 = st.tabs([
             "01  LEADERBOARD","02  DEGRADATION",
-            "03  COMPARISON","04  FAILURES","05  RADAR"])
+            "03  COMPARISON","04  FAILURES","05  RADAR",
+            "06  ALL RUNS"])
 
         with t1: view_leaderboard(scores, per_run)
         with t2: view_degradation_curve(scores, per_run, mm)
         with t3: view_comparison(scores, per_run, mm)
         with t4: view_failure_gallery(scores, per_run, mm)
         with t5: view_radar_chart(scores, per_run)
+        with t6: view_all_runs(per_run)
 
     except Exception as e:
         st.error(f"Error: {e}")
