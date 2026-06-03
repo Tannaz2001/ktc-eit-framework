@@ -1,4 +1,4 @@
-"""Experiment runner — loops over levels, samples, and methods from config."""
+"""Experiment runner -- loops over levels, samples, and methods from config."""
 
 from __future__ import annotations
 
@@ -32,12 +32,12 @@ from src.ktc_framework.visualization.plot_results import (
 )
 from src.ktc_framework.reporting.html_report import generate_html_report
 
-# Side-effect imports — registers data plugins into PluginRegistry
+# Side-effect imports -- registers data plugins into PluginRegistry
 import src.ktc_framework.loaders.mock_data_plugin        # noqa: F401
 import src.ktc_framework.loaders.ktc_data_plugin         # noqa: F401
 import src.ktc_framework.loaders.training_data_plugin    # noqa: F401
 
-# Side-effect imports — registers reconstruction methods into method_registry
+# Side-effect imports -- registers reconstruction methods into method_registry
 import src.ktc_framework.methods.mock_method_plugin      # noqa: F401
 import src.ktc_framework.methods.backprojection          # noqa: F401  registers BackProjection
 import src.ktc_framework.methods.gauss_newton            # noqa: F401  registers GaussNewton
@@ -51,7 +51,7 @@ register_metric("iou_conductive",   lambda pred, gt: iou(pred, gt, label=2))
 register_metric("hd95_resistive",   lambda pred, gt: hd95(pred, gt, label=1))
 register_metric("hd95_conductive",  lambda pred, gt: hd95(pred, gt, label=2))
 
-console = Console()
+console = Console(safe_box=True)  # safe_box=True uses ASCII box-drawing (cp1252-safe on Windows)
 
 
 class BatchRunner:
@@ -72,7 +72,7 @@ class BatchRunner:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Load shared resources once — passed to every DataBatch at run time
+        # Load shared resources once -- passed to every DataBatch at run time
         self.mesh = self._load_mesh(config.get("mesh_path", ""))
         self.ref_voltages = self._load_reference(config.get("dataset_root", ""))
 
@@ -106,14 +106,14 @@ class BatchRunner:
                     return mesh_struct
                 except Exception as exc:
                     warnings.warn(
-                        f"Could not load Mesh_sparse.mat ({exc}) — falling back to generated mesh.",
+                        f"Could not load Mesh_sparse.mat ({exc}) -- falling back to generated mesh.",
                         RuntimeWarning,
                         stacklevel=2,
                     )
                     console.print(f"[yellow]Mesh load failed: {exc}[/yellow]")
             else:
                 console.print(
-                    f"[yellow]mesh_path '{mesh_path}' not found — "
+                    f"[yellow]mesh_path '{mesh_path}' not found -- "
                     f"falling back to generated mesh.[/yellow]"
                 )
 
@@ -127,12 +127,12 @@ class BatchRunner:
             return mesh_obj
         except ImportError:
             console.print(
-                "[yellow]pyeit not installed — mesh unavailable; "
+                "[yellow]pyeit not installed -- mesh unavailable; "
                 "BP/GaussNewton will use random fallback.[/yellow]"
             )
             return None
         except Exception as exc:
-            console.print(f"[yellow]pyEIT mesh generation failed ({exc}) — returning None.[/yellow]")
+            console.print(f"[yellow]pyEIT mesh generation failed ({exc}) -- returning None.[/yellow]")
             return None
 
     def _load_reference(self, dataset_root: str) -> np.ndarray | None:
@@ -159,7 +159,7 @@ class BatchRunner:
 
         if ref_path is None:
             console.print(
-                f"[yellow]ref.mat not found — tried:[/yellow]\n"
+                f"[yellow]ref.mat not found -- tried:[/yellow]\n"
                 + "\n".join(f"  [yellow]{p}[/yellow]" for p in candidates)
                 + "\n[yellow]Reconstruction methods will use mean-subtraction fallback.[/yellow]"
             )
@@ -185,7 +185,7 @@ class BatchRunner:
             return ref
         except Exception as exc:
             warnings.warn(
-                f"Could not load ref.mat ({exc}) — using mean-subtraction fallback.",
+                f"Could not load ref.mat ({exc}) -- using mean-subtraction fallback.",
                 RuntimeWarning,
                 stacklevel=2,
             )
@@ -197,7 +197,7 @@ class BatchRunner:
     # ------------------------------------------------------------------
 
     def run(self) -> list[dict[str, Any]]:
-        """Run all method × level × sample combinations and return results."""
+        """Run all method x level x sample combinations and return results."""
         results: list[dict[str, Any]] = []
 
         levels  = self.config.get("levels",  [])
@@ -211,7 +211,7 @@ class BatchRunner:
             TextColumn("[bold blue]{task.description}"),
             BarColumn(),
             TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TextColumn("•"),
+            TextColumn("*"),
             TimeElapsedColumn(),
             console=console,
         ) as progress:
@@ -247,7 +247,7 @@ class BatchRunner:
             data_plugin_cls = PluginRegistry.get(plugin_name)
         except KeyError:
             console.print(
-                f"[yellow]data_plugin '{plugin_name}' not registered — "
+                f"[yellow]data_plugin '{plugin_name}' not registered -- "
                 f"falling back to MockDataPlugin.[/yellow]"
             )
             from src.ktc_framework.loaders.mock_data_plugin import MockDataPlugin
@@ -260,13 +260,13 @@ class BatchRunner:
             raw_batch = data_plugin.load_sample(level=level, sample=sample)
         except FileNotFoundError:
             console.print(
-                f"[yellow]Skipping level={level} sample={sample} — "
+                f"[yellow]Skipping level={level} sample={sample} -- "
                 f"file not found in '{dataset_root}'.[/yellow]"
             )
             return None
         except ValueError as exc:
             console.print(
-                f"[red]Skipping level={level} sample={sample} — "
+                f"[red]Skipping level={level} sample={sample} -- "
                 f"validation error: {exc}[/red]"
             )
             return None
@@ -289,7 +289,7 @@ class BatchRunner:
         try:
             method_plugin = registry_get(method)()
         except KeyError:
-            console.print(f"[red]Method '{method}' not registered — skipping.[/red]")
+            console.print(f"[red]Method '{method}' not registered -- skipping.[/red]")
             return None
 
         # ── reconstruct ───────────────────────────────────────────────────
@@ -332,7 +332,7 @@ class BatchRunner:
             "runtime_ms":      round(runtime_ms, 3),
             "git_sha":         self._git_sha(),
             "png_path":        str(png_path),
-            # internal arrays — stripped before JSON serialisation
+            # internal arrays -- stripped before JSON serialisation
             "_gt":   gt,
             "_pred": reconstruction,
         }
@@ -354,7 +354,7 @@ class BatchRunner:
         with out.open("w", encoding="utf-8") as f:
             json.dump(clean, f, indent=2)
 
-        # Nested: method → level → sample → metrics
+        # Nested: method -> level -> sample -> metrics
         nested: dict[str, Any] = {}
         for r in clean:
             m  = r["method"]
@@ -448,7 +448,7 @@ class BatchRunner:
         table.add_column("Slope (per level)", justify="right", min_width=20)
 
         for method, slope in slopes.items():
-            direction = "▼ degrades" if slope < 0 else "▲ improves"
+            direction = "v degrades" if slope < 0 else "^ improves"
             table.add_row(method, f"{slope:+.4f}  {direction}")
 
         console.print()
@@ -466,7 +466,7 @@ class BatchRunner:
             plot_leaderboard(results, self.output_dir)
             report_path = generate_html_report(results, self.output_dir)
             console.print(
-                f"\n[green]Figures saved:[/green] {len(saved)} PNGs → {self.output_dir / 'figures'}"
+                f"\n[green]Figures saved:[/green] {len(saved)} PNGs -> {self.output_dir / 'figures'}"
             )
             console.print(f"[green]HTML report:[/green]   {report_path}")
         except Exception as exc:
