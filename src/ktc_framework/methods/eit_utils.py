@@ -304,8 +304,14 @@ def rasterize(ds: np.ndarray, mesh_obj) -> np.ndarray:
     Parameters
     ----------
     ds : np.ndarray
-        Per-element conductivity change values; shape **(n_elements,)**.
-        Produced by ``BP.solve()`` or ``JAC.solve()`` in pyEIT.
+        Conductivity change values produced by ``BP.solve()`` or
+        ``JAC.solve()`` in pyEIT.  Accepted shapes:
+
+        * **(n_elements,)** — per-element values (e.g. from JAC).
+          Scatter points are element centroids.
+        * **(n_nodes,)** — per-node values (e.g. from BP, which uses a
+          node-based smear matrix H of shape (n_nodes, n_meas_tot)).
+          Scatter points are the node coordinates directly.
 
     mesh_obj :
         pyEIT mesh object with:
@@ -348,18 +354,29 @@ def rasterize(ds: np.ndarray, mesh_obj) -> np.ndarray:
     # Indexing node by element gives (n_elements, 3, 2); mean over axis=1
     # gives the centroid of each triangle.
     # ------------------------------------------------------------------
-    nodes    = np.asarray(mesh_obj.node,    dtype=np.float64)  # (n_nodes, 2)
-    elements = np.asarray(mesh_obj.element, dtype=np.int32)    # (n_elements, 3)
+    # PyEITMesh stores nodes as (n_nodes, 3) even for 2-D meshes — it appends
+    # a z = 0 column.  We only need the first two (x, y) columns for griddata.
+    nodes    = np.asarray(mesh_obj.node,    dtype=np.float64)[:, :2]  # (n_nodes, 2)
+    elements = np.asarray(mesh_obj.element, dtype=np.int32)           # (n_elements, 3)
 
-    # Centroid = arithmetic mean of the three corner positions
-    centroids = nodes[elements].mean(axis=1)                   # (n_elements, 2)
+    ds_flat = np.asarray(ds, dtype=np.float64).ravel()
 
-    ds_flat = np.asarray(ds, dtype=np.float64).ravel()         # (n_elements,)
+    n_nodes    = nodes.shape[0]
+    n_elements = elements.shape[0]
 
-    if ds_flat.shape[0] != centroids.shape[0]:
+    if ds_flat.shape[0] == n_elements:
+        # Per-element values — use element centroids as scatter points.
+        # Centroid = arithmetic mean of the three corner positions.
+        scatter_pts = nodes[elements].mean(axis=1)             # (n_elements, 2)
+    elif ds_flat.shape[0] == n_nodes:
+        # Per-node values — pyEIT's BP solver returns (n_nodes,) because
+        # its back-projection matrix H has shape (n_nodes, n_meas_tot).
+        # Use node coordinates directly as scatter points.
+        scatter_pts = nodes                                    # (n_nodes, 2)
+    else:
         raise ValueError(
-            f"rasterize: ds length {ds_flat.shape[0]} does not match "
-            f"number of elements {centroids.shape[0]}."
+            f"rasterize: ds length {ds_flat.shape[0]} matches neither "
+            f"n_elements ({n_elements}) nor n_nodes ({n_nodes})."
         )
 
     # ------------------------------------------------------------------
@@ -376,13 +393,13 @@ def rasterize(ds: np.ndarray, mesh_obj) -> np.ndarray:
     # ------------------------------------------------------------------
     # Step 3 — Scattered-data interpolation.
     # griddata(points, values, (xi, yi), method='linear')
-    #   points : (n_elements, 2) centroid coordinates
+    #   points : (n_pts, 2) scatter coordinates (centroids or nodes)
     #   values : (n_elements,)  ds values at each centroid
     #   result : (256, 256)     interpolated image
     # Pixels outside the convex hull of centroids get fill_value=0.0.
     # ------------------------------------------------------------------
     grid = griddata(
-        centroids,           # scatter points
+        scatter_pts,         # scatter points (centroids or nodes)
         ds_flat,             # scatter values
         (gx, gy),            # query grid
         method="linear",
