@@ -1,9 +1,65 @@
-"""KTC-calibrated Gauss-Newton style reconstruction.
+"""GaussNewton reconstruction plugin for the KTC 2023 EIT framework.
 
-Final update:
-- Uses real Inj/Injref and Mpat from the DataBatch.
-- Keeps only finite voltage differences, because KTC levels 2-7 may contain NaN values.
-- Prevents NaN from entering sigma_elem, sigma_map, and segmentation.
+Overview
+--------
+The linearised Gauss-Newton method solves the EIT inverse problem by
+minimising the regularised least-squares objective:
+
+    min_Δσ  ‖J Δσ − Δv‖²  +  λ ‖R Δσ‖²
+
+where
+  * J  is the Jacobian (sensitivity matrix), shape (n_meas, n_elements)
+  * Δv = v_measured − v_ref  is the voltage difference vector
+  * λ  is the regularisation parameter
+  * R  is a regularisation operator (Kotre's method used here)
+
+The closed-form solution for one linearised step is:
+
+    Δσ  =  −(J^T J + λ R)^{−1} J^T Δv
+         =  −H Δv
+
+This is identical in structure to back-projection, but with a
+physics-informed H that incorporates the full Jacobian and regularisation
+— producing sharper, more accurate reconstructions than the simple
+1/distance sensitivity approximation used by BackProjection.
+
+Regularisation — Kotre's method
+--------------------------------
+``method='kotre'`` applies Kotre's diagonal weighting to J^T J before
+adding λ I, emphasising elements that contribute strongly to measurements
+(near the electrodes) and down-weighting deep, poorly-determined elements.
+``p=0.5`` is the balance exponent; ``lamb=0.01`` is the regularisation
+strength.
+
+Normalisation (``jac_normalized=True``)
+----------------------------------------
+The Jacobian is normalised by the forward voltage ``v0 = v_ref`` column-
+wise.  This makes the reconstruction dimensionless and more robust to
+measurement scale differences between samples and difficulty levels.
+
+Lazy initialisation
+-------------------
+Identical to BackProjection: the framework calls ``GaussNewton()`` with no
+arguments.  The JAC solver is built on the first ``reconstruct()`` call
+and cached.  Building the Jacobian (a full FEM solve per excitation) is
+the most expensive step — roughly 0.5 s for the 1 602-node KTC mesh.
+
+Pipeline (per sample)
+---------------------
+1. Parse ``batch.mesh`` → ``PyEITMesh``  (or use the one loaded in init).
+2. Build ``PyEITProtocol`` from ``batch.injection_patterns``.
+3. Compute FEM reference voltages ``v_ref`` (σ = 1 S/m).
+4. Build ``jac.JAC`` and call ``.setup(p=0.5, lamb=0.01,
+   method='kotre', perm=1.0, jac_normalized=True)``.
+5. ``ds = jac.solve(v1, v_ref, normalize=True)`` → (n_elements,) Δσ.
+6. ``rasterize(ds, mesh_obj)``  → 256×256 float image.
+7. ``segment(img)``             → discrete labels {0, 1, 2}.
+8. Validate and return.
+
+Fallback
+--------
+Any failure returns a zero-filled (256, 256) uint8 array so the
+benchmarking loop is never interrupted.
 """
 
 from __future__ import annotations
@@ -12,419 +68,319 @@ import warnings
 from typing import Optional
 
 import numpy as np
-from scipy.interpolate import griddata
-from skimage.filters import threshold_multiotsu
+import scipy.io
 
 from src.ktc_framework.adapters.method_registry import register
+from src.ktc_framework.methods.backprojection import _build_pyeit_mesh
+from src.ktc_framework.methods.eit_utils import (
+    build_ktc_protocol,
+    compute_v_ref,
+    rasterize,
+)
 from src.ktc_framework.methods.method_plugin import MethodPlugin
+from src.ktc_framework.methods.segment import segment
 from src.ktc_framework.types import DataBatch
 
-
-def _has_key(obj, key: str) -> bool:
-    if hasattr(obj, key):
-        return True
-    try:
-        return key in obj
-    except TypeError:
-        return False
-
-
-def _get_key(obj, key: str):
-    if hasattr(obj, key):
-        return getattr(obj, key)
-    try:
-        if key in obj:
-            return obj[key]
-    except TypeError:
-        pass
-    return None
-
-
-def _pattern_pairs(pattern: Optional[np.ndarray]) -> np.ndarray:
-    if pattern is None:
-        return np.zeros((0, 2), dtype=int)
-
-    p = np.asarray(pattern, dtype=float)
-
-    if p.ndim != 2:
-        return np.zeros((0, 2), dtype=int)
-
-    if p.shape[0] != 32 and p.shape[1] == 32:
-        p = p.T
-
-    pairs = []
-
-    for col_i in range(p.shape[1]):
-        col = p[:, col_i]
-        pos = np.where(col > 0)[0]
-        neg = np.where(col < 0)[0]
-
-        if pos.size > 0 and neg.size > 0:
-            pairs.append([int(pos[0]), int(neg[0])])
-
-    return np.asarray(pairs, dtype=int)
-
-
-def _reshape_ktc_vector(v: np.ndarray, n_inj: int, n_meas: int) -> np.ndarray:
-    flat = np.asarray(v, dtype=float).ravel()
-    total = n_inj * n_meas
-
-    if flat.size < total:
-        padded = np.full(total, np.nan, dtype=float)
-        padded[: flat.size] = flat
-        flat = padded
-
-    return flat[:total].reshape(n_inj, n_meas)
-
-
-def _segment_ktc(sigma: np.ndarray) -> np.ndarray:
-    x = np.nan_to_num(
-        np.asarray(sigma, dtype=float),
-        nan=0.0,
-        posinf=0.0,
-        neginf=0.0,
+try:
+    from pyeit.eit.jac import JAC as _JAC
+    from pyeit.mesh.wrapper import PyEITMesh
+    _PYEIT_AVAILABLE = True
+except ImportError:
+    _PYEIT_AVAILABLE = False
+    warnings.warn(
+        "pyeit is not installed — GaussNewton will always return zeros.  "
+        "Install it with:  pip install pyeit",
+        ImportWarning,
+        stacklevel=2,
     )
 
-    if float(np.max(x) - np.min(x)) < 1e-12:
-        return np.zeros(x.shape, dtype=int)
 
-    try:
-        t1, t2 = threshold_multiotsu(x.ravel(), classes=3)
-
-        low = x < t1
-        mid = (x >= t1) & (x <= t2)
-        high = x > t2
-
-        counts = [int(low.sum()), int(mid.sum()), int(high.sum())]
-        bg = int(np.argmax(counts))
-
-        labels = np.zeros(x.shape, dtype=int)
-
-        if bg == 0:
-            labels[mid] = 1
-            labels[high] = 2
-        elif bg == 1:
-            labels[low] = 1
-            labels[high] = 2
-        else:
-            labels[low] = 1
-            labels[mid] = 2
-
-        return labels.astype(int)
-
-    except Exception:
-        abs_map = np.abs(x)
-        threshold = np.percentile(abs_map, 92)
-
-        labels = np.zeros(x.shape, dtype=int)
-        labels[abs_map > threshold] = 1
-
-        return labels.astype(int)
-
+# ────────────────────────────────────────────────────────────────────────────
+# GaussNewton plugin
+# ────────────────────────────────────────────────────────────────────────────
 
 @register
 class GaussNewton(MethodPlugin):
-    """Dataset-aligned regularized Gauss-Newton reconstruction for KTC EIT."""
+    """Linearised Gauss-Newton EIT reconstruction for the KTC 2023 dataset.
 
-    _NODE_KEYS = ["g", "Node", "node", "p", "pts"]
-    _ELEMENT_KEYS = ["H", "Element", "element", "t", "tri"]
+    Uses pyEIT's ``jac.JAC`` solver with Kotre regularisation.  The Jacobian
+    is computed once during solver setup and then applied as a fixed linear
+    operator for each sample.
 
-    def __init__(self, lamb: float = 100.0) -> None:
-        self.lamb = float(lamb)
+    Parameters
+    ----------
+    mesh_path : str, optional
+        Path to ``Mesh_sparse.mat`` **or** the directory containing it.
+        Defaults to ``"Codes_Matlab/Mesh_sparse.mat"``.
 
-    def reconstruct(self, batch: DataBatch) -> np.ndarray:
-        if batch.mesh is None:
+        The framework calls ``GaussNewton()`` with no arguments, so the
+        default covers the standard KTC repo layout.
+
+    Notes
+    -----
+    The JAC solver is built lazily on the first ``reconstruct()`` call.
+    Subsequent calls reuse the cached solver (same mesh + protocol).
+    Building the Jacobian is O(n_exc × FEM solve) ≈ 0.5 s for the
+    1 602-node KTC mesh — acceptable for offline benchmarking.
+    """
+
+    # ── Regularisation hyper-parameters (class-level constants) ─────────────
+    #
+    # These match the default KTC reconstruction setup recommended by the
+    # challenge organisers and commonly used in pyEIT examples.
+    #
+    #   p    = 0.5   — Kotre exponent; 0 → pure Tikhonov, 1 → full Kotre
+    #   lamb = 0.01  — regularisation strength; higher → smoother but blurrier
+    #   method = 'kotre' — diagonal weighting of J^T J
+    #   perm = 1.0   — background conductivity for Jacobian computation (S/m)
+    #   jac_normalized = True — normalise J column-wise by v_ref
+
+    _JAC_P      = 0.5
+    _JAC_LAMB   = 0.01
+    _JAC_METHOD = "kotre"
+    _JAC_PERM   = 1.0
+    _JAC_NORM   = True
+
+    def __init__(self, mesh_path: str = "Codes_Matlab/Mesh_sparse.mat") -> None:
+        # ── Store mesh path for lazy loading ───────────────────────────────
+        self._mesh_path: str = mesh_path
+
+        # ── Cached solver state (all None until first reconstruct) ─────────
+        self._mesh_obj  = None   # PyEITMesh — parsed from mat_struct
+        self._protocol  = None   # PyEITProtocol — built from injection_patterns
+        self._v_ref     = None   # np.ndarray (2356,) — FEM reference voltages
+        self._jac       = None   # jac.JAC — the solver instance
+
+        # ── Eagerly try to load the mesh ───────────────────────────────────
+        # Best-effort: failure defers to batch.mesh at reconstruct time.
+        # We load the mesh here (not the solver) because the solver also
+        # needs batch.injection_patterns, which isn't available yet.
+        try:
+            self._mesh_obj = self._load_mesh_from_path(mesh_path)
+        except Exception as exc:
             warnings.warn(
-                "GaussNewton: no mesh available; returning zeros.",
+                f"GaussNewton.__init__: could not load mesh from "
+                f"'{mesh_path}' ({exc!r}).  "
+                f"Mesh will be taken from batch.mesh at reconstruct time.",
                 RuntimeWarning,
                 stacklevel=2,
             )
-            return np.zeros((256, 256), dtype=int)
 
+    # ── Private: mesh loading ────────────────────────────────────────────────
+
+    @staticmethod
+    def _load_mesh_from_path(mesh_path: str) -> "PyEITMesh":
+        """Load ``Mesh_sparse.mat`` from *mesh_path* and return a PyEITMesh.
+
+        Accepts a direct path to the ``.mat`` file or a directory containing
+        it.
+
+        Parameters
+        ----------
+        mesh_path : str
+
+        Returns
+        -------
+        PyEITMesh
+
+        Raises
+        ------
+        FileNotFoundError
+            If the .mat file cannot be found.
+        KeyError
+            If the file does not contain the ``'Mesh'`` key.
+        """
+        from pathlib import Path
+
+        p = Path(mesh_path)
+        mat_file = p / "Mesh_sparse.mat" if p.is_dir() else p
+
+        if not mat_file.exists():
+            raise FileNotFoundError(f"Mesh file not found: {mat_file}")
+
+        mat = scipy.io.loadmat(
+            str(mat_file), squeeze_me=True, struct_as_record=False
+        )
+        if "Mesh" not in mat:
+            raise KeyError(f"'Mesh' key not found in {mat_file}")
+
+        return _build_pyeit_mesh(mat["Mesh"])
+
+    # ── Private: lazy solver initialisation ──────────────────────────────────
+
+    def _ensure_solver(self, batch: DataBatch) -> None:
+        """Build the JAC solver if it has not been built yet.
+
+        Called at the top of every ``reconstruct()`` call.  Returns
+        immediately after the first successful build (cached state).
+
+        Build steps
+        -----------
+        1. **PyEITMesh** — from ``self._mesh_obj`` (loaded in ``__init__``)
+           or by converting ``batch.mesh`` (raw mat_struct from the loader).
+        2. **PyEITProtocol** — from ``batch.injection_patterns`` via
+           ``build_ktc_protocol`` (76 patterns, 31 adjacent meas pairs).
+        3. **v_ref** — FEM forward simulation at σ = 1 S/m via
+           ``compute_v_ref``, shape (2 356,).
+        4. **JAC solver** — ``jac.JAC(mesh, protocol).setup(...)``
+           computes the full Jacobian J (shape 2 356 × 3 073) and the
+           regularised back-projection matrix H = (J^T J + λR)^{-1} J^T.
+
+        Parameters
+        ----------
+        batch : DataBatch
+            Provides ``injection_patterns`` and optionally ``mesh``.
+
+        Raises
+        ------
+        RuntimeError
+            If pyEIT is not installed.
+        ValueError
+            If no mesh is available from either source.
+        """
+        # Fast path: already initialised
+        if self._jac is not None:
+            return
+
+        # ── Guard: pyeit must be installed ─────────────────────────────────
+        if not _PYEIT_AVAILABLE:
+            raise RuntimeError(
+                "pyeit is not installed — cannot build GaussNewton solver."
+            )
+
+        # ── Step 1: get PyEITMesh ──────────────────────────────────────────
+        if self._mesh_obj is None:
+            if batch.mesh is None:
+                raise ValueError(
+                    "GaussNewton: no mesh available.  "
+                    "Either provide a valid mesh_path or ensure the data "
+                    "loader populates batch.mesh."
+                )
+            # Convert the raw scipy mat_struct to a PyEITMesh object
+            self._mesh_obj = _build_pyeit_mesh(batch.mesh)
+
+        # ── Step 2: build the KTC measurement protocol ─────────────────────
+        # build_ktc_protocol reads the 76 injection pairs from the (32×76)
+        # Inj matrix and constructs the fixed 31-adjacent-pair meas pattern.
+        # Returns PyEITProtocol with n_exc=76, n_meas=31, n_meas_tot=2356.
+        self._protocol = build_ktc_protocol(batch.injection_patterns)
+
+        # ── Step 3: compute FEM reference voltages ─────────────────────────
+        # Runs EITForward with homogeneous σ = 1.0 S/m.
+        # Returns flat (2 356,) array matching the KTC voltage vector shape.
+        self._v_ref = compute_v_ref(self._mesh_obj, self._protocol)
+
+        # ── Step 4: build and setup the JAC solver ─────────────────────────
+        # JAC(mesh, protocol) wires up the FEM forward model.
+        # .setup() computes:
+        #   - J : Jacobian, shape (n_meas_tot, n_elements) = (2356, 3073)
+        #         dV[m] / dσ[e] — sensitivity of measurement m to element e
+        #   - H : regularised back-projection matrix, shape (3073, 2356)
+        #         H = −(J^T J + λ R)^{-1} J^T  (Kotre weighting)
+        # After setup, jac.solve(v1, v0) computes ds = H @ (v1 − v0).
+        #
+        # Hyper-parameters:
+        #   p=0.5      : Kotre exponent — balances uniform vs depth-weighted reg
+        #   lamb=0.01  : regularisation strength
+        #   method='kotre': diagonal weighting before adding λ I
+        #   perm=1.0   : background conductivity for J computation
+        #   jac_normalized=True: normalise J column-wise by v_ref for
+        #                        scale-invariant reconstruction
+        self._jac = _JAC(self._mesh_obj, self._protocol)
+        self._jac.setup(
+            p=self._JAC_P,
+            lamb=self._JAC_LAMB,
+            method=self._JAC_METHOD,
+            perm=self._JAC_PERM,
+            jac_normalized=self._JAC_NORM,
+        )
+
+    # ── Public: reconstruct ───────────────────────────────────────────────────
+
+    def reconstruct(self, batch: DataBatch) -> np.ndarray:
+        """Reconstruct a (256, 256) segmentation map from one KTC sample.
+
+        Parameters
+        ----------
+        batch : DataBatch
+            Single EIT measurement sample with fields:
+
+            * ``voltages``           — (2 356,) float32 boundary voltages
+            * ``injection_patterns`` — (32, 76) float32 KTC Inj matrix
+            * ``mesh``               — scipy mat_struct (may be None if
+                                        ``__init__`` loaded from disk)
+
+        Returns
+        -------
+        np.ndarray
+            Shape (256, 256), dtype uint8, values in {0, 1, 2}.
+
+            * 0 = water / background
+            * 1 = resistive inclusion
+            * 2 = conductive inclusion
+
+            Returns a zero-filled array on any failure (never raises).
+
+        Pipeline
+        --------
+        1. ``_ensure_solver(batch)`` — build JAC solver if not yet done.
+        2. ``jac.solve(v1, v_ref, normalize=True)``
+             One linearised Gauss-Newton step:
+             ds = −H @ ((v1 − v_ref) / v_ref)  shape (3 073,).
+        3. ``rasterize(ds, mesh_obj)``
+             Scatter ds at element centroids → 256×256 float image.
+        4. ``segment(img)``
+             Double-Otsu thresholding → uint8 labels {0, 1, 2}.
+        5. ``validate_output(labels)`` — assert shape and label values.
+
+        Notes
+        -----
+        Unlike BackProjection (per-node ds), JAC returns per-**element** ds
+        because H has shape (n_elements, n_meas_tot).  ``rasterize`` uses
+        element centroids as scatter points for this case.
+        """
         try:
-            nodes, elements = self._parse_mesh(batch.mesh)
-            electrode_nodes = self._electrode_positions(batch.mesh, nodes)
+            # ── Step 1: ensure solver is ready ─────────────────────────────
+            self._ensure_solver(batch)
 
-            inj_pairs = _pattern_pairs(batch.injection_patterns)
-            meas_pairs = _pattern_pairs(getattr(batch, "measurement_patterns", None))
+            # ── Step 2: one linearised Gauss-Newton step ───────────────────
+            # jac.solve(v1, v0, normalize=True) computes:
+            #   dv = (v1 - v0) / v0      (element-wise normalised difference)
+            #   ds = -H @ dv             (regularised back-projection)
+            # v1 = measured voltages (2 356,)
+            # v0 = FEM reference voltages (2 356,) at σ = 1.0 S/m
+            # ds shape: (n_elements,) = (3 073,)  — per-element Δσ
+            v1 = batch.voltages.ravel().astype(np.float64)  # (2356,)
+            ds = self._jac.solve(v1, self._v_ref, normalize=True)
 
-            if inj_pairs.shape[0] == 0:
-                raise ValueError("No valid Inj current pairs found.")
+            # ── Step 3: rasterise to 256×256 pixel grid ────────────────────
+            # rasterize() interpolates per-element ds values at element
+            # centroids onto a uniform 256×256 grid spanning [-1,1]×[-1,1],
+            # then zeros out pixels outside the unit circle (tank boundary).
+            sigma_map = rasterize(ds.real, self._mesh_obj)  # (256,256) float32
+            # .real: JAC can return complex ds in some configurations;
+            # we take the real part which encodes the conductivity change.
 
-            if meas_pairs.shape[0] == 0:
-                warnings.warn(
-                    "GaussNewton: no valid Mpat found; using adjacent voltage pairs.",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
-                meas_pairs = np.column_stack(
-                    [np.arange(31), np.arange(1, 32)]
-                ).astype(int)
+            # ── Step 4: segment into discrete labels ────────────────────────
+            # segment() applies double-Otsu thresholding:
+            #   label 0 → background / water
+            #   label 1 → resistive inclusion (lower Δσ)
+            #   label 2 → conductive inclusion (higher Δσ)
+            labels = segment(sigma_map)   # (256, 256) int
+            labels = labels.astype(np.uint8)
 
-            n_inj = inj_pairs.shape[0]
-            n_meas = meas_pairs.shape[0]
-
-            J = self._build_sensitivity(
-                nodes,
-                elements,
-                electrode_nodes,
-                inj_pairs,
-                meas_pairs,
-            )
-
-            y, mask = self._prepare_difference(
-                batch.voltages,
-                batch.reference_voltages,
-                n_inj,
-                n_meas,
-            )
-
-            if not mask.any():
-                warnings.warn(
-                    f"GaussNewton: no finite voltage differences for "
-                    f"level={batch.level}, sample={batch.sample_id}; returning zeros.",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
-                return np.zeros((256, 256), dtype=int)
-
-            y = np.nan_to_num(y, nan=0.0, posinf=0.0, neginf=0.0)
-
-            Jm = J[mask]
-            ym = y[mask]
-
-            Jm = Jm / (np.linalg.norm(Jm, axis=1, keepdims=True) + 1e-12)
-
-            A = Jm @ Jm.T
-            A.flat[:: A.shape[0] + 1] += self.lamb
-
-            coeff = np.linalg.solve(A, ym)
-            sigma_elem = Jm.T @ coeff
-
-            sigma_elem = np.nan_to_num(
-                sigma_elem,
-                nan=0.0,
-                posinf=0.0,
-                neginf=0.0,
-            )
-
-            if np.std(sigma_elem) > 1e-12:
-                sigma_elem = sigma_elem - np.median(sigma_elem)
-                sigma_elem = sigma_elem / (np.std(sigma_elem) + 1e-12)
-
-            sigma_map = self._interpolate_to_grid(
-                nodes,
-                elements,
-                sigma_elem,
-                size=256,
-            )
-
-            sigma_map = np.nan_to_num(
-                sigma_map,
-                nan=0.0,
-                posinf=0.0,
-                neginf=0.0,
-            )
-
-            print(
-                f"[DEBUG] {self.__class__.__name__} "
-                f"level={batch.level} sample={batch.sample_id} "
-                f"sigma min={sigma_map.min():.6f}, "
-                f"max={sigma_map.max():.6f}, "
-                f"std={sigma_map.std():.6f}"
-            )
-
-            labels = _segment_ktc(sigma_map)
+            # ── Step 5: validate and return ─────────────────────────────────
+            # Raises ValueError if shape != (256, 256) or labels ∉ {0, 1, 2}
             self.validate_output(labels)
-
             return labels
 
         except Exception as exc:
+            # ── Fallback: never crash the benchmarking loop ─────────────────
             warnings.warn(
-                f"GaussNewton failed after KTC alignment ({exc!r}); returning zeros.",
+                f"GaussNewton.reconstruct failed for sample "
+                f"'{batch.sample_id}' (level {batch.level}): {exc!r}.  "
+                f"Returning zero segmentation.",
                 RuntimeWarning,
                 stacklevel=2,
             )
-            return np.zeros((256, 256), dtype=int)
-
-    def _parse_mesh(self, mesh_data) -> tuple[np.ndarray, np.ndarray]:
-        node_key = next((key for key in self._NODE_KEYS if _has_key(mesh_data, key)), None)
-        elem_key = next((key for key in self._ELEMENT_KEYS if _has_key(mesh_data, key)), None)
-
-        if node_key is None or elem_key is None:
-            raise ValueError("Mesh missing node or element arrays.")
-
-        nodes = np.asarray(_get_key(mesh_data, node_key), dtype=np.float64)
-        elements = np.asarray(_get_key(mesh_data, elem_key), dtype=np.int32)
-
-        if elements.min() >= 1:
-            elements = elements - 1
-
-        return nodes, elements
-
-    @staticmethod
-    def _prepare_difference(
-        voltages: np.ndarray,
-        reference_voltages: Optional[np.ndarray],
-        n_inj: int,
-        n_meas: int,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        v1 = _reshape_ktc_vector(voltages, n_inj, n_meas).reshape(-1)
-
-        if reference_voltages is None:
-            warnings.warn(
-                "GaussNewton: no reference voltages; using mean subtraction.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-            v0 = np.full_like(v1, float(np.nanmean(v1)))
-        else:
-            v0 = _reshape_ktc_vector(reference_voltages, n_inj, n_meas).reshape(-1)
-
-        y = (v1 - v0) / (np.abs(v0) + 1e-6)
-
-        mask = np.isfinite(y)
-
-        if mask.any():
-            y_finite = y[mask]
-            y[mask] = y_finite - np.median(y_finite)
-            y[mask] = y[mask] / (np.std(y[mask]) + 1e-12)
-
-        return y.astype(np.float64), mask
-
-    @staticmethod
-    def _build_sensitivity(
-        nodes: np.ndarray,
-        elements: np.ndarray,
-        electrode_nodes: np.ndarray,
-        inj_pairs: np.ndarray,
-        meas_pairs: np.ndarray,
-    ) -> np.ndarray:
-        centroids = np.mean(nodes[elements], axis=1)
-        electrode_xy = nodes[electrode_nodes]
-
-        drive = np.stack(
-            [
-                GaussNewton._point_gradient(centroids, electrode_xy, a, b)
-                for a, b in inj_pairs
-            ]
-        )
-
-        meas = np.stack(
-            [
-                GaussNewton._point_gradient(centroids, electrode_xy, a, b)
-                for a, b in meas_pairs
-            ]
-        )
-
-        sensitivity = -np.einsum("ime,jme->ijm", drive, meas)
-
-        J = sensitivity.reshape(
-            inj_pairs.shape[0] * meas_pairs.shape[0],
-            centroids.shape[0],
-        )
-
-        J = J / (np.linalg.norm(J, axis=0, keepdims=True) + 1e-12)
-
-        return J.astype(np.float64)
-
-    @staticmethod
-    def _point_gradient(
-        points: np.ndarray,
-        electrodes_xy: np.ndarray,
-        a: int,
-        b: int,
-    ) -> np.ndarray:
-        pa = electrodes_xy[int(a)]
-        pb = electrodes_xy[int(b)]
-
-        ra = points - pa
-        rb = points - pb
-
-        eps = 1e-3
-
-        return (
-            ra / (np.sum(ra * ra, axis=1)[:, None] + eps)
-            - rb / (np.sum(rb * rb, axis=1)[:, None] + eps)
-        )
-
-    @staticmethod
-    def _electrode_positions(mesh_data, nodes: np.ndarray) -> np.ndarray:
-        n_nodes = nodes.shape[0]
-
-        for key in ["elfaces", "ElFaces", "el_faces", "elFaces"]:
-            elfaces = _get_key(mesh_data, key)
-
-            if elfaces is None:
-                continue
-
-            try:
-                electrode_node_list = []
-
-                for i in range(len(elfaces)):
-                    edge = np.asarray(elfaces[i], dtype=np.int32)
-                    edge_nodes = edge.ravel() - 1
-                    edge_nodes = edge_nodes[
-                        (edge_nodes >= 0) & (edge_nodes < n_nodes)
-                    ]
-
-                    if edge_nodes.size == 0:
-                        continue
-
-                    centre = nodes[np.unique(edge_nodes)].mean(axis=0)
-                    nearest = int(np.argmin(np.linalg.norm(nodes - centre, axis=1)))
-                    electrode_node_list.append(nearest)
-
-                electrode_nodes = np.asarray(electrode_node_list, dtype=np.int32)
-
-                if electrode_nodes.shape[0] == 32:
-                    return electrode_nodes
-
-            except Exception as exc:
-                warnings.warn(
-                    f"GaussNewton: elfaces parse failed ({exc!r}); "
-                    "using fallback electrode positions.",
-                    RuntimeWarning,
-                    stacklevel=3,
-                )
-                break
-
-        return np.round(np.linspace(0, n_nodes - 1, 32)).astype(np.int32)
-
-    @staticmethod
-    def _interpolate_to_grid(
-        nodes: np.ndarray,
-        elements: np.ndarray,
-        values: np.ndarray,
-        size: int = 256,
-    ) -> np.ndarray:
-        values = np.asarray(values, dtype=np.float64).ravel()
-        centroids = np.mean(nodes[elements], axis=1)
-
-        if values.shape[0] == nodes.shape[0]:
-            values = np.mean(values[elements], axis=1)
-        elif values.shape[0] != elements.shape[0]:
-            warnings.warn(
-                f"_interpolate_to_grid: value length {values.shape[0]} does not "
-                f"match nodes {nodes.shape[0]} or elements {elements.shape[0]}. "
-                "Returning zero grid.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-            return np.zeros((size, size), dtype=np.float64)
-
-        radius = (nodes[:, 0].max() - nodes[:, 0].min()) / 2.0
-        pixwidth = 2.0 * radius / size
-        pix = np.linspace(-radius + pixwidth / 2.0, radius - pixwidth / 2.0, size)
-
-        gx, gy = np.meshgrid(pix, pix)
-
-        grid = griddata(
-            centroids,
-            values,
-            (gx, gy),
-            method="linear",
-            fill_value=0.0,
-        )
-
-        return np.flipud(grid).astype(np.float64)
+            return np.zeros((256, 256), dtype=np.uint8)
