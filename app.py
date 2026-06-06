@@ -208,7 +208,7 @@ def load_data(_cache_key: str = "") -> Tuple[Dict, Dict, Dict]:
 
     scores = {}
     # Try run folder first, then root fallback
-    for candidate in [run_dir / "scores.json", Path("scores.json"),
+    for candidate in [run_dir / "dashboard_scores.json", run_dir / "scores.json", Path("scores.json"),
                       Path("outputs/scores.json")]:
         if candidate.exists():
             with open(candidate, 'r') as f:
@@ -222,6 +222,39 @@ def load_data(_cache_key: str = "") -> Tuple[Dict, Dict, Dict]:
             with open(candidate, 'r') as f:
                 per_run = json.load(f)
             break
+
+    if isinstance(scores, list):
+        flat_runs = scores
+        buckets = {}
+        for run in flat_runs:
+            buckets.setdefault(run["method"], []).append(run)
+
+        scores = {}
+        for method, rows in buckets.items():
+            metric_names = sorted({
+                metric
+                for row in rows
+                for metric in row.get("metrics", {}).keys()
+            })
+            scores[method] = {
+                metric: float(np.mean([row.get("metrics", {}).get(metric, 0.0) for row in rows]))
+                for metric in metric_names
+            }
+
+        if not per_run:
+            per_run = {}
+            for method, rows in buckets.items():
+                per_run[method] = {}
+                for row in rows:
+                    key = f"L{row['level']}_{row['sample']}"
+                    per_run[method][key] = {
+                        **row.get("metrics", {}),
+                        "composite_score": row.get("composite_score", 0.0),
+                        "grade": row.get("grade", "D"),
+                        "runtime_ms": row.get("runtime_ms", 0.0),
+                        "level": row["level"],
+                        "sample": row["sample"],
+                    }
 
     return scores, per_run, create_method_mapping(scores, per_run)
 
