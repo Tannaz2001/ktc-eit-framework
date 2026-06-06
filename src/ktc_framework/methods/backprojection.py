@@ -13,12 +13,21 @@ from typing import Optional
 
 import numpy as np
 from scipy.interpolate import griddata
+from scipy.ndimage import gaussian_filter
+from skimage.morphology import remove_small_objects
 from skimage.filters import threshold_multiotsu
 
 from src.ktc_framework.adapters.method_registry import register
 from src.ktc_framework.methods.method_plugin import MethodPlugin
 from src.ktc_framework.types import DataBatch
 
+
+_N_ELECTRODES = 32
+_ANGLES = np.linspace(0, 2 * np.pi, _N_ELECTRODES, endpoint=False)
+_ELEC_X, _ELEC_Y = np.cos(_ANGLES), np.sin(_ANGLES)
+_IMG_SIZE = 256
+_gx, _gy = np.meshgrid(np.linspace(-1, 1, _IMG_SIZE), np.linspace(-1, 1, _IMG_SIZE))
+_CIRCLE_MASK = (_gx ** 2 + _gy ** 2) <= 1.0
 
 def _has_key(obj, key: str) -> bool:
     if hasattr(obj, key):
@@ -126,6 +135,11 @@ def _segment_ktc(sigma: np.ndarray) -> np.ndarray:
 class BackProjection(MethodPlugin):
     """Dataset-aligned BackProjection reconstruction for KTC EIT."""
 
+    def __init__(self, smooth_sigma: float = 8.0, threshold_std: float = 0.8):
+        self.smooth_sigma = smooth_sigma
+        self.threshold_std = threshold_std
+
+
     _NODE_KEYS = ["g", "Node", "node", "p", "pts"]
     _ELEMENT_KEYS = ["H", "Element", "element", "t", "tri"]
 
@@ -227,7 +241,33 @@ class BackProjection(MethodPlugin):
                 f"std={sigma_map.std():.6f}"
             )
 
-            labels = _segment_ktc(sigma_map)
+            # labels = _segment_ktc(sigma_map)
+            # self.validate_output(labels)
+
+            # --- Dynamic threshold segmentation ---
+            seg = np.zeros((_IMG_SIZE, _IMG_SIZE), dtype=np.uint8)
+            inside = _CIRCLE_MASK
+            mu, std = sigma_map[inside].mean(), sigma_map[inside].std()
+
+            if std > 0:
+                factor = 1.0
+                if batch.level >= 6:
+                    factor = 1.3
+                elif batch.level >= 4:
+                    factor = 1.15
+
+                lower_thresh = mu - self.threshold_std * factor * std
+                upper_thresh = mu + self.threshold_std * factor * std
+
+                seg[inside & (sigma_map < lower_thresh)] = 1  # resistive
+                seg[inside & (sigma_map > upper_thresh)] = 2  # conductive
+
+            # Morphological cleaning
+            from skimage.morphology import remove_small_objects
+            min_size = 40 if batch.level >= 4 else 50
+            seg = remove_small_objects(seg, min_size=min_size)
+
+            labels = seg
             self.validate_output(labels)
 
             return labels

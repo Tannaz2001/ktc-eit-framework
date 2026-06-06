@@ -234,7 +234,34 @@ class GaussNewton(MethodPlugin):
                 f"std={sigma_map.std():.6f}"
             )
 
-            labels = _segment_ktc(sigma_map)
+           # labels = _segment_ktc(sigma_map)
+
+           # --- Dynamic threshold segmentation ---
+            seg = np.zeros((256, 256), dtype=np.uint8)
+            inside = np.ones_like(seg, dtype=bool)  # all pixels for thresholding
+
+            mu, std = sigma_map.mean(), sigma_map.std()
+
+            if std > 0:
+                factor = 1.0
+                if batch.level >= 6:
+                    factor = 1.3
+                elif batch.level >= 4:
+                    factor = 1.15
+
+                lower_thresh = mu - factor * std
+                upper_thresh = mu + factor * std
+
+                seg[sigma_map < lower_thresh] = 1  # resistive
+                seg[sigma_map > upper_thresh] = 2  # conductive
+
+            # Morphological cleaning
+            from skimage.morphology import remove_small_objects
+            min_size = 40 if batch.level >= 4 else 50
+            seg = remove_small_objects(seg, min_size=min_size)
+
+            labels = seg
+            self.validate_output(labels)
             self.validate_output(labels)
 
             return labels

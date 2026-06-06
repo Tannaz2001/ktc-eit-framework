@@ -7,6 +7,7 @@ import os
 import subprocess
 import time
 import warnings
+from types import SimpleNamespace
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,7 @@ from src.ktc_framework.visualization.plot_results import (
     plot_failure_gallery,
     plot_degradation_curve,
     plot_leaderboard,
+    plot_error_overlay,
 )
 from src.ktc_framework.reporting.html_report import generate_html_report
 
@@ -41,6 +43,8 @@ import src.ktc_framework.loaders.training_data_plugin    # noqa: F401
 import src.ktc_framework.methods.mock_method_plugin      # noqa: F401
 import src.ktc_framework.methods.backprojection          # noqa: F401  registers BackProjection
 import src.ktc_framework.methods.gauss_newton            # noqa: F401  registers GaussNewton
+import src.ktc_framework.methods.reference_fem           # noqa: F401  registers ReferenceFEM
+import src.ktc_framework.methods.groundtruth_oracle      # noqa: F401  registers GroundTruthOracle
 
 # Register built-in metrics once at module load
 register_metric("ktc_score",        compute_ktc_score)
@@ -98,6 +102,17 @@ class BatchRunner:
                         str(mat_file), squeeze_me=True, struct_as_record=False
                     )
                     mesh_struct = mat["Mesh"]
+                    mesh2_struct = mat.get("Mesh2")
+                    if mesh2_struct is not None:
+                        mesh_struct = SimpleNamespace(
+                            Mesh=mesh_struct,
+                            Mesh2=mesh2_struct,
+                            H=mesh_struct.H,
+                            g=mesh_struct.g,
+                            elfaces=mesh_struct.elfaces,
+                            Node=mesh_struct.Node,
+                            Element=mesh_struct.Element,
+                        )
                     console.print(
                         f"[green]Mesh loaded:[/green] {mat_file} "
                         f"({mesh_struct.g.shape[0]} nodes, "
@@ -211,7 +226,7 @@ class BatchRunner:
             TextColumn("[bold blue]{task.description}"),
             BarColumn(),
             TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TextColumn("•"),
+            TextColumn("-"),
             TimeElapsedColumn(),
             console=console,
         ) as progress:
@@ -281,7 +296,11 @@ class BatchRunner:
             level              = raw_batch.level,
             sample_id          = raw_batch.sample_id,
             mesh               = self.mesh,
-            reference_voltages = self.ref_voltages,
+            reference_voltages = (
+                getattr(raw_batch, "reference_voltages", None)
+                if getattr(raw_batch, "reference_voltages", None) is not None
+                else self.ref_voltages
+            ),
             measurement_patterns=getattr(raw_batch, "measurement_patterns", None),
         )
 
@@ -321,6 +340,23 @@ class BatchRunner:
             ktc_score  = metrics.get("ktc_score", 0.0),
         )
 
+        mat_dir = self.output_dir / "mat_predictions" / method / f"level_{level}"
+        mat_dir.mkdir(parents=True, exist_ok=True)
+        mat_path = mat_dir / f"sample_{sample}.mat"
+        scipy.io.savemat(
+            str(mat_path),
+            {"reconstruction": reconstruction.astype(np.uint8)},
+        )
+
+        overlay_dir = self.output_dir / "overlays" / method / f"level_{level}"
+        overlay_dir.mkdir(parents=True, exist_ok=True)
+        overlay_path = overlay_dir / f"sample_{sample}.png"
+        plot_error_overlay(
+            pred=reconstruction,
+            gt=gt,
+            save_path=overlay_path,
+        )
+
         return {
             "method":          method,
             "level":           level,
@@ -332,6 +368,8 @@ class BatchRunner:
             "runtime_ms":      round(runtime_ms, 3),
             "git_sha":         self._git_sha(),
             "png_path":        str(png_path),
+            "mat_path":        str(mat_path),
+            "overlay_path":    str(overlay_path),
             # internal arrays — stripped before JSON serialisation
             "_gt":   gt,
             "_pred": reconstruction,
@@ -354,7 +392,7 @@ class BatchRunner:
         with out.open("w", encoding="utf-8") as f:
             json.dump(clean, f, indent=2)
 
-        # Nested: method → level → sample → metrics
+        # Nested: method -> level -> sample -> metrics
         nested: dict[str, Any] = {}
         for r in clean:
             m  = r["method"]
@@ -371,6 +409,47 @@ class BatchRunner:
         nested_out = self.output_dir / "scores_nested.json"
         with nested_out.open("w", encoding="utf-8") as f:
             json.dump(nested, f, indent=2)
+
+        dashboard_scores: dict[str, dict[str, float]] = {}
+        per_run: dict[str, dict[str, Any]] = {}
+
+        for method in sorted({r["method"] for r in clean}):
+            method_rows = [r for r in clean if r["method"] == method]
+            metric_names = sorted(
+                {
+                    metric
+                    for row in method_rows
+                    for metric in row.get("metrics", {}).keys()
+                }
+            )
+            dashboard_scores[method] = {
+                metric: round(
+                    float(np.mean([row["metrics"].get(metric, 0.0) for row in method_rows])),
+                    6,
+                )
+                for metric in metric_names
+            }
+
+            per_run[method] = {}
+            for row in method_rows:
+                key = f"L{row['level']}_{row['sample']}"
+                per_run[method][key] = {
+                    **row.get("metrics", {}),
+                    "composite_score": row.get("composite_score", 0.0),
+                    "grade": row.get("grade", "D"),
+                    "runtime_ms": row.get("runtime_ms", 0.0),
+                    "level": row["level"],
+                    "sample": row["sample"],
+                    "png_path": row.get("png_path", ""),
+                    "mat_path": row.get("mat_path", ""),
+                    "overlay_path": row.get("overlay_path", ""),
+                }
+
+        with (self.output_dir / "dashboard_scores.json").open("w", encoding="utf-8") as f:
+            json.dump(dashboard_scores, f, indent=2)
+
+        with (self.output_dir / "per_run_metrics.json").open("w", encoding="utf-8") as f:
+            json.dump(per_run, f, indent=2)
 
     def _print_summary(self, results: list[dict[str, Any]]) -> None:
         """Print a rich table of per-run metrics."""
@@ -448,7 +527,7 @@ class BatchRunner:
         table.add_column("Slope (per level)", justify="right", min_width=20)
 
         for method, slope in slopes.items():
-            direction = "▼ degrades" if slope < 0 else "▲ improves"
+            direction = "down degrades" if slope < 0 else "up improves"
             table.add_row(method, f"{slope:+.4f}  {direction}")
 
         console.print()
@@ -466,7 +545,7 @@ class BatchRunner:
             plot_leaderboard(results, self.output_dir)
             report_path = generate_html_report(results, self.output_dir)
             console.print(
-                f"\n[green]Figures saved:[/green] {len(saved)} PNGs → {self.output_dir / 'figures'}"
+                f"\n[green]Figures saved:[/green] {len(saved)} PNGs -> {self.output_dir / 'figures'}"
             )
             console.print(f"[green]HTML report:[/green]   {report_path}")
         except Exception as exc:

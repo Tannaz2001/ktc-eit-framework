@@ -236,7 +236,7 @@ class KTCDataPlugin:
                 f"  level={level}, sample='{sample}' → num='{num}'"
             )
 
-        voltages, injection, mpat = self._load_data(data_path)
+        voltages, injection, mpat, ref_voltages = self._load_data(data_path)
         ground_truth        = self._load_gt(gt_path)
 
         return DataBatch(
@@ -246,7 +246,7 @@ class KTCDataPlugin:
             level              = level,
             sample_id          = f"level{level}_{sample}",
             mesh               = None,   # filled by BatchRunner._run_one
-            reference_voltages = None,   # filled by BatchRunner._run_one
+            reference_voltages = ref_voltages,   # per-level ref.mat from evaluation data
             measurement_patterns=mpat,
         )
 
@@ -254,7 +254,7 @@ class KTCDataPlugin:
 
     def _load_data(
         self, path: str
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, Optional[np.ndarray]]:
         """Extract Uel, Inj, and Mpat from KTC data file.
 
         Evaluation data files usually contain Uel only.
@@ -307,7 +307,14 @@ class KTCDataPlugin:
                 f"Expected (32, 31)."
             )
 
-        return voltages, injection, mpat
+        ref_voltages = None
+        try:
+            protocol_for_ref = protocol or self._load_protocol_from_ref(path)
+            ref_voltages = protocol_for_ref.get("Uelref")
+        except Exception:
+            ref_voltages = None
+
+        return voltages, injection, mpat, ref_voltages
 
     def _load_gt(self, path: str) -> np.ndarray:
         """Load the ground-truth segmentation mask.
@@ -426,10 +433,15 @@ class KTCDataPlugin:
                 mpat = mpat.T
 
             if injection.shape == (32, 76) and mpat.shape == (32, 31):
-                return {
+                result = {
                     "Inj": injection,
                     "Mpat": mpat,
                 }
+                if "Uelref" in ref_mat:
+                    result["Uelref"] = np.asarray(ref_mat["Uelref"], dtype=np.float32).ravel()
+                elif "Uel" in ref_mat:
+                    result["Uelref"] = np.asarray(ref_mat["Uel"], dtype=np.float32).ravel()
+                return result
 
         raise FileNotFoundError(
             "Could not load Inj/Injref and Mpat from ref.mat. Tried: "
@@ -476,10 +488,15 @@ class KTCDataPlugin:
                 mpat = mpat.T
 
             if injection.shape == (32, 76) and mpat.shape == (32, 31):
-                return {
+                result = {
                     "Inj": injection,
                     "Mpat": mpat,
                 }
+                if "Uelref" in ref_mat:
+                    result["Uelref"] = np.asarray(ref_mat["Uelref"], dtype=np.float32).ravel()
+                elif "Uel" in ref_mat:
+                    result["Uelref"] = np.asarray(ref_mat["Uel"], dtype=np.float32).ravel()
+                return result
 
         raise FileNotFoundError(
             "Could not load Inj/Injref and Mpat from ref.mat. Tried: "
