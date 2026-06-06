@@ -24,7 +24,9 @@ levels: [1, 2, 3, 4, 5, 6, 7]
 samples: [A, B, C]
 
 methods:
-  - BackProjection   # linearised back-projection via pyEIT
-  - GaussNewton      # linearised JAC solver via pyEIT
+  - LinearDifferenceReconstruction  # official KTC J/Gamma/prior inverse reconstruction
+  - BackProjection                  # simple linearised back-projection baseline
+  - GaussNewton                     # iterative linearised reconstruction baseline
+  - GroundTruthOracle
 
 output_dir: outputs/
