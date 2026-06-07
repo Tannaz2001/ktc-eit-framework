@@ -22,7 +22,7 @@ from src.ktc_framework.types import DataBatch
 from src.ktc_framework.adapters.method_registry import get as registry_get
 from src.ktc_framework.loaders.ktc_loader import PluginRegistry
 from src.ktc_framework.metrics.metric_registry import register_metric, run_all_metrics
-from src.ktc_framework.metrics.ktc_score import compute_ktc_score, dice, iou, hd95
+from src.ktc_framework.metrics.ktc_score import compute_ktc_score
 from src.ktc_framework.metrics.composite_score import composite_score, letter_grade
 from src.ktc_framework.visualization import save_panel
 from src.ktc_framework.visualization.plot_results import (
@@ -47,13 +47,7 @@ import src.ktc_framework.methods.reference_fem           # noqa: F401  registers
 import src.ktc_framework.methods.groundtruth_oracle      # noqa: F401  registers GroundTruthOracle
 
 # Register built-in metrics once at module load
-register_metric("ktc_score",        compute_ktc_score)
-register_metric("dice_resistive",   lambda pred, gt: dice(pred, gt, label=1))
-register_metric("dice_conductive",  lambda pred, gt: dice(pred, gt, label=2))
-register_metric("iou_resistive",    lambda pred, gt: iou(pred, gt, label=1))
-register_metric("iou_conductive",   lambda pred, gt: iou(pred, gt, label=2))
-register_metric("hd95_resistive",   lambda pred, gt: hd95(pred, gt, label=1))
-register_metric("hd95_conductive",  lambda pred, gt: hd95(pred, gt, label=2))
+register_metric("ktc_score", compute_ktc_score)
 
 console = Console()
 
@@ -463,10 +457,6 @@ class BatchRunner:
         table.add_column("Level",        justify="center", min_width=7)
         table.add_column("Sample",       justify="center", min_width=8)
         table.add_column("KTC Score",    justify="right",  min_width=10)
-        table.add_column("Dice Res.",    justify="right",  min_width=10)
-        table.add_column("Dice Cond.",   justify="right",  min_width=11)
-        table.add_column("HD95 Res.",    justify="right",  min_width=10)
-        table.add_column("HD95 Cond.",   justify="right",  min_width=11)
         table.add_column("Runtime (ms)", justify="right",  min_width=13)
 
         for r in results:
@@ -476,10 +466,6 @@ class BatchRunner:
                 str(r["level"]),
                 r["sample"],
                 f"{m['ktc_score']:.3f}",
-                f"{m['dice_resistive']:.3f}",
-                f"{m['dice_conductive']:.3f}",
-                f"{m.get('hd95_resistive', 0.0):.1f}",
-                f"{m.get('hd95_conductive', 0.0):.1f}",
                 f"{r['runtime_ms']:.2f}",
             )
 

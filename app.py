@@ -283,17 +283,9 @@ def load_comparison_panel(sample_id:str, outputs_dir:str="") -> Image.Image:
 # =========================================================
 # SCORING  (original — untouched)
 # =========================================================
-def calculate_composite_score(metrics:Dict[str,float], weights:Dict[str,float]) -> float:
-    ktc    = metrics.get('KTC score',        metrics.get('ktc_score',0))
-    dice_r = metrics.get('Dice (resistive)', metrics.get('dice_resistive',0))
-    dice_c = metrics.get('Dice (conductive)',metrics.get('dice_conductive',0))
-    iou_r  = metrics.get('IoU (resistive)',  metrics.get('iou_resistive',0))
-    iou_c  = metrics.get('IoU (conductive)', metrics.get('iou_conductive',0))
-    hd95_r = metrics.get('hd95_resistive',0); hd95_c = metrics.get('hd95_conductive',0)
-    h_r = max(0,1-(hd95_r/100)); h_c = max(0,1-(hd95_c/100))
-    t1=(1-ktc)*100; t2=((dice_r+dice_c)/2)*100; t3=((iou_r+iou_c)/2)*100
-    t4=((h_r+h_c)/2)*100; t5=t1
-    return (weights['tier1']*t1+weights['tier2']*t2+weights['tier3']*t3+weights['tier4']*t4+weights['tier5']*t5)/sum(weights.values())
+def calculate_composite_score(metrics:Dict[str,float], weights:Dict[str,float]=None) -> float:
+    ktc = metrics.get('KTC score', metrics.get('ktc_score', 0))
+    return round(ktc * 100, 2)
 
 def letter_grade(score:float) -> str:
     return 'A' if score>=85 else 'B' if score>=70 else 'C' if score>=55 else 'D'
@@ -463,12 +455,6 @@ def view_leaderboard(scores:Dict, per_run:Dict):
             'Method':method_name,'Composite Score':comp,'Grade':grade,
             'Color':st.session_state.method_colors[method_name],
             'KTC Score': metrics.get('KTC score', metrics.get('ktc_score',0)),
-            'Dice (R)':  metrics.get('Dice (resistive)',  metrics.get('dice_resistive',0)),
-            'Dice (C)':  metrics.get('Dice (conductive)', metrics.get('dice_conductive',0)),
-            'IoU (R)':   metrics.get('IoU (resistive)',   metrics.get('iou_resistive',0)),
-            'IoU (C)':   metrics.get('IoU (conductive)',  metrics.get('iou_conductive',0)),
-            'HD95 (R)':  metrics.get('hd95_resistive',  0),
-            'HD95 (C)':  metrics.get('hd95_conductive', 0),
         })
     leaderboard_data.sort(key=lambda x: x['Composite Score'], reverse=True)
     df = pd.DataFrame(leaderboard_data)
@@ -506,7 +492,7 @@ def view_leaderboard(scores:Dict, per_run:Dict):
             text=f"{row['Composite Score']:.1f} ({row['Grade']})", textposition='outside',
             textfont=dict(family="JetBrains Mono",size=9,color="#1f2328"),
             hovertemplate=(f"<b>{row['Method']}</b><br>Score: {row['Composite Score']:.1f} ({row['Grade']})<br>"
-                           f"KTC: {row['KTC Score']:.4f}<br>Dice R/C: {row['Dice (R)']:.4f}/{row['Dice (C)']:.4f}<br><extra></extra>")
+                           f"KTC: {row['KTC Score']:.4f}<br><extra></extra>")
         ))
     fig.update_layout(
         xaxis_title="Method", yaxis_title="Score (0–100)", yaxis_range=[0,115],
@@ -523,9 +509,7 @@ def view_leaderboard(scores:Dict, per_run:Dict):
     st.markdown('<div class="slbl">DETAILED METRICS</div>', unsafe_allow_html=True)
     disp = df.drop(columns=['Color']).copy()
     disp['Composite Score'] = disp['Composite Score'].round(2)
-    for c in ['KTC Score','Dice (R)','Dice (C)','IoU (R)','IoU (C)','HD95 (R)','HD95 (C)']:
-        if c in disp.columns:
-            disp[c] = disp[c].round(4)
+    disp['KTC Score'] = disp['KTC Score'].round(4)
     st.dataframe(disp, use_container_width=True, hide_index=True)
 
 # =========================================================
@@ -644,23 +628,6 @@ def view_comparison(scores:Dict, per_run:Dict, mm:Dict):
                     comp_df[col] = comp_df[col].apply(lambda x: f"{x:.4f}")
         st.dataframe(comp_df, use_container_width=True, hide_index=True)
 
-    st.markdown("### Radar Chart")
-    radar_keys = ['ktc_score','dice_resistive','dice_conductive','iou_resistive','iou_conductive']
-    cats = [k.replace('_',' ').title() for k in radar_keys]
-    fig = go.Figure()
-    for label,met,c in [(m1,met1,PALETTE[0]),(m2,met2,PALETTE[1])]:
-        v = [met.get(k,0) for k in radar_keys]; v.append(v[0])
-        fig.add_trace(go.Scatterpolar(r=v,theta=cats+[cats[0]],fill='toself',name=label,
-            line_color=c,fillcolor=hex_to_rgba(c, 0.13)))
-    fig.update_layout(
-        polar=dict(bgcolor='#f6f8fa',
-            radialaxis=dict(visible=True,range=[0,1],gridcolor='#d0d7de',linecolor='#d0d7de',tickfont=dict(size=8)),
-            angularaxis=dict(gridcolor='#d0d7de',linecolor='#d0d7de',tickfont=dict(size=9))),
-        showlegend=True,height=460,paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(family="JetBrains Mono,monospace",color="#848d97",size=9),
-        legend=dict(bgcolor='rgba(255,255,255,.9)',bordercolor='#d0d7de',borderwidth=1,font=dict(size=9)),
-        margin=dict(l=50,r=50,t=30,b=50))
-    st.plotly_chart(fig, use_container_width=True)
 
     st.markdown("### Visual Comparison")
     panel = load_comparison_panel(sid)
@@ -783,16 +750,12 @@ def view_all_runs(per_run: Dict):
     for method, runs in per_run.items():
         for run_key, metrics in runs.items():
             rows.append({
-                "Method":     method,
-                "Level":      metrics.get("level", run_key),
-                "Sample":     metrics.get("sample", run_key),
-                "KTC Score":  round(metrics.get("ktc_score", 0), 3),
-                "Dice Res.":  round(metrics.get("dice_resistive", 0), 3),
-                "Dice Cond.": round(metrics.get("dice_conductive", 0), 3),
-                "HD95 Res.":  round(metrics.get("hd95_resistive", 0), 1),
-                "HD95 Cond.": round(metrics.get("hd95_conductive", 0), 1),
-                "Runtime ms": round(metrics.get("runtime_ms", 0), 1),
-                "Grade":      metrics.get("grade", "-"),
+                "Method":      method,
+                "Level":       metrics.get("level", run_key),
+                "Sample":      metrics.get("sample", run_key),
+                "KTC Score":   round(metrics.get("ktc_score", 0), 3),
+                "Runtime ms":  round(metrics.get("runtime_ms", 0), 1),
+                "Grade":       metrics.get("grade", "-"),
             })
 
     df = pd.DataFrame(rows).sort_values(["Method", "Level", "Sample"]).reset_index(drop=True)
