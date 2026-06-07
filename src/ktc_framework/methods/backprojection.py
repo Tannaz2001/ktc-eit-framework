@@ -15,7 +15,7 @@ import numpy as np
 from scipy.interpolate import griddata
 from scipy.ndimage import gaussian_filter
 from skimage.morphology import remove_small_objects
-from skimage.filters import threshold_otsu
+from skimage.filters import threshold_multiotsu
 
 from src.ktc_framework.adapters.method_registry import register
 from src.ktc_framework.methods.method_plugin import MethodPlugin
@@ -245,29 +245,7 @@ class BackProjection(MethodPlugin):
                 f"std={sigma_map.std():.6f}"
             )
 
-            seg = np.zeros((_IMG_SIZE, _IMG_SIZE), dtype=np.uint8)
-            inside = _CIRCLE_MASK
-            inside_pixels = sigma_map[inside]
-
-            if inside_pixels.size > 0:
-                try:
-                    thresh = threshold_otsu(inside_pixels)
-                    seg[inside & (sigma_map < thresh)] = 1
-                    seg[inside & (sigma_map > thresh)] = 2
-                except ValueError:
-                    mu = inside_pixels.mean()
-                    warnings.warn(
-                        f"BackProjection L{batch.level}: Otsu failed; using mean threshold",
-                        RuntimeWarning,
-                        stacklevel=2,
-                    )
-                    seg[inside & (sigma_map < mu)] = 1
-                    seg[inside & (sigma_map > mu)] = 2
-
-            min_size = 40 if batch.level >= 4 else 50
-            seg = remove_small_objects(seg, min_size=min_size)
-
-            labels = seg
+            labels = _segment_ktc(sigma_map)
             self.validate_output(labels)
 
             return labels

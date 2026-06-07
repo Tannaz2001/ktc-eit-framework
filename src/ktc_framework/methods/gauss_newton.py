@@ -234,34 +234,7 @@ class GaussNewton(MethodPlugin):
                 f"std={sigma_map.std():.6f}"
             )
 
-           # labels = _segment_ktc(sigma_map)
-
-           # --- Dynamic threshold segmentation ---
-            seg = np.zeros((256, 256), dtype=np.uint8)
-            inside = np.ones_like(seg, dtype=bool)  # all pixels for thresholding
-
-            mu, std = sigma_map.mean(), sigma_map.std()
-
-            if std > 0:
-                factor = 1.0
-                if batch.level >= 6:
-                    factor = 1.3
-                elif batch.level >= 4:
-                    factor = 1.15
-
-                lower_thresh = mu - factor * std
-                upper_thresh = mu + factor * std
-
-                seg[sigma_map < lower_thresh] = 1  # resistive
-                seg[sigma_map > upper_thresh] = 2  # conductive
-
-            # Morphological cleaning
-            from skimage.morphology import remove_small_objects
-            min_size = 40 if batch.level >= 4 else 50
-            seg = remove_small_objects(seg, min_size=min_size)
-
-            labels = seg
-            self.validate_output(labels)
+            labels = _segment_ktc(sigma_map)
             self.validate_output(labels)
 
             return labels
@@ -299,14 +272,12 @@ class GaussNewton(MethodPlugin):
         v1 = _reshape_ktc_vector(voltages, n_inj, n_meas).reshape(-1)
 
         if reference_voltages is None:
-            warnings.warn(
-                "GaussNewton: no reference voltages; using mean subtraction.",
-                RuntimeWarning,
-                stacklevel=2,
+            raise ValueError(
+                "GaussNewton requires reference_voltages for proper difference voltage calculation. "
+                "Ensure the data plugin populates batch.reference_voltages."
             )
-            v0 = np.full_like(v1, float(np.nanmean(v1)))
-        else:
-            v0 = _reshape_ktc_vector(reference_voltages, n_inj, n_meas).reshape(-1)
+
+        v0 = _reshape_ktc_vector(reference_voltages, n_inj, n_meas).reshape(-1)
 
         y = (v1 - v0) / (np.abs(v0) + 1e-6)
 
@@ -377,6 +348,12 @@ class GaussNewton(MethodPlugin):
 
     @staticmethod
     def _electrode_positions(mesh_data, nodes: np.ndarray) -> np.ndarray:
+        """Find 32 electrode node indices from mesh.
+
+        Strategy (in order of preference):
+        1. Try to parse 'elfaces' from mesh_data
+        2. Auto-detect from boundary geometry
+        """
         n_nodes = nodes.shape[0]
 
         for key in ["elfaces", "ElFaces", "el_faces", "elFaces"]:
@@ -410,13 +387,37 @@ class GaussNewton(MethodPlugin):
             except Exception as exc:
                 warnings.warn(
                     f"GaussNewton: elfaces parse failed ({exc!r}); "
-                    "using fallback electrode positions.",
+                    "trying boundary-based fallback.",
                     RuntimeWarning,
                     stacklevel=3,
                 )
                 break
 
-        return np.round(np.linspace(0, n_nodes - 1, 32)).astype(np.int32)
+        # Boundary-based fallback: find nodes on unit circle
+        distances = np.linalg.norm(nodes, axis=1)
+
+        for r_min, r_max in [(0.95, 1.05), (0.90, 1.10), (0.80, 1.20)]:
+            boundary_mask = (distances >= r_min) & (distances <= r_max)
+            boundary_indices = np.where(boundary_mask)[0]
+            if len(boundary_indices) >= 32:
+                break
+        else:
+            raise ValueError(
+                f"Could not find 32 boundary nodes in mesh. "
+                f"Boundary nodes found: {len(boundary_indices)}."
+            )
+
+        angles = np.arctan2(nodes[boundary_indices, 1], nodes[boundary_indices, 0])
+        angle_indices = np.argsort(angles)
+        sorted_boundary = boundary_indices[angle_indices]
+
+        warnings.warn(
+            "GaussNewton: using boundary-based electrode detection (elfaces unavailable).",
+            RuntimeWarning,
+            stacklevel=3,
+        )
+
+        return np.array(sorted_boundary[:32], dtype=np.int32)
 
     @staticmethod
     def _interpolate_to_grid(

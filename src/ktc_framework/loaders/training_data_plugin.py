@@ -47,6 +47,7 @@ class TrainingDataPlugin:
         """
         data_path = self.root / "TrainingData" / f"data{sample}.mat"
         truth_path = self.root / "GroundTruths" / f"true{sample}.mat"
+        ref_path = self.root / "TrainingData" / "ref.mat"
 
         if not data_path.exists():
             raise FileNotFoundError(f"Voltage file not found: {data_path}")
@@ -61,6 +62,12 @@ class TrainingDataPlugin:
         mpat = np.asarray(data_mat.get('Mpat'), dtype=np.float64) if 'Mpat' in data_mat else None
         ground_truth = np.asarray(truth_mat['truth'], dtype=np.uint8)     # (256, 256)
 
+        ref_voltages = None
+        if ref_path.exists():
+            ref_mat = scipy.io.loadmat(str(ref_path), squeeze_me=True)
+            if 'Uelref' in ref_mat:
+                ref_voltages = np.asarray(ref_mat['Uelref'], dtype=np.float64)
+
         return DataBatch(
             voltages=voltages,
             injection_patterns=injection,
@@ -68,4 +75,5 @@ class TrainingDataPlugin:
             level=level,
             sample_id=f"training_{sample}",
             measurement_patterns=mpat,
+            reference_voltages=ref_voltages,
         )
