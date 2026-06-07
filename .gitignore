@@ -1,6 +1,6 @@
 # ── Dataset folders (download from Zenodo, not tracked in git) ──────────────
 EvaluationData/
-Codes_Matlab/
+# Codes_Matlab/ — RESTORED: see MATLAB_REFERENCE.md (needed for validation ground truth)
 
 # ── Generated outputs ────────────────────────────────────────────────────────
 outputs/
