@@ -1,32 +1,18 @@
 # Mock experiment — no real measurement data required.
-# MockDataPlugin generates deterministic synthetic voltages and ground truths
-# whose array shapes exactly match the real KTC dataset, so the full pipeline
-# (mesh loading, reconstruction, scoring, visualisation) can be exercised
-# without access to the evaluation files.
+# MockDataPlugin generates deterministic synthetic voltages and ground truths.
+# Useful for testing the pipeline without the KTC evaluation dataset.
 #
 # Usage:
 #   python run.py --config configs/mock_experiment.yaml
-#
-# To override dataset_root without editing this file, set the environment variable:
-#   export KTC_DATASET_ROOT=/path/to/your/EvaluationData   (Linux / macOS)
-#   set    KTC_DATASET_ROOT=C:\path\to\your\EvaluationData  (Windows)
-# The env var takes priority over the dataset_root value below.
 
 data_plugin: MockDataPlugin
-
-# dataset_root is NOT used by MockDataPlugin (all data is synthetic).
-# It must point to an existing directory to pass config validation.
-# Override at runtime with the KTC_DATASET_ROOT environment variable.
-dataset_root: EvaluationData
-
-# Direct path to Mesh_sparse.mat (or the directory that contains it).
-# BackProjection still needs the real mesh even when voltages are synthetic.
+dataset_root: .
 mesh_path: Codes_Matlab/Mesh_sparse.mat
 
 levels: [1, 2, 3]
 samples: [A, B]
 
 methods:
-  - BackProjection   # real pyEIT reconstruction on synthetic voltages
+  - BackProjection
 
 output_dir: outputs/mock/
