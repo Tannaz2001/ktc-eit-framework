@@ -29,11 +29,9 @@ def generate_html_report(
     for r in results:
         m = r["method"]
         if m not in leaderboard:
-            leaderboard[m] = {"ktc": [], "dice_r": [], "dice_c": [], "runtime": [], "composite": []}
+            leaderboard[m] = {"ktc": [], "runtime": [], "composite": []}
         metrics = r.get("metrics", {})
         leaderboard[m]["ktc"].append(metrics.get("ktc_score", 0))
-        leaderboard[m]["dice_r"].append(metrics.get("dice_resistive", 0))
-        leaderboard[m]["dice_c"].append(metrics.get("dice_conductive", 0))
         leaderboard[m]["runtime"].append(r.get("runtime_ms", 0))
         leaderboard[m]["composite"].append(r.get("composite_score", 0))
 
@@ -43,8 +41,6 @@ def generate_html_report(
         [{"method": m,
           "avg_composite": avg(v["composite"]),
           "avg_ktc":       avg(v["ktc"]),
-          "avg_dice_r":    avg(v["dice_r"]),
-          "avg_dice_c":    avg(v["dice_c"]),
           "avg_runtime":   avg(v["runtime"]),
           "runs":          len(v["ktc"])}
          for m, v in leaderboard.items()],
@@ -60,8 +56,6 @@ def generate_html_report(
             <td><strong>{html.escape(row['method'])}</strong></td>
             <td>{row['avg_composite']}</td>
             <td>{row['avg_ktc']}</td>
-            <td>{row['avg_dice_r']}</td>
-            <td>{row['avg_dice_c']}</td>
             <td>{row['avg_runtime']} ms</td>
             <td>{row['runs']}</td>
         </tr>"""
@@ -82,8 +76,6 @@ def generate_html_report(
             <td>{r['level']}</td>
             <td>{r['sample']}</td>
             <td>{m.get('ktc_score', 0):.4f}</td>
-            <td>{m.get('dice_resistive', 0):.4f}</td>
-            <td>{m.get('dice_conductive', 0):.4f}</td>
             <td>{r.get('composite_score', 0):.4f}</td>
             <td style="color:{color};font-weight:bold">{grade}</td>
             <td>{r.get('runtime_ms', 0):.2f} ms</td>
@@ -138,15 +130,14 @@ def generate_html_report(
 <h2>Leaderboard</h2>
 <table>
   <tr><th>#</th><th>Method</th><th>Composite</th><th>KTC Score</th>
-      <th>Dice Res.</th><th>Dice Cond.</th><th>Avg Runtime</th><th>Runs</th></tr>
+      <th>Avg Runtime</th><th>Runs</th></tr>
   {lb_html}
 </table>
 
 <h2>Per-Run Results</h2>
 <table>
   <tr><th>Method</th><th>Level</th><th>Sample</th><th>KTC Score</th>
-      <th>Dice Res.</th><th>Dice Cond.</th><th>Composite</th>
-      <th>Grade</th><th>Runtime</th><th>Overlay</th></tr>
+      <th>Composite</th><th>Grade</th><th>Runtime</th><th>Overlay</th></tr>
   {detail_rows}
 </table>
 

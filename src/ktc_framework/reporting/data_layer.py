@@ -79,8 +79,7 @@ def get_per_level_summary(df: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
 
     metric_cols = [c for c in df.columns if c in (
-        "ktc_score", "dice_resistive", "dice_conductive",
-        "iou_resistive", "iou_conductive", "composite_score", "runtime_ms"
+        "ktc_score", "composite_score", "runtime_ms"
     )]
 
     return (

@@ -190,7 +190,7 @@ else:
 # Test comparison data
 print("\n  Testing Comparison view data:")
 comparison_ok = True
-required_metrics = ['ktc_score', 'dice_resistive', 'dice_conductive', 'iou_resistive', 'iou_conductive']
+required_metrics = ['ktc_score']
 for display_method, internal_key in mapping.items():
     if internal_key not in per_run:
         print(f"    ✗ {display_method}: No per_run data")
@@ -200,10 +200,10 @@ for display_method, internal_key in mapping.items():
         first_sample = list(samples.values())[0] if samples else {}
         missing = [m for m in required_metrics if m not in first_sample]
         if missing:
-            print(f"    ✗ {display_method}: Missing metrics: {missing}")
+            print(f"    ✗ {display_method}: Missing KTC score")
             comparison_ok = False
         else:
-            print(f"    ✓ {display_method}: All required metrics present")
+            print(f"    ✓ {display_method}: KTC score present")
 
 if comparison_ok:
     print("  ✓ Comparison view should work")

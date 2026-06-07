@@ -3,25 +3,9 @@
 from __future__ import annotations
 
 
-METRIC_WEIGHTS: dict[str, float] = {
-    "ktc_score": 0.40,
-    "dice_resistive": 0.20,
-    "dice_conductive": 0.20,
-    "iou_resistive": 0.10,
-    "iou_conductive": 0.10,
-}
-
-
 def composite_score(metrics: dict[str, float]) -> float:
-    """
-    Weighted combination of all metrics normalised to 0–100.
-    Weights must sum to 1.0.
-    """
-    score = 0.0
-    for metric, weight in METRIC_WEIGHTS.items():
-        value = metrics.get(metric, 0.0)
-        score += value * weight * 100
-    return round(score, 2)
+    """Return KTC score as the composite (only metric)."""
+    return round(metrics.get("ktc_score", 0.0) * 100, 2)
 
 
 def letter_grade(score: float) -> str:
