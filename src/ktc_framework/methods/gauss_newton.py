@@ -351,10 +351,18 @@ class GaussNewton(MethodPlugin):
         """Find 32 electrode node indices from mesh.
 
         Strategy (in order of preference):
+        0. Use el_pos if available (pyEIT mesh objects)
         1. Try to parse 'elfaces' from mesh_data
         2. Auto-detect from boundary geometry
         """
         n_nodes = nodes.shape[0]
+
+        # Strategy 0: pyEIT mesh has el_pos directly
+        el_pos = _get_key(mesh_data, "el_pos")
+        if el_pos is not None:
+            el_pos = np.asarray(el_pos, dtype=np.int32).ravel()
+            if el_pos.shape[0] == 32:
+                return el_pos
 
         for key in ["elfaces", "ElFaces", "el_faces", "elFaces"]:
             elfaces = _get_key(mesh_data, key)

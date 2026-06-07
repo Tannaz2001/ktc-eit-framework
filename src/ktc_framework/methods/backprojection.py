@@ -268,6 +268,9 @@ class BackProjection(MethodPlugin):
         nodes = np.asarray(_get_key(mesh_data, node_key), dtype=np.float64)
         elements = np.asarray(_get_key(mesh_data, elem_key), dtype=np.int32)
 
+        if nodes.ndim == 2 and nodes.shape[1] > 2:
+            nodes = nodes[:, :2]
+
         if elements.min() >= 1:
             elements = elements - 1
 
@@ -363,11 +366,19 @@ class BackProjection(MethodPlugin):
         """Find 32 electrode node indices from mesh.
 
         Strategy (in order of preference):
+        0. Use el_pos if available (pyEIT mesh objects)
         1. Try to parse 'elfaces' from mesh_data
         2. Use hardcoded values if available for this mesh type
         3. Auto-detect from boundary geometry
         """
         n_nodes = nodes.shape[0]
+
+        # Strategy 0: pyEIT mesh has el_pos directly
+        el_pos = _get_key(mesh_data, "el_pos")
+        if el_pos is not None:
+            el_pos = np.asarray(el_pos, dtype=np.int32).ravel()
+            if el_pos.shape[0] == 32:
+                return el_pos
 
         # Strategy 1: Try elfaces from mesh data
         for key in ["elfaces", "ElFaces", "el_faces", "elFaces"]:
