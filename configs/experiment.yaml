@@ -1,19 +1,21 @@
+# Full evaluation experiment — KTC 2023 evaluation set (Levels 1–7, Samples A/B/C).
+#
+# Data layout (just drop these folders in your project root):
+#   EvaluationData/         (or evaluation_datasets/)
+#   ├── level1/ ... level7/ (data files)
+#   └── GroundTruths/       (ground truth .mat files)
+#   Codes_Matlab/
+#   └── Mesh_sparse.mat
+#
+# All paths are auto-detected. Override with env var if needed:
+#   KTC_DATASET_ROOT=/custom/path python run.py --config ...
+
 data_plugin: KTCDataPlugin
+dataset_root: EvaluationData
 mesh_path: Codes_Matlab/Mesh_sparse.mat
 
-levels:
-  - 1
-  - 2
-  - 3
-  - 4
-  - 5
-  - 6
-  - 7
-
-samples:
-  - A
-  - B
-  - C
+levels: [1, 2, 3, 4, 5, 6, 7]
+samples: [A, B, C]
 
 methods:
   - MockMethodPlugin
@@ -21,7 +23,4 @@ methods:
   - GaussNewton
   - GroundTruthOracle
 
-# dataset_root is overridden at runtime by KTC_DATASET_ROOT env var if set.
-# Default points to the EvaluationData folder inside the repo.
-dataset_root: EvaluationData
 output_dir: outputs/
