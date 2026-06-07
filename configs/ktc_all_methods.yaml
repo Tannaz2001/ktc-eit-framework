@@ -1,32 +1,26 @@
-# Full KTC 2023 benchmark — runs BackProjection and GaussNewton across all
-# 7 difficulty levels and all 3 evaluation samples (A/B/C).
-# 2 methods x 7 levels x 3 samples = 42 reconstructions.
+# Full KTC 2023 benchmark — all methods x 7 levels x 3 samples.
 #
-# Usage:
-#   python run.py --config configs/ktc_all_methods.yaml
+# Data layout (just drop these folders in your project root):
+#   EvaluationData/
+#   ├── level1/ ... level7/
+#   └── GroundTruths/
+#   Codes_Matlab/
+#   └── Mesh_sparse.mat
 #
-# To override dataset_root without editing this file, set the environment variable:
-#   export KTC_DATASET_ROOT=/path/to/your/EvaluationData   (Linux / macOS)
-#   set    KTC_DATASET_ROOT=C:\path\to\your\EvaluationData  (Windows)
-# The env var takes priority over the dataset_root value below.
+# All paths are auto-detected. Override with env var if needed:
+#   KTC_DATASET_ROOT=/custom/path python run.py --config ...
 
 data_plugin: KTCDataPlugin
-
-# Path to the folder containing evaluation_datasets/ and GroundTruths/.
-# Override at runtime with the KTC_DATASET_ROOT environment variable.
 dataset_root: EvaluationData
-
-# Direct path to Mesh_sparse.mat (or the directory that contains it).
-# This is the finite-element mesh used by BackProjection and GaussNewton.
 mesh_path: Codes_Matlab/Mesh_sparse.mat
 
 levels: [1, 2, 3, 4, 5, 6, 7]
 samples: [A, B, C]
 
 methods:
-  - LinearDifferenceReconstruction  # official KTC J/Gamma/prior inverse reconstruction
-  - BackProjection                  # simple linearised back-projection baseline
-  - GaussNewton                     # iterative linearised reconstruction baseline
+  - LinearDifferenceReconstruction
+  - BackProjection
+  - GaussNewton
   - GroundTruthOracle
 
 output_dir: outputs/

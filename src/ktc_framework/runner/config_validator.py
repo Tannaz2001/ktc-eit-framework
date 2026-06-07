@@ -26,16 +26,28 @@ import yaml
 
 REQUIRED_FIELDS: list[str] = [
     "data_plugin",
-    "mesh_path",
     "levels",
     "samples",
     "methods",
-    "dataset_root",
-    "output_dir",
 ]
 
 VALID_LEVELS:  set[int] = set(range(1, 8))          # 1–7 inclusive
 VALID_SAMPLES: set[str] = {"A", "B", "C", "1", "2", "3", "4"}
+
+# Auto-detection candidates (checked in order, relative to project root)
+_MESH_CANDIDATES: list[str] = [
+    "Codes_Matlab/Mesh_sparse.mat",
+    "Mesh_sparse.mat",
+    "data/Mesh_sparse.mat",
+    "EvaluationData/Mesh_sparse.mat",
+]
+
+_DATASET_ROOT_CANDIDATES: list[str] = [
+    "Codes_Matlab",
+    "EvaluationData",
+    "evaluation_datasets",
+    "data",
+]
 
 
 # ---------------------------------------------------------------------------
@@ -157,50 +169,64 @@ def load_config(config_path: str) -> dict[str, Any]:
                 f"got {m!r} in methods list {methods!r}"
             )
 
-    # ── 7. Validate mesh_path ──────────────────────────────────────────────
-    mesh_path: str = config["mesh_path"]
-    if not isinstance(mesh_path, str) or not mesh_path.strip():
-        raise ConfigError(
-            f"Config error: 'mesh_path' must be a non-empty string, got {mesh_path!r}"
-        )
-    # Accept a direct .mat file OR a directory that contains Mesh_sparse.mat
-    if not os.path.isfile(mesh_path) and not os.path.isdir(mesh_path):
-        raise ConfigError(
-            f"Config error: mesh_path does not exist: '{mesh_path}'. "
-            f"Expected either a .mat file or a directory containing Mesh_sparse.mat."
-        )
+    # ── 7. Resolve mesh_path (auto-detect if not specified or missing) ─────
+    mesh_path = config.get("mesh_path", "")
+    if not mesh_path or not os.path.exists(mesh_path):
+        resolved = None
+        for candidate in _MESH_CANDIDATES:
+            if os.path.isfile(candidate):
+                resolved = candidate
+                break
+        if resolved:
+            config["mesh_path"] = resolved
+        else:
+            raise ConfigError(
+                f"Config error: Mesh_sparse.mat not found. "
+                f"Download it from the KTC 2023 dataset and place it in one of: "
+                f"{_MESH_CANDIDATES}"
+            )
+    else:
+        config["mesh_path"] = mesh_path
 
-    # ── 8. Environment-variable override for dataset_root ─────────────────
+    # ── 8. Resolve dataset_root (env var > config > auto-detect) ──────────
     env_root = os.environ.get("KTC_DATASET_ROOT")
     if env_root:
         config["dataset_root"] = env_root
+    elif not config.get("dataset_root") or not os.path.isdir(config.get("dataset_root", "")):
+        resolved = None
+        for candidate in _DATASET_ROOT_CANDIDATES:
+            if os.path.isdir(candidate):
+                resolved = candidate
+                break
+        if resolved:
+            config["dataset_root"] = resolved
+        else:
+            raise ConfigError(
+                f"Config error: dataset_root directory not found. "
+                f"Download the KTC data and place it in one of: "
+                f"{_DATASET_ROOT_CANDIDATES}"
+            )
 
-    # ── 9. Validate dataset_root ───────────────────────────────────────────
-    dataset_root: str = config["dataset_root"]
-    if not isinstance(dataset_root, str) or not dataset_root.strip():
-        raise ConfigError(
-            f"Config error: 'dataset_root' must be a non-empty string, "
-            f"got {dataset_root!r}"
-        )
-    if not os.path.isdir(dataset_root):
-        raise ConfigError(
-            f"Config error: dataset_root directory does not exist: '{dataset_root}'. "
-            f"Set KTC_DATASET_ROOT env var or fix 'dataset_root' in the config."
-        )
+    dataset_root = config["dataset_root"]
 
-    # ── 10. Soft check for ref.mat ─────────────────────────────────────────
-    ref_mat = os.path.join(dataset_root, "ref.mat")
-    if not os.path.isfile(ref_mat):
+    # ── 9. Soft check for ref.mat (search multiple locations) ─────────────
+    ref_candidates = [
+        os.path.join(dataset_root, "ref.mat"),
+        os.path.join(dataset_root, "TrainingData", "ref.mat"),
+    ]
+    ref_found = any(os.path.isfile(r) for r in ref_candidates)
+    if not ref_found:
         warnings.warn(
-            f"ref.mat not found at '{ref_mat}'. "
+            f"ref.mat not found in {ref_candidates}. "
             f"BackProjection and GaussNewton will fall back to mean-subtraction "
             f"for difference imaging — reconstruction quality will be reduced.",
             RuntimeWarning,
             stacklevel=2,
         )
 
-    # ── 11. Create output_dir if needed ────────────────────────────────────
-    output_dir: str = config["output_dir"]
+    # ── 10. Create output_dir if needed ───────────────────────────────────
+    output_dir = config.get("output_dir", "outputs/")
+    config["output_dir"] = output_dir
     os.makedirs(output_dir, exist_ok=True)
 
     return config

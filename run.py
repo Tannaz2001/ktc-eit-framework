@@ -1,14 +1,21 @@
-"""CLI entrypoint — run an EIT benchmark experiment from a config file."""
+"""CLI entrypoint — run an EIT benchmark experiment from a config file.
+
+Usage:
+    python run.py --config configs/training_experiment.yaml
+    python run.py --config configs/experiment.yaml
+
+All data paths are auto-detected. Just drop your data folders in the
+project root and run. Override with KTC_DATASET_ROOT env var if needed.
+"""
 
 from __future__ import annotations
 
-import os
 import argparse
 from pathlib import Path
 
 from src.ktc_framework.runner.config_validator import load_config, ConfigError
 from src.ktc_framework.runner.experiment_runner import BatchRunner
-from src.ktc_framework.utils.mock_mesh import make_dummy_batch_with_mesh  # always valid mesh
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -18,44 +25,30 @@ def main() -> None:
         "--config",
         type=Path,
         required=True,
-        help="Path to experiment YAML config (e.g. configs/experiment.yaml)",
+        help="Path to experiment YAML config (e.g. configs/training_experiment.yaml)",
     )
     args = parser.parse_args()
 
     try:
         config = load_config(args.config)
     except ConfigError as e:
-        print(f"[ERROR] Config validation failed: {e}")
+        print(f"[ERROR] {e}")
         raise SystemExit(1)
-    # -----------------------------
-    # Dataset root: env var overrides config value; config value is the fallback
-    dataset_path = os.environ.get("KTC_DATASET_ROOT") or config.get("dataset_root", "")
-    if dataset_path:
-        print(f"[INFO] Using dataset path: {dataset_path}")
-        config["dataset_root"] = dataset_path
-    else:
-        print("[WARN] KTC_DATASET_ROOT not set and no dataset_root in config — data loading may fail.")
 
-    # mesh_path is always relative to the project root, NOT dataset_root.
-    # (Mesh_sparse.mat lives in Codes_Matlab/, independent of the dataset location.)
-
-    # -----------------------------
     print(f"[OK] Config loaded: {args.config}")
-    print(f"     Levels : {config['levels']}")
+    print(f"     Data:    {config['dataset_root']}")
+    print(f"     Mesh:    {config['mesh_path']}")
+    print(f"     Levels:  {config['levels']}")
     print(f"     Samples: {config['samples']}")
     print(f"     Methods: {config['methods']}")
-    print(f"     Mesh   : {config['mesh_path']}")
+    print(f"     Output:  {config['output_dir']}")
     print()
 
-    if 'mesh_path' in config:
-        print(f"     Mesh   : {config['mesh_path']}")
-    print()
-
-    output_dir = Path(config.get("output_dir", "outputs/"))
+    output_dir = Path(config["output_dir"])
     runner = BatchRunner(config=config, output_dir=output_dir)
 
     print("[...] Running experiment...")
-    results = runner.run()  # no 'batch=' argument
+    results = runner.run()
 
     print(f"[OK] Done. {len(results)} runs completed.")
     print(f"     Results saved to: {output_dir / 'scores.json'}")
