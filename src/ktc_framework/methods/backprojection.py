@@ -15,7 +15,7 @@ import numpy as np
 from scipy.interpolate import griddata
 from scipy.ndimage import gaussian_filter
 from skimage.morphology import remove_small_objects
-from skimage.filters import threshold_multiotsu
+from skimage.filters import threshold_otsu
 
 from src.ktc_framework.adapters.method_registry import register
 from src.ktc_framework.methods.method_plugin import MethodPlugin
@@ -241,29 +241,25 @@ class BackProjection(MethodPlugin):
                 f"std={sigma_map.std():.6f}"
             )
 
-            # labels = _segment_ktc(sigma_map)
-            # self.validate_output(labels)
-
-            # --- Dynamic threshold segmentation ---
             seg = np.zeros((_IMG_SIZE, _IMG_SIZE), dtype=np.uint8)
             inside = _CIRCLE_MASK
-            mu, std = sigma_map[inside].mean(), sigma_map[inside].std()
+            inside_pixels = sigma_map[inside]
 
-            if std > 0:
-                factor = 1.0
-                if batch.level >= 6:
-                    factor = 1.3
-                elif batch.level >= 4:
-                    factor = 1.15
+            if inside_pixels.size > 0:
+                try:
+                    thresh = threshold_otsu(inside_pixels)
+                    seg[inside & (sigma_map < thresh)] = 1
+                    seg[inside & (sigma_map > thresh)] = 2
+                except ValueError:
+                    mu = inside_pixels.mean()
+                    warnings.warn(
+                        f"BackProjection L{batch.level}: Otsu failed; using mean threshold",
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
+                    seg[inside & (sigma_map < mu)] = 1
+                    seg[inside & (sigma_map > mu)] = 2
 
-                lower_thresh = mu - self.threshold_std * factor * std
-                upper_thresh = mu + self.threshold_std * factor * std
-
-                seg[inside & (sigma_map < lower_thresh)] = 1  # resistive
-                seg[inside & (sigma_map > upper_thresh)] = 2  # conductive
-
-            # Morphological cleaning
-            from skimage.morphology import remove_small_objects
             min_size = 40 if batch.level >= 4 else 50
             seg = remove_small_objects(seg, min_size=min_size)
 
@@ -305,14 +301,13 @@ class BackProjection(MethodPlugin):
         v1 = _reshape_ktc_vector(voltages, n_inj, n_meas).reshape(-1)
 
         if reference_voltages is None:
-            warnings.warn(
-                "BackProjection: no reference voltages; using mean subtraction.",
-                RuntimeWarning,
-                stacklevel=2,
+            raise ValueError(
+                "BackProjection requires reference_voltages for proper difference voltage calculation. "
+                "Ensure KTCDataPlugin.load_sample() populates batch.reference_voltages. "
+                "Mean subtraction is mathematically incorrect for EIT reconstruction."
             )
-            v0 = np.full_like(v1, float(np.nanmean(v1)))
-        else:
-            v0 = _reshape_ktc_vector(reference_voltages, n_inj, n_meas).reshape(-1)
+
+        v0 = _reshape_ktc_vector(reference_voltages, n_inj, n_meas).reshape(-1)
 
         y = (v1 - v0) / (np.abs(v0) + 1e-6)
 
@@ -422,7 +417,46 @@ class BackProjection(MethodPlugin):
                 )
                 break
 
-        return np.round(np.linspace(0, n_nodes - 1, 32)).astype(np.int32)
+        return BackProjection._electrode_positions_fallback(nodes)
+
+    @staticmethod
+    def _electrode_positions_fallback(nodes: np.ndarray) -> np.ndarray:
+        """Find electrode positions on boundary circle (fallback when elfaces unavailable).
+
+        Electrodes are physical sensors at fixed angular positions on the boundary.
+        This method finds the mesh node closest to each electrode angle.
+        """
+        n_nodes = nodes.shape[0]
+
+        if n_nodes < 32:
+            raise ValueError(
+                f"Mesh has {n_nodes} nodes but needs >=32 for 32-electrode system. "
+                "Check mesh file or elfaces parsing."
+            )
+
+        electrode_angles = np.linspace(0, 2 * np.pi, 32, endpoint=False)
+        electrode_xy = np.column_stack([np.cos(electrode_angles), np.sin(electrode_angles)])
+
+        electrode_nodes = []
+
+        for target_xy in electrode_xy:
+            boundary_mask = (nodes[:, 0] ** 2 + nodes[:, 1] ** 2) >= 0.90
+            boundary_indices = np.where(boundary_mask)[0]
+
+            if boundary_indices.size == 0:
+                warnings.warn(
+                    f"No boundary nodes found near {target_xy}; "
+                    "using fallback (may reduce accuracy).",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                boundary_indices = np.arange(n_nodes)
+
+            distances = np.linalg.norm(nodes[boundary_indices] - target_xy, axis=1)
+            closest_boundary_idx = boundary_indices[np.argmin(distances)]
+            electrode_nodes.append(closest_boundary_idx)
+
+        return np.array(electrode_nodes, dtype=np.int32)
 
     @staticmethod
     def _interpolate_to_grid(
