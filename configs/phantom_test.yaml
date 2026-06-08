@@ -1,0 +1,33 @@
+# Phantom Data Plugin Test Configuration
+#
+# This config generates entirely synthetic EIT data using the PhantomDataPlugin.
+# No real KTC data is needed — useful for:
+# - Unit tests (no dataset download required)
+# - CI/CD validation (quick synthetic checks)
+# - Algorithm debugging (known ground truth inclusions)
+# - Teaching/tutorials (instant valid data)
+#
+# Phantom data will have higher scores than real data because:
+# - Synthetic data is cleaner (less noise)
+# - Inclusions are simple circles (not irregular real shapes)
+# - Full measurement coverage (no degradation like real sparse data)
+#
+# Usage:
+#   python run.py --config configs/phantom_test.yaml
+
+data_plugin: PhantomDataPlugin
+dataset_root: ""  # Not used for phantom data
+
+# Difficulty levels 1–7
+# Higher levels have fewer inclusions and sparser measurements
+levels: [1, 2, 3, 4, 5, 6, 7]
+
+# Samples are arbitrary identifiers
+samples: [A, B, C]
+
+# Test methods
+methods:
+  - BackProjection
+  - GaussNewton
+
+output_dir: outputs/phantom_test
