@@ -30,46 +30,185 @@ CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-/* ── tokens ── */
+/* ── hide Streamlit sidebar collapse arrow button (keyboard_double_arrow_left icon) ── */
+button[data-testid="collapsedControl"],
+[data-testid="stSidebarCollapseButton"],
+button[kind="header"],
+.st-emotion-cache-1q1n0ol,
+.eyeqlp51,
+[data-testid="stBaseButton-headerNoPadding"]{display:none!important;}
+
+/* ── LIGHT theme tokens ── */
 :root{
-  --bg:#f6f8fa; --sur:#ffffff; --bd:#d0d7de; --bd2:#b0bac5;
+  --bg:#f6f8fa; --sur:#ffffff; --bd:#d0d7de;
   --tx:#1f2328;  --tx2:#57606a; --tx3:#848d97;
   --grn:#1a7f37; --grn-bg:#dafbe1; --grn-bd:#a7f3c0;
-  --red:#cf222e; --blu:#0969da; --amb:#9a6700; --pur:#8250df;
-  --c1:#2da44e;  --c2:#8250df;  --c3:#0969da; --c4:#bf8700;
-  --c5:#cf222e;  --c6:#1a7f37; --c7:#d4a72c; --c8:#0550ae;
+  --c1:#2da44e; --c2:#8250df; --c3:#0969da; --c4:#bf8700; --c5:#cf222e;
+  --amb:#9a6700; --red:#cf222e;
+  --inp-bg:#ffffff; --inp-bd:#d0d7de; --inp-tx:#1f2328;
+  --chk-bg:#ffffff;
 }
 
-/* ── base ── */
-html,body,.stApp{background:var(--bg)!important;font-family:'Inter',system-ui,sans-serif!important;}
-.main .block-container{padding:12px 18px 40px!important;max-width:100%!important;}
+/* ── DARK theme tokens — applied when .eit-dark on stApp ── */
+.eit-dark{
+  --bg:#0d1117; --sur:#161b22; --bd:#30363d;
+  --tx:#e6edf3;  --tx2:#c9d1d9; --tx3:#8b949e;
+  --grn:#3fb950; --grn-bg:#0d2119; --grn-bd:#1a4e2a;
+  --c1:#3fb950; --c2:#bc8cff; --c3:#58a6ff; --c4:#d29922; --c5:#f85149;
+  --amb:#d29922; --red:#f85149;
+  --inp-bg:#21262d; --inp-bd:#30363d; --inp-tx:#e6edf3;
+  --chk-bg:#21262d;
+}
 
-/* ── sidebar ── */
-section[data-testid="stSidebar"]{background:var(--sur)!important;border-right:1px solid var(--bd)!important;}
+/* ── entire app background + text ── */
+html,body{background:var(--bg)!important;color:var(--tx)!important;}
+[data-testid="stApp"]{background:var(--bg)!important;color:var(--tx)!important;}
+.main,.main .block-container{
+  background:var(--bg)!important;color:var(--tx)!important;
+  padding:12px 18px 40px!important;max-width:100%!important;
+}
+
+/* ── sidebar — background + all text ── */
+section[data-testid="stSidebar"],
+section[data-testid="stSidebar"]>div{
+  background:var(--sur)!important;border-right:1px solid var(--bd)!important;
+}
 section[data-testid="stSidebar"]>div:first-child{padding:14px 12px!important;}
-section[data-testid="stSidebar"] *{font-family:'JetBrains Mono',monospace!important;color:var(--tx2)!important;}
+section[data-testid="stSidebar"] *{
+  font-family:'JetBrains Mono',monospace!important;color:var(--tx2)!important;
+}
 section[data-testid="stSidebar"] h1,
 section[data-testid="stSidebar"] h2,
 section[data-testid="stSidebar"] h3{
   font-size:8px!important;font-weight:600!important;color:var(--tx3)!important;
   text-transform:uppercase!important;letter-spacing:.14em!important;
-  border:none!important;padding:0!important;margin:11px 0 6px!important;line-height:1!important;}
+  border:none!important;padding:0!important;margin:11px 0 6px!important;line-height:1!important;
+}
 section[data-testid="stSidebar"] p,
-section[data-testid="stSidebar"] .stMarkdown p{font-size:9px!important;margin:3px 0!important;line-height:1.4!important;}
-section[data-testid="stSidebar"] label{font-size:8px!important;color:var(--tx3)!important;text-transform:uppercase!important;letter-spacing:.1em!important;}
-section[data-testid="stSidebar"] input{font-size:9px!important;padding:5px 7px!important;background:var(--bg)!important;border:1px solid var(--bd)!important;color:var(--tx)!important;border-radius:5px!important;}
-section[data-testid="stSidebar"] button{font-size:9px!important;padding:5px 0!important;width:100%!important;border:1px solid var(--grn-bd)!important;border-radius:5px!important;color:var(--grn)!important;background:transparent!important;text-align:center!important;}
+section[data-testid="stSidebar"] .stMarkdown p{
+  font-size:9px!important;margin:3px 0!important;line-height:1.4!important;color:var(--tx2)!important;
+}
+section[data-testid="stSidebar"] label{
+  font-size:8px!important;color:var(--tx3)!important;
+  text-transform:uppercase!important;letter-spacing:.1em!important;
+}
+section[data-testid="stSidebar"] input[type="text"],
+section[data-testid="stSidebar"] input[type="number"]{
+  font-size:9px!important;padding:5px 7px!important;
+  background:var(--inp-bg)!important;border:1px solid var(--inp-bd)!important;
+  color:var(--inp-tx)!important;border-radius:5px!important;
+}
+section[data-testid="stSidebar"] button{
+  font-size:9px!important;padding:5px 0!important;width:100%!important;
+  border:1px solid var(--grn-bd)!important;border-radius:5px!important;
+  color:var(--grn)!important;background:transparent!important;text-align:center!important;
+}
 section[data-testid="stSidebar"] button:hover{background:var(--grn-bg)!important;}
 section[data-testid="stSidebar"] hr{border-color:var(--bd)!important;margin:11px 0!important;}
-section[data-testid="stSidebar"] .stProgress>div>div>div{background:var(--grn)!important;}
 
-/* ── topbar stripe/header ── */
+/* ── checkboxes ── */
+[data-testid="stCheckbox"] label{color:var(--tx2)!important;font-size:9px!important;}
+[data-testid="stCheckbox"] input + div,
+[data-testid="stCheckbox"] span[data-baseweb="checkbox"]{
+  background:var(--chk-bg)!important;border-color:var(--bd)!important;
+}
+
+/* ── slider ── */
+[data-testid="stSlider"] label{color:var(--tx3)!important;font-size:8px!important;}
+[data-testid="stSlider"] [data-baseweb="slider"] div{background:var(--bd)!important;}
+[data-testid="stSlider"] [data-baseweb="slider"] [data-testid="stThumbValue"]{
+  color:var(--tx)!important;background:var(--sur)!important;border-color:var(--bd)!important;
+}
+
+/* ── selectbox + multiselect ── */
+.stSelectbox>div>div,.stMultiSelect>div>div{
+  background:var(--sur)!important;border:1px solid var(--bd)!important;
+  border-radius:5px!important;font-family:'JetBrains Mono',monospace!important;
+  font-size:9px!important;padding:4px 8px!important;color:var(--tx2)!important;
+}
+.stSelectbox label,.stMultiSelect label{
+  font-family:'JetBrains Mono',monospace!important;font-size:8px!important;
+  color:var(--tx3)!important;text-transform:uppercase!important;letter-spacing:.1em!important;
+}
+/* dropdown popup */
+[data-baseweb="popover"] ul,[data-baseweb="menu"]{
+  background:var(--sur)!important;border:1px solid var(--bd)!important;
+}
+[data-baseweb="menu"] li{background:var(--sur)!important;color:var(--tx2)!important;}
+[data-baseweb="menu"] li:hover{background:var(--bg)!important;}
+
+/* ── tabs ── */
+.stTabs [data-baseweb="tab-list"]{
+  background:var(--sur)!important;border:1px solid var(--bd)!important;
+  border-radius:7px!important;padding:4px!important;gap:2px!important;margin-bottom:11px!important;
+}
+.stTabs [data-baseweb="tab"]{
+  font-family:'JetBrains Mono',monospace!important;font-size:9px!important;font-weight:500!important;
+  color:var(--tx3)!important;background:transparent!important;border:none!important;
+  border-radius:5px 5px 0 0!important;padding:5px 11px!important;letter-spacing:.05em!important;
+}
+.stTabs [data-baseweb="tab"]:hover{color:var(--tx)!important;}
+.stTabs [aria-selected="true"]{
+  background:var(--bg)!important;color:var(--grn)!important;
+  border:1px solid var(--bd)!important;border-bottom:none!important;
+}
+.stTabs [data-baseweb="tab-panel"]{padding-top:0!important;}
+
+/* ── dataframe ── */
+[data-testid="stDataFrame"]>div{
+  border:1px solid var(--bd)!important;border-radius:7px!important;overflow:hidden!important;
+  background:var(--sur)!important;
+}
+.stDataFrame thead th{
+  background:var(--bg)!important;color:var(--tx3)!important;
+  font-family:'JetBrains Mono',monospace!important;font-size:8px!important;
+  text-transform:uppercase!important;letter-spacing:.1em!important;
+  border-bottom:1px solid var(--bd)!important;padding:4px 7px!important;
+}
+.stDataFrame tbody td{
+  background:var(--sur)!important;color:var(--tx)!important;
+  font-family:'JetBrains Mono',monospace!important;font-size:9px!important;
+  border-bottom:1px solid var(--bg)!important;padding:5px 7px!important;
+}
+.stDataFrame tbody tr:hover td{background:var(--bg)!important;}
+
+/* ── buttons ── */
+.stButton>button{
+  background:transparent!important;color:var(--grn)!important;
+  border:1px solid var(--grn-bd)!important;border-radius:5px!important;
+  font-family:'JetBrains Mono',monospace!important;font-size:9px!important;
+  font-weight:600!important;padding:5px 10px!important;
+}
+.stButton>button:hover{background:var(--grn-bg)!important;}
+
+/* ── alerts + expander ── */
+.stAlert{
+  background:var(--sur)!important;border:1px solid var(--bd)!important;
+  border-radius:7px!important;font-size:9px!important;color:var(--tx)!important;
+}
+.streamlit-expanderHeader{
+  background:var(--sur)!important;border:1px solid var(--bd)!important;
+  border-radius:5px!important;font-size:9px!important;font-weight:600!important;
+  color:var(--tx)!important;padding:5px 10px!important;
+}
+.streamlit-expanderContent{
+  background:var(--sur)!important;border:1px solid var(--bd)!important;border-top:none!important;
+}
+
+/* ── typography ── */
+h1{font-family:'Inter',sans-serif!important;font-size:13px!important;font-weight:500!important;color:var(--tx)!important;margin:0 0 2px!important;}
+h2{font-family:'Inter',sans-serif!important;font-size:13px!important;font-weight:600!important;color:var(--tx)!important;border-bottom:1px solid var(--bd)!important;padding-bottom:4px!important;margin:14px 0 9px!important;}
+h3{font-family:'Inter',sans-serif!important;font-size:11px!important;font-weight:600!important;color:var(--tx2)!important;margin:9px 0 5px!important;}
+p,.stMarkdown p{font-size:9px!important;color:var(--tx2)!important;line-height:1.4!important;}
+.slbl{font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.13em;margin-bottom:8px;}
+
+/* ── header ── */
 .dash-header{background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:12px 18px 11px;margin-bottom:10px;position:relative;overflow:hidden;}
 .dash-header::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#2da44e,#0969da,#8250df);}
 .dash-title{font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--tx);line-height:1.2;margin-bottom:3px;}
 .dash-sub{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--tx3);}
 
-/* ── kpi cards ── */
+/* ── KPI cards ── */
 .kpi-row{display:flex;gap:8px;margin-bottom:10px;}
 .kpi{flex:1;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:8px 10px;position:relative;overflow:hidden;}
 .kpi::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--kc,#2da44e);opacity:.8;}
@@ -82,69 +221,69 @@ section[data-testid="stSidebar"] .stProgress>div>div>div{background:var(--grn)!i
 .chip{display:inline-flex;align-items:center;gap:4px;font-size:9px;color:var(--tx2);background:var(--bg);border:1px solid var(--bd);padding:2px 8px 2px 5px;border-radius:20px;font-family:'JetBrains Mono',monospace;}
 .chip-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
 
-/* ── section label ── */
-.slbl{font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.13em;margin-bottom:8px;}
-
-/* ── tabs ── */
-.stTabs [data-baseweb="tab-list"]{background:var(--sur)!important;border:1px solid var(--bd)!important;border-radius:7px!important;padding:4px!important;gap:2px!important;margin-bottom:11px!important;}
-.stTabs [data-baseweb="tab"]{font-family:'JetBrains Mono',monospace!important;font-size:9px!important;font-weight:500!important;color:var(--tx3)!important;background:transparent!important;border:none!important;border-radius:5px 5px 0 0!important;padding:5px 11px!important;letter-spacing:.05em!important;}
-.stTabs [data-baseweb="tab"]:hover{color:var(--tx)!important;}
-.stTabs [aria-selected="true"]{background:var(--bg)!important;color:var(--grn)!important;border:1px solid var(--bd)!important;border-bottom:none!important;}
-.stTabs [data-baseweb="tab-panel"]{padding-top:0!important;}
-
-/* ── selectbox ── */
-.stSelectbox>div>div,.stMultiSelect>div>div{background:var(--sur)!important;border:1px solid var(--bd)!important;border-radius:5px!important;font-family:'JetBrains Mono',monospace!important;font-size:9px!important;padding:4px 8px!important;color:var(--tx2)!important;}
-.stSelectbox label,.stMultiSelect label{font-family:'JetBrains Mono',monospace!important;font-size:8px!important;color:var(--tx3)!important;text-transform:uppercase!important;letter-spacing:.1em!important;}
-
-/* ── dataframes — th 8px 4px 7px, td 9px 5px 7px ── */
-[data-testid="stDataFrame"]>div{border:1px solid var(--bd)!important;border-radius:7px!important;overflow:hidden!important;}
-.stDataFrame thead th{background:var(--bg)!important;color:var(--tx3)!important;font-family:'JetBrains Mono',monospace!important;font-size:8px!important;text-transform:uppercase!important;letter-spacing:.1em!important;border-bottom:1px solid var(--bd)!important;padding:4px 7px!important;}
-.stDataFrame tbody td{background:var(--sur)!important;color:var(--tx)!important;font-family:'JetBrains Mono',monospace!important;font-size:9px!important;border-bottom:1px solid var(--bg)!important;padding:5px 7px!important;}
-.stDataFrame tbody tr:hover td{background:var(--bg)!important;}
-
-/* ── buttons ── */
-.stButton>button{background:transparent!important;color:var(--grn)!important;border:1px solid var(--grn-bd)!important;border-radius:5px!important;font-family:'JetBrains Mono',monospace!important;font-size:9px!important;font-weight:600!important;padding:5px 10px!important;}
-.stButton>button:hover{background:var(--grn-bg)!important;}
-
-/* ── alerts, expander ── */
-.stAlert{background:var(--sur)!important;border:1px solid var(--bd)!important;border-radius:7px!important;font-size:9px!important;}
-.streamlit-expanderHeader{background:var(--sur)!important;border:1px solid var(--bd)!important;border-radius:5px!important;font-size:9px!important;font-weight:600!important;color:var(--tx)!important;padding:5px 10px!important;}
-.streamlit-expanderContent{background:var(--sur)!important;border:1px solid var(--bd)!important;border-top:none!important;}
-
-/* ── metric cards (for views) ── */
+/* ── metric + failure cards ── */
 .mcard{background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:8px 10px;margin-bottom:8px;}
 .mcard .mv{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:500;color:var(--tx);line-height:1;margin-bottom:4px;}
 .mcard .ml{font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.1em;}
-.mcard .ms{font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--tx3);margin-top:2px;line-height:1.4;}
-
-/* ── failure cards ── */
 .fcard{background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 11px;}
-.frank{font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:600;color:#cf222e;letter-spacing:.1em;margin-bottom:4px;}
+.frank{font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:600;color:var(--red);letter-spacing:.1em;margin-bottom:4px;}
 .fktc{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:500;color:var(--tx);line-height:1;}
 .flbl{font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--tx3);letter-spacing:.08em;margin:3px 0 6px;}
 .fbar{height:3px;border-radius:2px;background:var(--bg);overflow:hidden;margin-top:6px;}
 .fbar-f{height:3px;border-radius:2px;}
 
 /* ── live badge ── */
-.sb-live{display:inline-flex;align-items:center;gap:4px;font-size:9px;color:#1a7f37;background:#dafbe1;border:1px solid #a7f3c0;padding:2px 8px;border-radius:20px;margin-top:7px;}
-.ldot{width:5px;height:5px;background:#2da44e;border-radius:50%;}
+.sb-live{display:inline-flex;align-items:center;gap:4px;font-size:9px;color:var(--grn);background:var(--grn-bg);border:1px solid var(--grn-bd);padding:2px 8px;border-radius:20px;margin-top:7px;}
+.ldot{width:5px;height:5px;background:var(--grn);border-radius:50%;}
 
 /* ── tier bar ── */
-.tier-bar-wrap{height:3px;background:#d0d7de;border-radius:2px;margin-top:3px;}
+.tier-bar-wrap{height:3px;background:var(--bd);border-radius:2px;margin-top:3px;}
 .tier-bar-fill{height:3px;background:var(--grn);border-radius:2px;}
 
 /* ── columns ── */
 [data-testid="column"]{padding:0 4px!important;}
 
-/* ── typography (main area) ── */
-h1{font-family:'Inter',sans-serif!important;font-size:13px!important;font-weight:500!important;color:var(--tx)!important;margin:0 0 2px!important;line-height:1.2!important;}
-h2{font-family:'Inter',sans-serif!important;font-size:13px!important;font-weight:600!important;color:var(--tx)!important;border-bottom:1px solid var(--bd)!important;padding-bottom:4px!important;margin:14px 0 9px!important;}
-h3{font-family:'Inter',sans-serif!important;font-size:11px!important;font-weight:600!important;color:var(--tx2)!important;margin:9px 0 5px!important;}
-p,.stMarkdown p{font-size:9px!important;color:var(--tx2)!important;line-height:1.4!important;}
-
+/* ── scrollbar ── */
 ::-webkit-scrollbar{width:5px;height:5px;}
 ::-webkit-scrollbar-track{background:var(--bg);}
 ::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px;}
+
+/* ── dark mode: stApp class override — covers every element ── */
+.eit-dark [data-testid="stApp"],
+.eit-dark .main,
+.eit-dark .main .block-container,
+.eit-dark [data-testid="stHeader"],
+.eit-dark [data-testid="stToolbar"],
+.eit-dark [data-testid="stDecoration"],
+.eit-dark [data-testid="stStatusWidget"]{
+  background:var(--bg)!important;color:var(--tx)!important;
+}
+.eit-dark section[data-testid="stSidebar"],
+.eit-dark section[data-testid="stSidebar"]>div{
+  background:var(--sur)!important;border-right-color:var(--bd)!important;
+}
+.eit-dark section[data-testid="stSidebar"] *{color:var(--tx2)!important;}
+.eit-dark .stMarkdown,.eit-dark .stMarkdown *,.eit-dark p{color:var(--tx2)!important;}
+.eit-dark [data-testid="stDataFrame"]>div{background:var(--sur)!important;border-color:var(--bd)!important;}
+.eit-dark .stDataFrame thead th{background:var(--bg)!important;color:var(--tx3)!important;border-color:var(--bd)!important;}
+.eit-dark .stDataFrame tbody td{background:var(--sur)!important;color:var(--tx)!important;}
+.eit-dark .stDataFrame tbody tr:hover td{background:var(--bd)!important;}
+.eit-dark .stTabs [data-baseweb="tab-list"]{background:var(--sur)!important;border-color:var(--bd)!important;}
+.eit-dark .stTabs [data-baseweb="tab"]{color:var(--tx3)!important;background:transparent!important;}
+.eit-dark .stTabs [aria-selected="true"]{background:var(--bg)!important;color:var(--grn)!important;border-color:var(--bd)!important;}
+.eit-dark .dash-header{background:var(--sur)!important;border-color:var(--bd)!important;}
+.eit-dark .stSelectbox>div>div,.eit-dark .stMultiSelect>div>div{background:var(--sur)!important;border-color:var(--bd)!important;color:var(--tx2)!important;}
+.eit-dark [data-baseweb="menu"]{background:var(--sur)!important;border-color:var(--bd)!important;}
+.eit-dark [data-baseweb="menu"] li{background:var(--sur)!important;color:var(--tx2)!important;}
+.eit-dark [data-baseweb="menu"] li:hover{background:var(--bd)!important;}
+.eit-dark .stButton>button{color:var(--grn)!important;border-color:var(--grn-bd)!important;background:transparent!important;}
+.eit-dark .stButton>button:hover{background:var(--grn-bg)!important;}
+.eit-dark .stAlert{background:var(--sur)!important;border-color:var(--bd)!important;color:var(--tx)!important;}
+.eit-dark .streamlit-expanderHeader{background:var(--sur)!important;border-color:var(--bd)!important;color:var(--tx)!important;}
+.eit-dark .streamlit-expanderContent{background:var(--sur)!important;border-color:var(--bd)!important;}
+.eit-dark [data-testid="stCheckbox"] label{color:var(--tx2)!important;}
+.eit-dark input[type="text"],.eit-dark input[type="number"]{background:var(--inp-bg)!important;border-color:var(--inp-bd)!important;color:var(--inp-tx)!important;}
+.eit-dark h1,.eit-dark h2,.eit-dark h3{color:var(--tx)!important;}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -304,35 +443,143 @@ def all_methods(scores:Dict) -> List[str]:
 def mcol(idx:int) -> str:
     return PALETTE[idx % len(PALETTE)]
 
+def inject_theme(dark: bool):
+    """Add/remove eit-dark class on the stApp element so CSS vars cascade everywhere."""
+    if dark:
+        js = """
+        (function(){
+          var el=window.parent.document.querySelector('[data-testid="stApp"]');
+          if(el){el.classList.add('eit-dark');}
+          // also target iframes
+          window.parent.document.querySelectorAll('iframe').forEach(function(f){
+            try{
+              var d=f.contentDocument||f.contentWindow.document;
+              var a=d.querySelector('[data-testid="stApp"]')||d.body;
+              if(a){a.classList.add('eit-dark');}
+            }catch(e){}
+          });
+        })();
+        """
+    else:
+        js = """
+        (function(){
+          window.parent.document.querySelectorAll('.eit-dark').forEach(function(el){
+            el.classList.remove('eit-dark');
+          });
+          window.parent.document.querySelectorAll('iframe').forEach(function(f){
+            try{
+              var d=f.contentDocument||f.contentWindow.document;
+              d.querySelectorAll('.eit-dark').forEach(function(el){el.classList.remove('eit-dark');});
+            }catch(e){}
+          });
+        })();
+        """
+    st.markdown(f"<script>{js}</script>", unsafe_allow_html=True)
+
 # =========================================================
 # SIDEBAR
 # =========================================================
 def render_sidebar():
-    # Brand
+    # ── Brand ────────────────────────────────────────────────
+    if 'dark_mode' not in st.session_state:
+        st.session_state.dark_mode = False
+
     st.sidebar.markdown("""
-    <div style="border-bottom:1px solid #d0d7de;padding-bottom:11px;margin-bottom:11px">
-      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;color:#1f2328;letter-spacing:.06em">EIT BENCH</div>
-      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#848d97;margin-top:2px;letter-spacing:.08em">RECONSTRUCTION ANALYSIS</div>
+    <div style="border-bottom:1px solid var(--bd);padding-bottom:11px;margin-bottom:11px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;color:var(--tx);letter-spacing:.06em">EIT BENCH</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--tx3);margin-top:2px;letter-spacing:.08em">RECONSTRUCTION ANALYSIS</div>
       <div class="sb-live"><div class="ldot"></div>LIVE</div>
     </div>
     """, unsafe_allow_html=True)
 
-    # T1 KTC weight bar (display only — fixed at 1.00)
-    st.sidebar.markdown("## Composite Weights")
-    st.sidebar.markdown("""
-    <div style="margin-bottom:9px">
-      <div style="display:flex;justify-content:space-between;margin-bottom:3px">
-        <span style="font-size:9px;color:#57606a">T1  KTC Score</span>
-        <span style="font-size:9px;color:#1f2328;font-weight:500">1.00</span>
-      </div>
-      <div class="tier-bar-wrap"><div class="tier-bar-fill" style="width:100%"></div></div>
-    </div>
-    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#1a7f37;margin-bottom:4px">&#x3A3; = 1.00</div>
-    """, unsafe_allow_html=True)
+    # ── Dark mode toggle ──────────────────────────────────────
+    dark_label = "Light Mode" if st.session_state.dark_mode else "Dark Mode"
+    if st.sidebar.button(dark_label, key="theme_toggle", use_container_width=True):
+        st.session_state.dark_mode = not st.session_state.dark_mode
+        st.rerun()
 
-    c1, c2 = st.sidebar.columns(2)
-    c1.button("Norm",  key="sb_norm",  use_container_width=True)
-    c2.button("Reset", key="sb_reset", use_container_width=True)
+    st.sidebar.markdown("---")
+
+    # ── Reset All Filters ─────────────────────────────────────
+    ALL_METRICS_SIDEBAR = ['KTC Score','Dice (R)','Dice (C)','IoU (R)','IoU (C)','HD95 (R)','HD95 (C)']
+    if st.sidebar.button("Reset All Filters", key="reset_all_btn", use_container_width=True):
+        st.session_state.selected_metrics  = ALL_METRICS_SIDEBAR.copy()
+        st.session_state.selected_methods  = st.session_state.get('_available_methods', []).copy()
+        st.session_state.level_range       = (1, 7)
+        st.session_state.selected_samples  = ['A', 'B', 'C']
+        # clear checkbox widget state so they re-render checked
+        for m in ALL_METRICS_SIDEBAR:
+            st.session_state[f'metric_{m}'] = True
+        for s in ['A','B','C']:
+            st.session_state[f'samp_{s}'] = True
+        for m in st.session_state.get('_available_methods', []):
+            st.session_state[f'method_{m}'] = True
+        st.rerun()
+
+    st.sidebar.markdown("---")
+
+    # ── Metric Selector ──────────────────────────────────────
+    st.sidebar.markdown("## Metrics")
+    ALL_METRICS_SIDEBAR = ['KTC Score','Dice (R)','Dice (C)','IoU (R)','IoU (C)','HD95 (R)','HD95 (C)']
+    if 'selected_metrics' not in st.session_state:
+        st.session_state.selected_metrics = ALL_METRICS_SIDEBAR.copy()
+    for m in ALL_METRICS_SIDEBAR:
+        checked = m in st.session_state.selected_metrics
+        if st.sidebar.checkbox(m, value=checked, key=f"metric_{m}"):
+            if m not in st.session_state.selected_metrics:
+                st.session_state.selected_metrics.append(m)
+        else:
+            if m in st.session_state.selected_metrics:
+                st.session_state.selected_metrics.remove(m)
+
+    st.sidebar.markdown("---")
+
+    # ── Method Selector ──────────────────────────────────────
+    st.sidebar.markdown("## Methods")
+    # Method names come from session_state after data load; init with empty
+    available_methods = st.session_state.get('_available_methods', [])
+    if 'selected_methods' not in st.session_state or not st.session_state.selected_methods:
+        st.session_state.selected_methods = available_methods.copy()
+    # Sync: add any new method not yet in selected list
+    for am in available_methods:
+        if am not in st.session_state.selected_methods:
+            st.session_state.selected_methods.append(am)
+    if available_methods:
+        for m in available_methods:
+            checked = m in st.session_state.selected_methods
+            if st.sidebar.checkbox(m, value=checked, key=f"method_{m}"):
+                if m not in st.session_state.selected_methods:
+                    st.session_state.selected_methods.append(m)
+            else:
+                if m in st.session_state.selected_methods:
+                    st.session_state.selected_methods.remove(m)
+    else:
+        st.sidebar.markdown('<div style="font-size:9px;color:var(--tx3)">Loading methods...</div>', unsafe_allow_html=True)
+
+    st.sidebar.markdown("---")
+
+    # ── Level Filter ─────────────────────────────────────────
+    st.sidebar.markdown("## Level Filter")
+    if 'level_range' not in st.session_state:
+        st.session_state.level_range = (1, 7)
+    lvl_vals = st.sidebar.slider(
+        "Difficulty levels:", 1, 7, st.session_state.level_range, key="sb_level_range")
+    st.session_state.level_range = lvl_vals
+
+    st.sidebar.markdown("---")
+
+    # ── Sample Filter ─────────────────────────────────────────
+    st.sidebar.markdown("## Samples")
+    if 'selected_samples' not in st.session_state:
+        st.session_state.selected_samples = ['A','B','C']
+    for s in ['A','B','C']:
+        checked = s in st.session_state.selected_samples
+        if st.sidebar.checkbox(f"Sample {s}", value=checked, key=f"samp_{s}"):
+            if s not in st.session_state.selected_samples:
+                st.session_state.selected_samples.append(s)
+        else:
+            if s in st.session_state.selected_samples:
+                st.session_state.selected_samples.remove(s)
 
     st.sidebar.markdown("---")
 
@@ -341,7 +588,7 @@ def render_sidebar():
     for p, lbl in [("scores.json","scores.json"),("outputs/per_run_metrics.json","per_run_metrics.json")]:
         ok = Path(p).exists()
         color = "#1a7f37" if ok else "#cf222e"
-        icon  = "✓" if ok else "✗"
+        icon  = "OK" if ok else "ERR"
         st.sidebar.markdown(
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:{color};margin:3px 0">{icon}  {lbl}</div>',
             unsafe_allow_html=True)
@@ -358,7 +605,7 @@ def render_sidebar():
     new_name = st.sidebar.text_input("name", key="new_method_input",
                                      placeholder="e.g. gauss_newton_v2",
                                      label_visibility="collapsed")
-    if st.sidebar.button("+ Register", use_container_width=True, key="sb_add"):
+    if st.sidebar.button("Register", use_container_width=True, key="sb_add"):
         n = new_name.strip()
         if n and n not in st.session_state.custom_methods:
             st.session_state.custom_methods.append(n)
@@ -370,52 +617,16 @@ def render_sidebar():
         for m in st.session_state.custom_methods:
             ca, cb = st.sidebar.columns([5,1])
             ca.markdown(f'<div style="font-size:9px;color:#57606a;padding:2px 0">• {m}</div>', unsafe_allow_html=True)
-            if cb.button("✕", key=f"rm_{m}"): to_remove = m
+            if cb.button("x", key=f"rm_{m}"): to_remove = m
         if to_remove:
             st.session_state.custom_methods.remove(to_remove)
             st.rerun()
 
-    # ── Run Benchmark Button ───────────────────────────────────
+    # ── Export ───────────────────────────────────────────────
     st.sidebar.markdown("---")
-    st.sidebar.markdown("## Run Benchmark")
-    config_options = {
-        "Full Benchmark (42 runs)": "configs/ktc_all_methods.yaml",
-        "Training Data (4 samples)": "configs/training_experiment.yaml",
-        "Mock / Smoke Test": "configs/mock_experiment.yaml",
-    }
-    chosen_config = st.sidebar.selectbox(
-        "Config:", list(config_options.keys()), key="run_config_sel",
-        label_visibility="collapsed")
-
-    if st.sidebar.button("▶  Run Now", use_container_width=True, key="run_btn"):
-        import subprocess, sys, os
-        config_path = config_options[chosen_config]
-        env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
-        with st.spinner(f"Running benchmark — {chosen_config} …"):
-            try:
-                # Step 1 — run the benchmark
-                r1 = subprocess.run(
-                    [sys.executable, "run.py", "--config", config_path],
-                    capture_output=True, text=True, encoding="utf-8",
-                    errors="replace", cwd=str(Path.cwd()), env=env
-                )
-                if r1.returncode != 0:
-                    st.sidebar.error(f"Benchmark failed:\n{r1.stderr[-500:]}")
-                else:
-                    # Step 2 — prepare dashboard data
-                    r2 = subprocess.run(
-                        [sys.executable, "prepare_dashboard.py"],
-                        capture_output=True, text=True, encoding="utf-8",
-                        errors="replace", cwd=str(Path.cwd()), env=env
-                    )
-                    if r2.returncode != 0:
-                        st.sidebar.error(f"Prepare failed:\n{r2.stderr[-300:]}")
-                    else:
-                        st.cache_data.clear()
-                        st.sidebar.success("Done! Dashboard updated.")
-                        st.rerun()
-            except Exception as ex:
-                st.sidebar.error(f"Error: {ex}")
+    st.sidebar.markdown("## Export")
+    if st.sidebar.button("Export PDF Report", use_container_width=True, key="pdf_sidebar_btn"):
+        st.session_state['_trigger_pdf'] = True
 
     # ── Run selector ──────────────────────────────────────────
     st.sidebar.markdown("---")
@@ -424,33 +635,69 @@ def render_sidebar():
     run_dirs = sorted(runs_root.glob("run_*"), reverse=True) if runs_root.exists() else []
 
     if run_dirs:
-        # Show latest pointer
-        latest = find_latest_run()
-        st.sidebar.markdown(
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:#1a7f37;margin:3px 0">'
-            f'▶ Latest: {latest.name}</div>', unsafe_allow_html=True)
-
         run_names = [d.name for d in run_dirs]
+        # Current loaded run name
+        current_run = find_latest_run().name
+        st.sidebar.markdown(
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--grn);margin:3px 0">'
+            f'Active: {current_run}</div>', unsafe_allow_html=True)
+
+        default_idx = run_names.index(current_run) if current_run in run_names else 0
         chosen_run = st.sidebar.selectbox(
-            "Load a previous run:",
-            run_names, index=0, key="selected_run",
+            "Load run:", run_names, index=default_idx, key="selected_run",
             label_visibility="collapsed")
 
-        if st.sidebar.button("↺ Load selected run", use_container_width=True, key="load_run_btn"):
+        if st.sidebar.button("Load selected run", use_container_width=True, key="load_run_btn"):
             selected_path = runs_root / chosen_run
             (runs_root / "latest.txt").write_text(str(selected_path))
             st.cache_data.clear()
             st.rerun()
+
+        # Show scores for the selected run (not just active) as preview
+        preview_scores_path = runs_root / chosen_run / "scores.json"
+        if preview_scores_path.exists() and chosen_run != current_run:
+            with open(preview_scores_path) as f:
+                preview = json.load(f)
+            st.sidebar.markdown(
+                f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--tx3);margin:4px 0 2px">Preview: {chosen_run}</div>',
+                unsafe_allow_html=True)
+            for method, mets in preview.items():
+                ktc = mets.get('KTC score', mets.get('ktc_score', '—'))
+                ktc_str = f"{ktc:.4f}" if isinstance(ktc, float) else str(ktc)
+                st.sidebar.markdown(
+                    f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--tx2);padding:1px 0">'
+                    f'  {method}: KTC={ktc_str}</div>',
+                    unsafe_allow_html=True)
     else:
         st.sidebar.markdown(
-            '<div style="font-size:9px;color:#848d97;margin:3px 0">No runs yet.<br>Run example_usage.py first.</div>',
+            '<div style="font-size:9px;color:var(--tx3);margin:3px 0">No runs yet.<br>Run example_usage.py first.</div>',
             unsafe_allow_html=True)
 
 # =========================================================
 # VIEW 1 — LEADERBOARD  (original logic)
 # =========================================================
-def view_leaderboard(scores:Dict, per_run:Dict):
+def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=None, level_range:tuple=(1,7)):
+    if sel_metrics is None:
+        sel_metrics = ['KTC Score','Dice (R)','Dice (C)','IoU (R)','IoU (C)','HD95 (R)','HD95 (C)']
+    if mm is None:
+        mm = {}
+    lvl_min, lvl_max = level_range
+    st.markdown('<div class="slbl">01 · LEADERBOARD — BAR + TABLE · SIMPLE COMPARISON + DETAILS</div>', unsafe_allow_html=True)
     weights = {'tier1':0.40,'tier2':0.00,'tier3':0.20,'tier4':0.10,'tier5':0.05}
+
+    # Filter per_run to only samples within the level range
+    # Sample IDs that are numeric map directly to levels; filter accordingly
+    def sample_in_level(sid):
+        try:
+            return lvl_min <= int(sid) <= lvl_max
+        except (ValueError, TypeError):
+            return True  # non-numeric sample IDs always pass through
+
+    if lvl_min != 1 or lvl_max != 7:
+        st.markdown(
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--amb);'
+            f'margin-bottom:6px">Filtered: levels {lvl_min}–{lvl_max} &nbsp;·&nbsp; '
+            f'{len(scores)} method(s) selected</div>', unsafe_allow_html=True)
 
     if 'method_colors' not in st.session_state: st.session_state.method_colors = {}
     leaderboard_data = []
@@ -519,197 +766,449 @@ def view_leaderboard(scores:Dict, per_run:Dict):
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # Table
+    # Table — filter columns by selected metrics in real time
     st.markdown('<div class="slbl">DETAILED METRICS</div>', unsafe_allow_html=True)
-    disp = df.drop(columns=['Color']).copy()
-    disp['Composite Score'] = disp['Composite Score'].round(2)
-    for c in ['KTC Score','Dice (R)','Dice (C)','IoU (R)','IoU (C)','HD95 (R)','HD95 (C)']:
-        if c in disp.columns:
-            disp[c] = disp[c].round(4)
-    st.dataframe(disp, use_container_width=True, hide_index=True)
+
+    # Build full display_df first
+    display_df = df.drop(columns=['Color']).copy()
+    display_df['Composite Score'] = display_df['Composite Score'].round(2)
+    for c in ['KTC Score','Dice (R)','Dice (C)','IoU (R)','IoU (C)']:
+        if c in display_df.columns:
+            display_df[c] = display_df[c].round(4)
+
+    # Map sidebar metric names to table column names
+    METRIC_COL_MAP = {
+        'KTC Score':  'KTC Score',
+        'Dice (R)':   'Dice (R)',
+        'Dice (C)':   'Dice (C)',
+        'IoU (R)':    'IoU (R)',
+        'IoU (C)':    'IoU (C)',
+        'HD95 (R)':   None,   # not in leaderboard data (scores.json doesn't have HD95)
+        'HD95 (C)':   None,
+    }
+    # Always keep Method, Composite Score, Grade; filter the rest
+    always_cols = ['Method','Composite Score','Grade']
+    optional_cols = [METRIC_COL_MAP[m] for m in sel_metrics
+                     if METRIC_COL_MAP.get(m) and METRIC_COL_MAP[m] in display_df.columns]
+    show_cols = always_cols + optional_cols
+    filtered_df = display_df[[c for c in show_cols if c in display_df.columns]]
+
+    def grade_color(grade):
+        return {'A':'#dafbe1','B':'#ddf4ff','C':'#fff8c5','D':'#ffebe9'}.get(grade,'')
+
+    pc = st.session_state.get('_pcolors', {})
+    row_bg    = pc.get('bg', '#f6f8fa')
+    cell_col  = pc.get('text', '#1f2328') if st.session_state.get('dark_mode') else '#1f2328'
+    hdr_bg    = pc.get('bg', '#f6f8fa')
+    hdr_col   = pc.get('text', '#848d97')
+    brd       = '#30363d' if st.session_state.get('dark_mode') else '#d0d7de'
+    sep       = '#30363d' if st.session_state.get('dark_mode') else '#f6f8fa'
+
+    rows_html = ''
+    for _, row in filtered_df.iterrows():
+        gc  = grade_color(row['Grade'])
+        bg  = f'background:{gc};' if gc else f'background:{pc.get("bg","")};'
+        rows_html += f'<tr style="{bg}">'
+        for col in filtered_df.columns:
+            rows_html += (f'<td style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
+                          f'padding:5px 8px;border-bottom:1px solid {sep};color:{cell_col}">'
+                          f'{row[col]}</td>')
+        rows_html += '</tr>'
+
+    headers_html = ''.join(
+        f'<th style="font-family:\'JetBrains Mono\',monospace;font-size:8px;text-transform:uppercase;'
+        f'letter-spacing:.1em;color:{hdr_col};padding:4px 8px;border-bottom:1px solid {brd};'
+        f'background:{hdr_bg}">{c}</th>' for c in filtered_df.columns)
+    st.markdown(
+        f'<div style="border:1px solid {brd};border-radius:7px;overflow:hidden">'
+        f'<table style="width:100%;border-collapse:collapse">'
+        f'<thead><tr>{headers_html}</tr></thead><tbody>{rows_html}</tbody></table></div>',
+        unsafe_allow_html=True)
 
 # =========================================================
 # VIEW 2 — DEGRADATION  (original logic)
 # =========================================================
-def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict):
+def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
+    st.markdown('<div class="slbl">04 · DEGRADATION — LINE + CONFIDENCE BANDS · TREND OVER DIFFICULTY</div>', unsafe_allow_html=True)
     if not per_run:
         st.warning("No per-run metrics available.")
         return
 
+    lvl_min, lvl_max = level_range
     dm = all_methods(scores)
-    cl, cm = st.columns([1,3])
-    with cl: lvl = st.selectbox("Level:", ALL_LEVELS, index=0, key="deg_level")
-    with cm:
-        chosen = st.multiselect("Select methods:",dm,
-            default=[m for m in dm[:3] if m not in st.session_state.get('custom_methods',[])])
+    chosen = st.multiselect("Select methods:", dm,
+        default=[m for m in dm[:3] if m not in st.session_state.get('custom_methods',[])])
 
     if not chosen:
         st.info("Select at least one method.")
         return
 
+    if lvl_min != 1 or lvl_max != 7:
+        st.markdown(
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--amb);margin-bottom:6px">'
+            f'Showing levels {lvl_min}–{lvl_max}</div>', unsafe_allow_html=True)
+
+    pc  = st.session_state.get('_pcolors', {})
+    pb  = pc.get('bg',     '#f6f8fa')
+    pp  = pc.get('paper',  'rgba(0,0,0,0)')
+    pg  = pc.get('grid',   '#d0d7de')
+    pt  = pc.get('text',   '#848d97')
+    pleg= pc.get('legend', 'rgba(255,255,255,.9)')
+
     fig = go.Figure()
     stats = []
-    for i, disp in enumerate(chosen):
-        ik = mm.get(disp, disp)
-        if ik not in per_run: continue
+    for i, disp_name in enumerate(chosen):
+        ik = mm.get(disp_name)
+        if not ik or ik not in per_run: continue
         samps = per_run[ik]
 
-        # Group by level — average KTC across samples A/B/C per level
-        level_scores: dict = {}
-        for run_key, metrics in samps.items():
-            lv = metrics.get("level")
-            if lv is not None:
-                level_scores.setdefault(int(lv), []).append(metrics.get("ktc_score", 0))
-
-        if not level_scores:
+        # Filter by level range: sample IDs that are numeric = level number
+        def _in_range(sid):
+            try:    return lvl_min <= int(sid) <= lvl_max
+            except: return True
+        sids = sorted(s for s in samps.keys() if _in_range(s))
+        if not sids:
             continue
 
-        levels_x = sorted(level_scores.keys())
-        ktc_avg  = [float(np.mean(level_scores[lv])) for lv in levels_x]
-        ktc_min  = [float(np.min(level_scores[lv]))  for lv in levels_x]
-        ktc_max  = [float(np.max(level_scores[lv]))  for lv in levels_x]
-
-        c = mcol(i)
-        # Shaded band (min/max range)
+        ktc = [samps[s]['ktc_score'] for s in sids]
+        x   = [int(s) if str(s).isdigit() else j+1 for j,s in enumerate(sids)]
+        c   = mcol(i)
+        mu  = np.mean(ktc); sd = np.std(ktc)
+        upper = [v + sd for v in ktc]; lower = [max(0, v - sd) for v in ktc]
+        # Confidence band
         fig.add_trace(go.Scatter(
-            x=levels_x + levels_x[::-1],
-            y=ktc_max + ktc_min[::-1],
+            x=x+x[::-1], y=upper+lower[::-1],
             fill='toself', fillcolor=hex_to_rgba(c, 0.10),
             line=dict(width=0), showlegend=False, hoverinfo='skip'))
-        # Average line
-        fig.add_trace(go.Scatter(
-            x=levels_x, y=ktc_avg, mode='lines+markers', name=disp,
+        # Main line
+        fig.add_trace(go.Scatter(x=x, y=ktc, mode='lines+markers', name=disp_name,
             line=dict(width=2.5, color=c),
             marker=dict(size=7, color=c, line=dict(width=2, color='#ffffff')),
-            hovertemplate=f"<b>{disp}</b><br>Level: %{{x}}<br>Avg KTC: %{{y:.4f}}<extra></extra>"))
-
-        stats.append({'Method': disp, 'Mean KTC': np.mean(ktc_avg),
-                      'Std Dev': np.std(ktc_avg), 'Min': np.min(ktc_avg),
-                      'Max': np.max(ktc_avg), 'Range': np.max(ktc_avg)-np.min(ktc_avg)})
+            hovertemplate=f"<b>{disp_name}</b><br>Level: %{{x}}<br>KTC: %{{y:.4f}}<extra></extra>"))
+        # Horizontal mean line
+        fig.add_trace(go.Scatter(
+            x=[min(x), max(x)], y=[mu, mu],
+            mode='lines', line=dict(width=1, color=c, dash='dot'),
+            showlegend=False, hoverinfo='skip'))
+        stats.append({'Method':disp_name,'Mean KTC':mu,'Std Dev':sd,
+                      'Min':np.min(ktc),'Max':np.max(ktc),'Range':np.max(ktc)-np.min(ktc)})
 
     fig.update_layout(
-        title="KTC Score vs Difficulty Level (avg across samples A/B/C)",
-        xaxis_title="Level (1=easiest → 7=hardest)", yaxis_title="KTC Score ↑",
-        height=420,hovermode='x unified',
-        paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='#f6f8fa',
-        font=dict(family="JetBrains Mono,monospace",color="#848d97",size=9),
-        xaxis=dict(gridcolor='#d0d7de',linecolor='#d0d7de'),
-        yaxis=dict(gridcolor='#d0d7de',linecolor='#d0d7de'),
-        legend=dict(bgcolor='rgba(255,255,255,.9)',bordercolor='#d0d7de',borderwidth=1,font=dict(size=9)),
-        margin=dict(l=0,r=0,t=36,b=30),
+        title=f"KTC Score — Levels {lvl_min}–{lvl_max}",
+        xaxis_title="Level / Sample ID", yaxis_title="KTC Score ↓",
+        height=420, hovermode='x unified',
+        paper_bgcolor=pp, plot_bgcolor=pb,
+        font=dict(family="JetBrains Mono,monospace", color=pt, size=9),
+        xaxis=dict(gridcolor=pg, linecolor=pg),
+        yaxis=dict(gridcolor=pg, linecolor=pg),
+        legend=dict(bgcolor=pleg, bordercolor=pg, borderwidth=1, font=dict(size=9)),
+        margin=dict(l=0, r=0, t=36, b=30),
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    st.markdown('<div class="slbl">KTC STATISTICS</div>', unsafe_allow_html=True)
-    st.dataframe(pd.DataFrame(stats).round(4), use_container_width=True, hide_index=True)
+    if stats:
+        st.markdown('<div class="slbl">KTC STATISTICS</div>', unsafe_allow_html=True)
+        st.dataframe(pd.DataFrame(stats).round(4), use_container_width=True, hide_index=True)
+
+        best  = min(stats, key=lambda r: r['Mean KTC'])
+        worst = max(stats, key=lambda r: r['Std Dev'])
+        st.markdown(
+            f'<div style="background:var(--grn-bg);border:1px solid var(--grn-bd);border-radius:7px;padding:10px 14px;margin-top:8px">'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;font-weight:600;color:var(--grn);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px">KEY INSIGHTS</div>'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--tx);line-height:1.6">'
+            f'- Best average KTC: <b>{best["Method"]}</b> ({best["Mean KTC"]:.4f})<br>'
+            f'- Most variability: <b>{worst["Method"]}</b> (σ = {worst["Std Dev"]:.4f})<br>'
+            f'- Shaded bands = ±1 std deviation. Narrower = more consistent performance.'
+            f'</div></div>',
+            unsafe_allow_html=True)
 
 # =========================================================
 # VIEW 3 — COMPARISON  (original logic)
 # =========================================================
-def view_comparison(scores:Dict, per_run:Dict, mm:Dict):
+def view_comparison(scores:Dict, per_run:Dict, mm:Dict, sel_metrics:list=None, level_range:tuple=(1,7)):
+    st.markdown('<div class="slbl">03 · RECONSTRUCTION — MEDICAL IMAGES · VISUAL PROOF</div>', unsafe_allow_html=True)
     if not per_run:
         st.warning("No per-run metrics available.")
         return
 
+    # Map sidebar metric display names to internal per_run keys
+    METRIC_DISPLAY_MAP = {
+        'KTC Score':  'ktc_score',
+        'Dice (R)':   'dice_resistive',
+        'Dice (C)':   'dice_conductive',
+        'IoU (R)':    'iou_resistive',
+        'IoU (C)':    'iou_conductive',
+        'HD95 (R)':   'hd95_resistive',
+        'HD95 (C)':   'hd95_conductive',
+    }
+    # Which internal keys to show — driven by sel_metrics
+    if sel_metrics:
+        show_keys = [METRIC_DISPLAY_MAP[sm] for sm in sel_metrics if sm in METRIC_DISPLAY_MAP]
+    else:
+        show_keys = list(METRIC_DISPLAY_MAP.values())
+
+    lvl_min, lvl_max = level_range
+
+    def _in_range(sid):
+        try:    return lvl_min <= int(sid) <= lvl_max
+        except: return True
+
     dm = all_methods(scores)
     fi = list(per_run.keys())[0] if per_run else None
-    samps = list(per_run[fi].keys()) if fi else []
+    # Filter sample list by level range
+    all_samps = list(per_run[fi].keys()) if fi else []
+    samps = [s for s in all_samps if _in_range(s)]
+    if not samps:
+        samps = all_samps  # fallback: show all if filter leaves nothing
 
     c1,c2,c3,c4 = st.columns(4)
-    m1 = c1.selectbox("Method 1:", dm, index=0)
-    m2 = c2.selectbox("Method 2:", dm, index=min(1,len(dm)-1))
+    m1  = c1.selectbox("Method 1:", dm, index=0)
+    m2  = c2.selectbox("Method 2:", dm, index=min(1,len(dm)-1))
     sid = c3.selectbox("Sample:", samps)
     lvl = c4.selectbox("Level:", ALL_LEVELS, index=0)
 
     m1i = mm.get(m1); m2i = mm.get(m2)
-    p1 = m1 in st.session_state.get('custom_methods', [])
-    p2 = m2 in st.session_state.get('custom_methods', [])
-    if p1: st.info(f"**{m1}** is a custom method — connect its backend to see metrics.")
-    if p2: st.info(f"**{m2}** is a custom method — connect its backend to see metrics.")
+    p1  = m1 in st.session_state.get('custom_methods', [])
+    p2  = m2 in st.session_state.get('custom_methods', [])
+    if p1: st.info(f"{m1} is a custom method — connect its backend to see metrics.")
+    if p2: st.info(f"{m2} is a custom method — connect its backend to see metrics.")
 
     met1 = per_run.get(m1i or m1, {}).get(sid, {}) if not p1 else {}
     met2 = per_run.get(m2i or m2, {}).get(sid, {}) if not p2 else {}
 
-    st.markdown("### Metric Comparison")
-    if not met1 and not met2:
-        st.warning(f"No data found for sample '{sid}'. Run `python prepare_dashboard.py` to refresh.")
-    else:
-        numeric_keys = [k for k in met1.keys() if isinstance(met1.get(k), (int, float))]
-        comp_data = [{'Metric':k.replace('_',' ').title(), m1:met1.get(k,0), m2:met2.get(k,0),
-                      'Difference':abs(met1.get(k,0)-met2.get(k,0))} for k in numeric_keys]
-        comp_df = pd.DataFrame(comp_data)
-        if not comp_df.empty:
-            for col in [m1, m2, 'Difference']:
-                if col in comp_df.columns:
-                    comp_df[col] = comp_df[col].apply(lambda x: f"{x:.4f}")
-        st.dataframe(comp_df, use_container_width=True, hide_index=True)
+    # Metric comparison table — only show selected metrics
+    st.markdown('<div class="slbl">METRIC COMPARISON</div>', unsafe_allow_html=True)
+    keys_to_show = [k for k in show_keys if k in met1 or k in met2]
+    if not keys_to_show:
+        keys_to_show = list(met1.keys())  # fallback: show everything
+    comp_data = [{'Metric': k.replace('_',' ').title(),
+                  m1: met1.get(k,0), m2: met2.get(k,0),
+                  'Diff': abs(met1.get(k,0)-met2.get(k,0))}
+                 for k in keys_to_show]
+    comp_df = pd.DataFrame(comp_data)
+    for col in [m1, m2, 'Diff']:
+        if col in comp_df.columns:
+            comp_df[col] = comp_df[col].apply(lambda x: f"{x:.4f}")
+    st.dataframe(comp_df, use_container_width=True, hide_index=True)
 
-    st.markdown("### Radar Chart")
-    radar_keys = ['ktc_score','dice_resistive','dice_conductive','iou_resistive','iou_conductive']
+    # Radar — axes driven by sel_metrics
+    st.markdown('<div class="slbl">RADAR COMPARISON</div>', unsafe_allow_html=True)
+    radar_keys = [k for k in show_keys if k in met1] or list(met1.keys())[:5]
     cats = [k.replace('_',' ').title() for k in radar_keys]
+    pc = st.session_state.get('_pcolors', {})
+    pb = pc.get('bg','#f6f8fa'); pg = pc.get('grid','#d0d7de')
+    pt = pc.get('text','#848d97'); pleg = pc.get('legend','rgba(255,255,255,.9)')
+    pp = pc.get('paper','rgba(0,0,0,0)')
     fig = go.Figure()
-    for label,met,c in [(m1,met1,PALETTE[0]),(m2,met2,PALETTE[1])]:
+    for label, met, c in [(m1, met1, PALETTE[0]), (m2, met2, PALETTE[1])]:
         v = [met.get(k,0) for k in radar_keys]; v.append(v[0])
-        fig.add_trace(go.Scatterpolar(r=v,theta=cats+[cats[0]],fill='toself',name=label,
-            line_color=c,fillcolor=hex_to_rgba(c, 0.13)))
+        fig.add_trace(go.Scatterpolar(r=v, theta=cats+[cats[0]], fill='toself', name=label,
+            line_color=c, fillcolor=hex_to_rgba(c, 0.13)))
     fig.update_layout(
-        polar=dict(bgcolor='#f6f8fa',
-            radialaxis=dict(visible=True,range=[0,1],gridcolor='#d0d7de',linecolor='#d0d7de',tickfont=dict(size=8)),
-            angularaxis=dict(gridcolor='#d0d7de',linecolor='#d0d7de',tickfont=dict(size=9))),
-        showlegend=True,height=460,paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(family="JetBrains Mono,monospace",color="#848d97",size=9),
-        legend=dict(bgcolor='rgba(255,255,255,.9)',bordercolor='#d0d7de',borderwidth=1,font=dict(size=9)),
+        polar=dict(bgcolor=pb,
+            radialaxis=dict(visible=True,range=[0,1],gridcolor=pg,linecolor=pg,tickfont=dict(size=8,color=pt)),
+            angularaxis=dict(gridcolor=pg,linecolor=pg,tickfont=dict(size=9,color=pt))),
+        showlegend=True, height=460, paper_bgcolor=pp,
+        font=dict(family="JetBrains Mono,monospace",color=pt,size=9),
+        legend=dict(bgcolor=pleg,bordercolor=pg,borderwidth=1,font=dict(size=9)),
         margin=dict(l=50,r=50,t=30,b=50))
     st.plotly_chart(fig, use_container_width=True)
 
-    st.markdown("### Visual Comparison")
+    # Visual comparison — images from backend
+    st.markdown('<div class="slbl">VISUAL COMPARISON</div>', unsafe_allow_html=True)
     panel = load_comparison_panel(sid)
     if panel:
-        st.markdown(f"**All Methods – Sample {sid}**")
+        st.markdown(f"All Methods — Sample {sid}")
         st.image(panel, use_container_width=True)
         st.markdown("---")
     imgs = load_images_for_sample(sid, level=lvl)
     if imgs:
-        ic1,ic2 = st.columns(2)
-        i1 = next((img for k,img in imgs.items() if m1i and m1i.lower() in k.lower()),None)
-        i2 = next((img for k,img in imgs.items() if m2i and m2i.lower() in k.lower()),None)
+        ic1, ic2 = st.columns(2)
+        i1 = next((img for k,img in imgs.items() if m1i and m1i.lower() in k.lower()), None)
+        i2 = next((img for k,img in imgs.items() if m2i and m2i.lower() in k.lower()), None)
         with ic1:
             st.markdown(f"**{m1}**")
-            if i1:
-                st.image(i1, use_container_width=True)
-            else:
-                st.info(f"Image not found for {m1}")
+            if i1: st.image(i1, use_container_width=True)
+            else:  st.info(f"No image for {m1}")
         with ic2:
             st.markdown(f"**{m2}**")
-            if i2:
-                st.image(i2, use_container_width=True)
-            else:
-                st.info(f"Image not found for {m2}")
+            if i2: st.image(i2, use_container_width=True)
+            else:  st.info(f"No image for {m2}")
     elif not panel:
         st.info("No visualization images found. Run example_usage.py to generate images.")
 
 # =========================================================
 # VIEW 4 — FAILURE GALLERY  (original logic)
 # =========================================================
-def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict):
+def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
+    st.markdown('<div class="slbl">09 · FAILURES — TABLE + ANALYSIS · FAILURE BREAKDOWN</div>', unsafe_allow_html=True)
     if not per_run:
         st.warning("No per-run metrics available.")
         return
 
+    lvl_min, lvl_max = level_range
+
+    def _in_range(sid):
+        try:    return lvl_min <= int(sid) <= lvl_max
+        except: return True
+
+    if lvl_min != 1 or lvl_max != 7:
+        st.markdown(
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--amb);margin-bottom:6px">'
+            f'Filtered: levels {lvl_min}–{lvl_max}</div>', unsafe_allow_html=True)
+
+    # ── Pass 1: collect all per-run data for KPI counts, root cause, summary ─
+    all_ktc      = []
+    grade_counts = {'A':0,'B':0,'C':0,'D':0}
+    root_causes  = []
+    summary_rows = []
+    _weights     = {'tier1':0.40,'tier2':0.00,'tier3':0.20,'tier4':0.10,'tier5':0.05}
+
+    for disp in scores.keys():
+        ik = mm.get(disp)
+        if not ik or ik not in per_run:
+            continue
+        samples  = per_run[ik]
+        # Apply level filter
+        samples_f = {sid: m for sid, m in samples.items() if _in_range(sid)}
+        if not samples_f:
+            continue
+        ktc_vals = [v['ktc_score'] for v in samples_f.values()]
+        worst3   = sorted(samples_f.items(), key=lambda x: x[1]['ktc_score'], reverse=True)[:3]
+
+        # summary row (one per method)
+        summary_rows.append({
+            'Method':              disp,
+            'Worst KTC':           max(ktc_vals),
+            'Mean KTC':            np.mean(ktc_vals),
+            'Failures (KTC>0.3)':  sum(1 for v in ktc_vals if v > 0.3),
+            'Worst Samples':       ', '.join(str(s) for s, _ in worst3),
+        })
+
+        # per-sample KPI + root cause (filtered)
+        for sid, m in samples_f.items():
+            ktc = m.get('ktc_score', 0)
+            all_ktc.append(ktc)
+            comp = calculate_composite_score(
+                {'ktc_score': ktc,
+                 'dice_resistive':  m.get('dice_resistive',  0),
+                 'dice_conductive': m.get('dice_conductive', 0),
+                 'iou_resistive':   m.get('iou_resistive',   0),
+                 'iou_conductive':  m.get('iou_conductive',  0)},
+                _weights)
+            g = letter_grade(comp)
+            grade_counts[g] += 1
+            if g in ('C', 'D'):
+                metric_scores = {
+                    'HD95_R': m.get('hd95_resistive',  0),
+                    'Dice_C': 1 - m.get('dice_conductive', 1),
+                    'KTC':    ktc,
+                    'IoU_C':  1 - m.get('iou_conductive',  1),
+                }
+                cause = max(metric_scores, key=metric_scores.get)
+                root_causes.append({
+                    'Method': disp, 'Sample': sid, 'Grade': g,
+                    'Root Cause': cause,
+                    'KTC': round(ktc, 4), 'Composite': round(comp, 1),
+                })
+
+    # ── KPI overview cards ────────────────────────────────────
+    total    = len(all_ktc)
+    kpi2     = [
+        (str(total),             "TOTAL RUNS",         "all methods × samples", "--c3"),
+        (str(grade_counts['D']), "D-GRADE FAILED",     "KTC > threshold",       "--c5"),
+        (str(grade_counts['C']), "C-GRADE STRUGGLING", "marginal performance",  "--c4"),
+        (str(grade_counts['B']), "B-GRADE STRONG",     "solid performance",     "--c1"),
+    ]
+    kpi2_html = '<div class="kpi-row">'
+    for num, lbl, sub, kc in kpi2:
+        kpi2_html += (f'<div class="kpi" style="--kc:var({kc})">'
+                      f'<div class="kpi-n">{num}</div>'
+                      f'<div class="kpi-l">{lbl}</div>'
+                      f'<div class="kpi-s">{sub}</div></div>')
+    kpi2_html += '</div>'
+    st.markdown(kpi2_html, unsafe_allow_html=True)
+
+    # ── Failure summary table (one row per method) ────────────
+    if summary_rows:
+        st.markdown('<div class="slbl">FAILURE SUMMARY</div>', unsafe_allow_html=True)
+        fdf = pd.DataFrame(summary_rows)
+        fdf['Worst KTC'] = fdf['Worst KTC'].round(4)
+        fdf['Mean KTC']  = fdf['Mean KTC'].round(4)
+        st.dataframe(fdf, use_container_width=True, hide_index=True)
+
+    # ── Root cause analysis table ─────────────────────────────
+    if root_causes:
+        st.markdown('<div class="slbl">ROOT CAUSE ANALYSIS — FAILING RUNS (C + D GRADE)</div>', unsafe_allow_html=True)
+        rc_df = pd.DataFrame(root_causes)
+
+        def _rc_color(grade):
+            return '#ffebe9' if grade == 'D' else '#fff8c5'
+
+        rows_html2 = ''
+        for _, row in rc_df.iterrows():
+            bg = _rc_color(row['Grade'])
+            rows_html2 += f'<tr style="background:{bg}">'
+            for col in rc_df.columns:
+                rows_html2 += (f'<td style="font-family:\'JetBrains Mono\',monospace;'
+                               f'font-size:9px;padding:5px 8px;border-bottom:1px solid #f6f8fa;'
+                               f'color:#1f2328">{row[col]}</td>')
+            rows_html2 += '</tr>'
+        hdrs2 = ''.join(
+            f'<th style="font-family:\'JetBrains Mono\',monospace;font-size:8px;'
+            f'text-transform:uppercase;letter-spacing:.1em;color:#848d97;'
+            f'padding:4px 8px;border-bottom:1px solid #d0d7de;background:#f6f8fa">{c}</th>'
+            for c in rc_df.columns)
+        st.markdown(
+            f'<div style="border:1px solid #d0d7de;border-radius:7px;overflow:hidden">'
+            f'<table style="width:100%;border-collapse:collapse">'
+            f'<thead><tr>{hdrs2}</tr></thead><tbody>{rows_html2}</tbody></table></div>',
+            unsafe_allow_html=True)
+
+        # Patterns by level / sample
+        st.markdown('<div class="slbl" style="margin-top:12px">FAILURE PATTERNS BY SAMPLE</div>', unsafe_allow_html=True)
+        level_counts = {}
+        for r in root_causes:
+            key = str(r['Sample'])
+            level_counts[key] = level_counts.get(key, 0) + 1
+        if level_counts:
+            lc_df = pd.DataFrame([{'Sample': k, 'Failures': v}
+                                   for k, v in sorted(level_counts.items())])
+            st.dataframe(lc_df, use_container_width=True, hide_index=True)
+
+        # Patterns by method
+        st.markdown('<div class="slbl" style="margin-top:8px">FAILURE PATTERNS BY METHOD</div>', unsafe_allow_html=True)
+        method_fail = {}
+        for r in root_causes:
+            method_fail[r['Method']] = method_fail.get(r['Method'], 0) + 1
+        if method_fail:
+            mf_df = pd.DataFrame([{'Method': k, 'Failures': v}
+                                   for k, v in sorted(method_fail.items(), key=lambda x: -x[1])])
+            st.dataframe(mf_df, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+
+    # ── Per-method worst-3 cards (original logic, level-filtered) ─
     for disp in scores.keys():
         ik = mm.get(disp)
         if not ik or ik not in per_run:
             st.info(f"No per-run data for {disp}")
             continue
-        worst3 = sorted(per_run[ik].items(), key=lambda x:x[1]['ktc_score'], reverse=True)[:3]
+        samples_f2 = {sid: m for sid, m in per_run[ik].items() if _in_range(sid)}
+        if not samples_f2:
+            continue
+        worst3 = sorted(samples_f2.items(), key=lambda x: x[1]['ktc_score'], reverse=True)[:3]
 
-        st.markdown(f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;font-weight:600;color:#1f2328;padding:6px 0 4px;border-bottom:1px solid #d0d7de;margin-bottom:8px">{disp}</div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;font-weight:600;'
+            f'color:#1f2328;padding:6px 0 4px;border-bottom:1px solid #d0d7de;margin-bottom:8px">'
+            f'{disp}</div>', unsafe_allow_html=True)
         cols = st.columns(3)
-        max_ktc = max((m['ktc_score'] for _,m in worst3), default=1) or 1
-        for idx,(sid,metrics) in enumerate(worst3):
+        max_ktc = max((m['ktc_score'] for _, m in worst3), default=1) or 1
+        for idx, (sid, metrics) in enumerate(worst3):
             with cols[idx]:
-                pct = int(metrics['ktc_score']/max_ktc*100)
-                bc  = ['#cf222e','#bf8700','#0969da'][idx]
+                pct = int(metrics['ktc_score'] / max_ktc * 100)
+                bc  = ['#cf222e', '#bf8700', '#0969da'][idx]
                 st.markdown(f"""<div class="fcard">
                   <div class="frank">#{idx+1} WORST · SAMPLE {sid}</div>
                   <div class="fktc">{metrics['ktc_score']:.4f}</div>
@@ -717,8 +1216,8 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict):
                   <div class="fbar"><div class="fbar-f" style="width:{pct}%;background:{bc}"></div></div>
                 </div>""", unsafe_allow_html=True)
                 img_shown = False
-                for p in [Path("outputs/reconstructions/level_1")/f"sample_{sid}"/f"{ik}.png",
-                          Path("outputs/error_overlays")/f"{ik}_sample_{sid}.png"]:
+                for p in [Path("outputs/reconstructions/level_1") / f"sample_{sid}" / f"{ik}.png",
+                          Path("outputs/error_overlays") / f"{ik}_sample_{sid}.png"]:
                     if p.exists():
                         st.image(Image.open(p), use_container_width=True)
                         img_shown = True
@@ -730,14 +1229,43 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict):
 # =========================================================
 # VIEW 5 — RADAR CHART  (original logic)
 # =========================================================
-def view_radar_chart(scores:Dict, per_run:Dict):
+def view_radar_chart(scores:Dict, per_run:Dict, sel_metrics:list=None):
+    st.markdown('<div class="slbl">06 · RADAR — 7-AXIS POLYGON · ALL METRICS COMPARISON</div>', unsafe_allow_html=True)
     if not scores:
         st.warning("No scores available.")
         return
 
-    avail = sorted({k for m in scores.values() for k in m.keys()})
-    chosen = st.multiselect("Choose metrics:", avail,
-        default=avail[:5] if len(avail)>=5 else avail)
+    # Map sidebar display names → scores.json key names
+    SIDEBAR_TO_SCORE_KEY = {
+        'KTC Score':  ['KTC score','ktc_score'],
+        'Dice (R)':   ['Dice (resistive)','dice_resistive'],
+        'Dice (C)':   ['Dice (conductive)','dice_conductive'],
+        'IoU (R)':    ['IoU (resistive)','iou_resistive'],
+        'IoU (C)':    ['IoU (conductive)','iou_conductive'],
+        'HD95 (R)':   ['hd95_resistive'],
+        'HD95 (C)':   ['hd95_conductive'],
+    }
+    avail_score_keys = sorted({k for m in scores.values() for k in m.keys()})
+
+    # If sel_metrics provided, use those as default (filtered to what actually exists)
+    if sel_metrics:
+        default_keys = []
+        for sm in sel_metrics:
+            for candidate in SIDEBAR_TO_SCORE_KEY.get(sm, []):
+                if candidate in avail_score_keys:
+                    default_keys.append(candidate)
+                    break
+        if not default_keys:
+            default_keys = avail_score_keys[:min(7,len(avail_score_keys))]
+    else:
+        RADAR_PREFERRED = ['KTC score','Dice (resistive)','Dice (conductive)',
+                           'IoU (resistive)','IoU (conductive)','hd95_resistive','hd95_conductive']
+        default_keys = [m for m in RADAR_PREFERRED if m in avail_score_keys]
+        if len(default_keys) < 3:
+            default_keys = avail_score_keys[:min(7,len(avail_score_keys))]
+
+    chosen = st.multiselect("Choose metrics (7-axis):", avail_score_keys,
+        default=default_keys if default_keys else avail_score_keys[:min(7,len(avail_score_keys))])
     if not chosen:
         st.info("Select at least one metric.")
         return
@@ -750,14 +1278,15 @@ def view_radar_chart(scores:Dict, per_run:Dict):
         c = mcol(i)
         fig.add_trace(go.Scatterpolar(r=vals,theta=cats,fill='toself',name=name,
             line_color=c,fillcolor=hex_to_rgba(c, 0.13)))
+    pc = st.session_state.get('_pcolors',{})
     fig.update_layout(
-        polar=dict(bgcolor='#f6f8fa',
-            radialaxis=dict(visible=True,range=[0,1],gridcolor='#d0d7de',linecolor='#d0d7de',tickfont=dict(size=8)),
-            angularaxis=dict(gridcolor='#d0d7de',linecolor='#d0d7de',tickfont=dict(size=10))),
+        polar=dict(bgcolor=pc.get('bg','#f6f8fa'),
+            radialaxis=dict(visible=True,range=[0,1],gridcolor=pc.get('grid','#d0d7de'),linecolor=pc.get('grid','#d0d7de'),tickfont=dict(size=8,color=pc.get('text','#848d97'))),
+            angularaxis=dict(gridcolor=pc.get('grid','#d0d7de'),linecolor=pc.get('grid','#d0d7de'),tickfont=dict(size=10,color=pc.get('text','#848d97')))),
         showlegend=True,height=560,title="Method Performance Across Selected Metrics",
-        paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(family="JetBrains Mono,monospace",color="#848d97",size=9),
-        legend=dict(bgcolor='rgba(255,255,255,.9)',bordercolor='#d0d7de',borderwidth=1,font=dict(size=9)),
+        paper_bgcolor=pc.get('paper','rgba(0,0,0,0)'),
+        font=dict(family="JetBrains Mono,monospace",color=pc.get('text','#848d97'),size=9),
+        legend=dict(bgcolor=pc.get('legend','rgba(255,255,255,.9)'),bordercolor=pc.get('grid','#d0d7de'),borderwidth=1,font=dict(size=9)),
         margin=dict(l=55,r=55,t=45,b=55))
     st.plotly_chart(fig, use_container_width=True)
 
@@ -769,75 +1298,299 @@ def view_radar_chart(scores:Dict, per_run:Dict):
     st.dataframe(pd.DataFrame(rows).round(4), use_container_width=True, hide_index=True)
 
 # =========================================================
-# VIEW 6 — ALL RUNS  (same as terminal table)
+# VIEW HEATMAP — COLOR GRID (all 42 runs at once)
 # =========================================================
-def view_all_runs(per_run: Dict):
-    """Show every individual run — same as terminal Experiment Summary + Degradation Slope."""
-
+def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
+    st.markdown('<div class="slbl">02 · HEATMAP — COLOR GRID · ALL RUNS AT ONCE</div>', unsafe_allow_html=True)
     if not per_run:
-        st.warning("No per-run data available. Click 'Run Now' in the sidebar or run `python prepare_dashboard.py`.")
+        st.warning("No per-run metrics available.")
         return
 
-    # ── Build full runs table ─────────────────────────────────
-    rows = []
-    for method, runs in per_run.items():
-        for run_key, metrics in runs.items():
-            rows.append({
-                "Method":     method,
-                "Level":      metrics.get("level", run_key),
-                "Sample":     metrics.get("sample", run_key),
-                "KTC Score":  round(metrics.get("ktc_score", 0), 3),
-                "Dice Res.":  round(metrics.get("dice_resistive", 0), 3),
-                "Dice Cond.": round(metrics.get("dice_conductive", 0), 3),
-                "HD95 Res.":  round(metrics.get("hd95_resistive", 0), 1),
-                "HD95 Cond.": round(metrics.get("hd95_conductive", 0), 1),
-                "Runtime ms": round(metrics.get("runtime_ms", 0), 1),
-                "Grade":      metrics.get("grade", "-"),
+    lvl_min, lvl_max = level_range
+
+    # Build sample ID list filtered by level range
+    all_sample_ids: list = []
+    for ik in per_run.values():
+        for sid in ik.keys():
+            try:
+                in_range = lvl_min <= int(sid) <= lvl_max
+            except (ValueError, TypeError):
+                in_range = True  # non-numeric: always include
+            if in_range and sid not in all_sample_ids:
+                all_sample_ids.append(sid)
+    all_sample_ids = sorted(all_sample_ids, key=lambda x: int(x) if str(x).isdigit() else x)
+
+    if not all_sample_ids:
+        st.info(f"No samples found for levels {lvl_min}–{lvl_max}.")
+        return
+
+    method_names = list(scores.keys())
+    # Build metric options from what actually exists in per_run data
+    sample_metrics = set()
+    for ik in per_run.values():
+        for s in list(ik.values())[:1]:
+            sample_metrics.update(s.keys())
+    metric_opts = sorted(sample_metrics)
+    if not metric_opts:
+        metric_opts = ['ktc_score','dice_resistive','dice_conductive','iou_resistive','iou_conductive']
+
+    # Map sidebar selected_metrics display names → internal keys for default selection
+    DISPLAY_TO_INTERNAL = {
+        'KTC Score': 'ktc_score', 'Dice (R)': 'dice_resistive', 'Dice (C)': 'dice_conductive',
+        'IoU (R)': 'iou_resistive', 'IoU (C)': 'iou_conductive',
+        'HD95 (R)': 'hd95_resistive', 'HD95 (C)': 'hd95_conductive',
+    }
+    sel_metrics_sidebar = st.session_state.get('selected_metrics', [])
+    default_hm_metric = 'ktc_score'
+    for sm in sel_metrics_sidebar:
+        candidate = DISPLAY_TO_INTERNAL.get(sm)
+        if candidate and candidate in metric_opts:
+            default_hm_metric = candidate
+            break
+    default_hm_idx = metric_opts.index(default_hm_metric) if default_hm_metric in metric_opts else 0
+
+    mc1, mc2 = st.columns([2, 4])
+    with mc1:
+        chosen_metric = st.selectbox("Metric:", metric_opts, index=default_hm_idx, key="hm_metric")
+    with mc2:
+        st.markdown(
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--tx3);padding-top:28px">'
+            f'Levels {lvl_min}–{lvl_max} · {len(all_sample_ids)} samples · {len(method_names)} methods. '
+            f'KTC: lower=greener. Others: higher=greener.</div>',
+            unsafe_allow_html=True)
+
+    invert = 'ktc' in chosen_metric
+    pc = st.session_state.get('_pcolors', {})
+    pb = pc.get('bg', '#f6f8fa')
+    pg = pc.get('grid', '#d0d7de')
+    pt = pc.get('text', '#848d97')
+
+    z, text, y_labels = [], [], []
+    for disp in method_names:
+        ik = mm.get(disp)
+        row, trow = [], []
+        for sid in all_sample_ids:
+            val = per_run.get(ik,{}).get(sid,{}).get(chosen_metric, None) if ik else None
+            row.append(val if val is not None else float('nan'))
+            trow.append(f"{val:.4f}" if val is not None else "—")
+        z.append(row)
+        text.append(trow)
+        y_labels.append(disp)
+
+    colorscale = 'RdYlGn_r' if invert else 'RdYlGn'
+
+    fig = go.Figure(go.Heatmap(
+        z=z,
+        x=[f"S{s}" for s in all_sample_ids],
+        y=y_labels,
+        text=text,
+        texttemplate="%{text}",
+        textfont=dict(family="JetBrains Mono,monospace", size=8),
+        colorscale=colorscale,
+        showscale=True,
+        hoverongaps=False,
+        hovertemplate="<b>%{y}</b><br>Sample: %{x}<br>Value: %{text}<extra></extra>",
+        colorbar=dict(
+            thickness=10, len=0.9,
+            tickfont=dict(family="JetBrains Mono,monospace", size=8, color="#848d97"),
+            outlinecolor="#d0d7de", outlinewidth=1,
+        )
+    ))
+    fig.update_layout(
+        height=max(220, len(method_names)*54 + 80),
+        paper_bgcolor=pc.get('paper','rgba(0,0,0,0)'),
+        plot_bgcolor=pb,
+        font=dict(family="JetBrains Mono,monospace", color=pt, size=9),
+        xaxis=dict(side='top', gridcolor=pb, linecolor=pg,
+                   tickfont=dict(size=8, color=pt), title='Sample'),
+        yaxis=dict(gridcolor=pb, linecolor=pg,
+                   tickfont=dict(size=9, color=pt), autorange='reversed'),
+        margin=dict(l=10, r=10, t=40, b=10),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Quick per-method stats row below heatmap
+    st.markdown('<div class="slbl">PER-METHOD SUMMARY</div>', unsafe_allow_html=True)
+    hm_rows = []
+    for disp in method_names:
+        ik = mm.get(disp)
+        vals = [per_run[ik][s].get(chosen_metric, float('nan'))
+                for s in all_sample_ids
+                if ik and s in per_run.get(ik,{})]
+        vals = [v for v in vals if not (v != v)]  # drop NaN
+        if vals:
+            hm_rows.append({
+                'Method': disp,
+                'Mean':   round(float(np.mean(vals)),4),
+                'Std':    round(float(np.std(vals)),4),
+                'Min':    round(float(np.min(vals)),4),
+                'Max':    round(float(np.max(vals)),4),
+                'Runs':   len(vals),
             })
+    if hm_rows:
+        st.dataframe(pd.DataFrame(hm_rows), use_container_width=True, hide_index=True)
 
-    df = pd.DataFrame(rows).sort_values(["Method", "Level", "Sample"]).reset_index(drop=True)
 
-    # ── Table 1: Experiment Summary ───────────────────────────
-    st.markdown("### Experiment Summary")
-    col1, col2 = st.columns(2)
-    methods_list = ["All"] + sorted(df["Method"].unique().tolist())
-    sel_method = col1.selectbox("Method:", methods_list, key="ar_method")
-    levels_list = ["All"] + sorted(df["Level"].unique().tolist())
-    sel_level = col2.selectbox("Level:", levels_list, key="ar_level")
+def _render_pdf_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str):
+    """Generate a real data PDF — tables, KPIs, stats — not a page print."""
+    if not st.button("Export PDF Report", key="pdf_export_btn"):
+        return
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib import colors as rl_colors
+        from reportlab.lib.units import cm
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        import datetime
 
-    filtered = df.copy()
-    if sel_method != "All":
-        filtered = filtered[filtered["Method"] == sel_method]
-    if sel_level != "All":
-        filtered = filtered[filtered["Level"] == sel_level]
+        buf = io.BytesIO()
+        doc = SimpleDocTemplate(buf, pagesize=A4,
+                                leftMargin=1.5*cm, rightMargin=1.5*cm,
+                                topMargin=1.5*cm, bottomMargin=1.5*cm)
+        styles = getSampleStyleSheet()
+        title_style  = ParagraphStyle('t', parent=styles['Heading1'], fontSize=14, spaceAfter=4, textColor=rl_colors.HexColor('#1f2328'))
+        h2_style     = ParagraphStyle('h2', parent=styles['Heading2'], fontSize=10, spaceAfter=3, textColor=rl_colors.HexColor('#57606a'))
+        body_style   = ParagraphStyle('b', parent=styles['Normal'],  fontSize=8,  spaceAfter=2, textColor=rl_colors.HexColor('#57606a'), fontName='Courier')
+        label_style  = ParagraphStyle('l', parent=styles['Normal'],  fontSize=7,  spaceAfter=1, textColor=rl_colors.HexColor('#848d97'), fontName='Courier')
 
-    st.markdown(f"**{len(filtered)} / {len(df)} runs**")
-    st.dataframe(filtered, use_container_width=True, hide_index=True)
+        _weights = {'tier1':0.40,'tier2':0.00,'tier3':0.20,'tier4':0.10,'tier5':0.05}
 
-    # ── Table 2: Degradation Slope ────────────────────────────
-    st.markdown("### Degradation Slope by Method")
-    slope_rows = []
-    for method, runs in per_run.items():
-        level_scores: Dict[int, list] = {}
-        for metrics in runs.values():
-            lv = metrics.get("level")
-            if lv is not None:
-                level_scores.setdefault(int(lv), []).append(metrics.get("ktc_score", 0))
-        levels_sorted = sorted(level_scores.keys())
-        avg_scores = [float(np.mean(level_scores[lv])) for lv in levels_sorted]
-        if len(levels_sorted) >= 2:
-            slope = float(np.polyfit(levels_sorted, avg_scores, 1)[0])
-        else:
-            slope = 0.0
-        direction = "degrades" if slope < 0 else "improves"
-        slope_rows.append({
-            "Method":          method,
-            "Slope (per level)": round(slope, 4),
-            "Direction":       f"▼ {direction}" if slope < 0 else f"▲ {direction}",
-        })
+        story = []
+        story.append(Paragraph("EIT Reconstruction Dashboard — Export Report", title_style))
+        story.append(Paragraph(f"Run: {run_name}   Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}", label_style))
+        story.append(HRFlowable(width="100%", thickness=0.5, color=rl_colors.HexColor('#d0d7de')))
+        story.append(Spacer(1, 0.3*cm))
 
-    st.dataframe(pd.DataFrame(slope_rows), use_container_width=True, hide_index=True)
-    st.caption("Steeper negative slope = method degrades faster at harder levels")
+        # ── Section 1: Leaderboard ────────────────────────────
+        story.append(Paragraph("01 · LEADERBOARD", h2_style))
+        lb_data = [['Method','Composite','Grade','KTC Score','Dice (R)','Dice (C)','IoU (R)','IoU (C)']]
+        for method_name, metrics in scores.items():
+            comp  = calculate_composite_score(metrics, _weights)
+            grade = letter_grade(comp)
+            lb_data.append([
+                method_name,
+                f"{comp:.2f}",
+                grade,
+                f"{metrics.get('KTC score', metrics.get('ktc_score',0)):.4f}",
+                f"{metrics.get('Dice (resistive)', metrics.get('dice_resistive',0)):.4f}",
+                f"{metrics.get('Dice (conductive)', metrics.get('dice_conductive',0)):.4f}",
+                f"{metrics.get('IoU (resistive)', metrics.get('iou_resistive',0)):.4f}",
+                f"{metrics.get('IoU (conductive)', metrics.get('iou_conductive',0)):.4f}",
+            ])
+        grade_colors_pdf = {'A': rl_colors.HexColor('#dafbe1'), 'B': rl_colors.HexColor('#ddf4ff'),
+                            'C': rl_colors.HexColor('#fff8c5'), 'D': rl_colors.HexColor('#ffebe9')}
+        lb_style = [
+            ('FONTNAME',  (0,0),(-1,0), 'Courier-Bold'),
+            ('FONTSIZE',  (0,0),(-1,-1), 7),
+            ('FONTNAME',  (0,1),(-1,-1), 'Courier'),
+            ('BACKGROUND',(0,0),(-1,0),  rl_colors.HexColor('#f6f8fa')),
+            ('TEXTCOLOR', (0,0),(-1,0),  rl_colors.HexColor('#848d97')),
+            ('TEXTCOLOR', (0,1),(-1,-1), rl_colors.HexColor('#1f2328')),
+            ('GRID',      (0,0),(-1,-1), 0.25, rl_colors.HexColor('#d0d7de')),
+            ('ROWBACKGROUNDS',(0,1),(-1,-1), [rl_colors.white, rl_colors.HexColor('#f9f9f9')]),
+            ('TOPPADDING',(0,0),(-1,-1), 4),
+            ('BOTTOMPADDING',(0,0),(-1,-1), 4),
+        ]
+        for i, row in enumerate(lb_data[1:], 1):
+            grade = row[2]
+            if grade in grade_colors_pdf:
+                lb_style.append(('BACKGROUND', (0,i), (-1,i), grade_colors_pdf[grade]))
+        lb_table = Table(lb_data, repeatRows=1)
+        lb_table.setStyle(TableStyle(lb_style))
+        story.append(lb_table)
+        story.append(Spacer(1, 0.4*cm))
+
+        # ── Section 2: Per-run stats ──────────────────────────
+        story.append(Paragraph("04 · DEGRADATION STATISTICS", h2_style))
+        for disp, ik in mm.items():
+            if not ik or ik not in per_run: continue
+            samples = per_run[ik]
+            ktc_vals = [v['ktc_score'] for v in samples.values()]
+            dice_r   = [v.get('dice_resistive',0) for v in samples.values()]
+            dice_c   = [v.get('dice_conductive',0) for v in samples.values()]
+            story.append(Paragraph(f"  {disp}", body_style))
+            stat_data = [['Metric','Mean','Std Dev','Min','Max'],
+                         ['KTC Score', f"{np.mean(ktc_vals):.4f}", f"{np.std(ktc_vals):.4f}", f"{np.min(ktc_vals):.4f}", f"{np.max(ktc_vals):.4f}"],
+                         ['Dice (R)',  f"{np.mean(dice_r):.4f}",   f"{np.std(dice_r):.4f}",   f"{np.min(dice_r):.4f}",   f"{np.max(dice_r):.4f}"],
+                         ['Dice (C)',  f"{np.mean(dice_c):.4f}",   f"{np.std(dice_c):.4f}",   f"{np.min(dice_c):.4f}",   f"{np.max(dice_c):.4f}"],
+                         ]
+            st_tbl = Table(stat_data, colWidths=[3.5*cm, 2.5*cm, 2.5*cm, 2.5*cm, 2.5*cm])
+            st_tbl.setStyle(TableStyle([
+                ('FONTNAME',(0,0),(-1,0),'Courier-Bold'),('FONTSIZE',(0,0),(-1,-1),7),
+                ('FONTNAME',(0,1),(-1,-1),'Courier'),
+                ('BACKGROUND',(0,0),(-1,0),rl_colors.HexColor('#f6f8fa')),
+                ('TEXTCOLOR',(0,0),(-1,0),rl_colors.HexColor('#848d97')),
+                ('GRID',(0,0),(-1,-1),0.25,rl_colors.HexColor('#d0d7de')),
+                ('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),
+            ]))
+            story.append(st_tbl)
+            story.append(Spacer(1, 0.15*cm))
+        story.append(Spacer(1, 0.3*cm))
+
+        # ── Section 3: Failure analysis ───────────────────────
+        story.append(Paragraph("09 · FAILURE ANALYSIS", h2_style))
+        fail_data = [['Method','Worst KTC','Mean KTC','Failures (KTC>0.3)','Worst Samples']]
+        for disp, ik in mm.items():
+            if not ik or ik not in per_run: continue
+            samples  = per_run[ik]
+            ktc_vals = [v['ktc_score'] for v in samples.values()]
+            worst3   = sorted(samples.items(), key=lambda x: x[1]['ktc_score'], reverse=True)[:3]
+            fail_data.append([
+                disp,
+                f"{max(ktc_vals):.4f}",
+                f"{np.mean(ktc_vals):.4f}",
+                str(sum(1 for v in ktc_vals if v > 0.3)),
+                ', '.join(str(s) for s,_ in worst3),
+            ])
+        f_tbl = Table(fail_data, repeatRows=1)
+        f_tbl.setStyle(TableStyle([
+            ('FONTNAME',(0,0),(-1,0),'Courier-Bold'),('FONTSIZE',(0,0),(-1,-1),7),
+            ('FONTNAME',(0,1),(-1,-1),'Courier'),
+            ('BACKGROUND',(0,0),(-1,0),rl_colors.HexColor('#f6f8fa')),
+            ('TEXTCOLOR',(0,0),(-1,0),rl_colors.HexColor('#848d97')),
+            ('GRID',(0,0),(-1,-1),0.25,rl_colors.HexColor('#d0d7de')),
+            ('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),
+        ]))
+        story.append(f_tbl)
+        story.append(Spacer(1, 0.3*cm))
+
+        # ── Section 4: All per-run metrics ────────────────────
+        story.append(Paragraph("ALL PER-RUN METRICS", h2_style))
+        for disp, ik in mm.items():
+            if not ik or ik not in per_run: continue
+            story.append(Paragraph(f"  {disp}", body_style))
+            metric_keys = ['ktc_score','dice_resistive','dice_conductive',
+                           'iou_resistive','iou_conductive','hd95_resistive','hd95_conductive']
+            hdr = ['Sample'] + [k.replace('_',' ').title() for k in metric_keys]
+            all_rows = [hdr]
+            for sid, m in sorted(per_run[ik].items()):
+                all_rows.append([str(sid)] + [f"{m.get(k,0):.4f}" for k in metric_keys])
+            all_tbl = Table(all_rows, repeatRows=1)
+            all_tbl.setStyle(TableStyle([
+                ('FONTNAME',(0,0),(-1,0),'Courier-Bold'),('FONTSIZE',(0,0),(-1,-1),6.5),
+                ('FONTNAME',(0,1),(-1,-1),'Courier'),
+                ('BACKGROUND',(0,0),(-1,0),rl_colors.HexColor('#f6f8fa')),
+                ('TEXTCOLOR',(0,0),(-1,0),rl_colors.HexColor('#848d97')),
+                ('ROWBACKGROUNDS',(0,1),(-1,-1),[rl_colors.white,rl_colors.HexColor('#f9f9f9')]),
+                ('GRID',(0,0),(-1,-1),0.2,rl_colors.HexColor('#d0d7de')),
+                ('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),
+            ]))
+            story.append(all_tbl)
+            story.append(Spacer(1, 0.2*cm))
+
+        doc.build(story)
+        buf.seek(0)
+        st.download_button(
+            label="Download PDF",
+            data=buf.getvalue(),
+            file_name=f"eit_report_{run_name}.pdf",
+            mime="application/pdf",
+            key="pdf_download_btn"
+        )
+    except ImportError:
+        st.error("reportlab not installed. Run: `pip install reportlab --break-system-packages`")
+    except Exception as e:
+        st.error(f"PDF generation error: {e}")
 
 
 # =========================================================
@@ -845,64 +1598,96 @@ def view_all_runs(per_run: Dict):
 # =========================================================
 def main():
     render_sidebar()
+    dark = st.session_state.get('dark_mode', False)
+    inject_theme(dark)
 
-    # Header — exact mockup: 2px stripe, 13px/500 title, 9px sub
+    # Plot color helpers that respect dark mode
+    plot_bg     = '#161b22' if dark else '#f6f8fa'
+    plot_paper  = 'rgba(22,27,34,0)' if dark else 'rgba(0,0,0,0)'
+    plot_grid   = '#30363d' if dark else '#d0d7de'
+    plot_text   = '#8b949e' if dark else '#848d97'
+    plot_legend = 'rgba(22,27,34,.9)' if dark else 'rgba(255,255,255,.9)'
+    st.session_state['_pcolors'] = dict(bg=plot_bg, paper=plot_paper,
+                                        grid=plot_grid, text=plot_text, legend=plot_legend)
+
+    header_bg = 'var(--sur)'  # CSS vars handle dark mode automatically now
+
+    # Header
     st.markdown("""
     <div class="dash-header">
-      <div class="dash-title">&#9889; EIT Reconstruction Dashboard</div>
-      <div class="dash-sub">Electrical Impedance Tomography &#8212; Benchmarking &amp; Analysis Platform</div>
+      <div class="dash-title">EIT Reconstruction Dashboard</div>
+      <div class="dash-sub">Electrical Impedance Tomography &mdash; Benchmarking &amp; Analysis Platform</div>
     </div>
     """, unsafe_allow_html=True)
 
     try:
-        # Cache key = latest run folder name so cache refreshes on new run
         latest_run = find_latest_run()
         _cache_key = latest_run.name
         scores, per_run, mm = load_data(_cache_key)
 
-        # Show which run is loaded
+        # Active run label
         st.markdown(
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;'
-            f'color:#848d97;margin:-6px 0 10px;padding:0 2px">'
-            f'📂 Loaded: <span style="color:#1a7f37">{latest_run.name}</span></div>',
+            f'color:var(--tx3);margin:-6px 0 10px;padding:0 2px">'
+            f'Run: <span style="color:var(--grn)">{latest_run.name}</span> &nbsp;·&nbsp; '
+            f'{len(scores)} method(s) &nbsp;·&nbsp; '
+            f'{sum(len(v) for v in per_run.values()) if per_run else 0} total reconstructions</div>',
             unsafe_allow_html=True)
 
         if not scores and not per_run:
             st.error("No data found. Run `python example_usage.py` first.")
             return
 
+        # Store available methods so sidebar checkboxes can render them
+        st.session_state['_available_methods'] = list(scores.keys())
+
+        # Selected metrics + methods + level range from sidebar
+        sel_metrics = st.session_state.get('selected_metrics', [
+            'KTC Score','Dice (R)','Dice (C)','IoU (R)','IoU (C)','HD95 (R)','HD95 (C)'])
+        sel_methods = st.session_state.get('selected_methods', list(scores.keys()))
+        if not sel_methods:
+            sel_methods = list(scores.keys())  # fallback: show all if none checked
+        level_range = st.session_state.get('level_range', (1, 7))
+
+        # Filter scores dict to only selected methods
+        scores_f = {k: v for k, v in scores.items() if k in sel_methods}
+        if not scores_f:
+            scores_f = scores  # safety: never show empty dashboard
+
         # Dataset info expander
         with st.expander("Dataset Information", expanded=False):
             c1,c2,c3 = st.columns(3)
             n_s = len(per_run.get(list(per_run.keys())[0],{})) if per_run else 0
             n_t = sum(len(v) for v in per_run.values()) if per_run else 0
-            stat_items = [
-                (str(len(scores)), "Methods Analyzed"),
-                (str(n_s),         "Total Samples"),
-                (str(n_t),         "Total Reconstructions"),
-            ]
-            for col_, (num, lbl) in zip([c1, c2, c3], stat_items):
+            for col_, (num, lbl) in zip([c1,c2,c3],[
+                (str(len(scores)),"Methods Analyzed"),
+                (str(n_s),"Total Samples"),
+                (str(n_t),"Total Reconstructions")]):
                 with col_:
                     st.markdown(
                         f'<div class="mcard"><div class="mv" style="font-size:18px">{num}</div>'
-                        f'<div class="ml">{lbl}</div></div>',
-                        unsafe_allow_html=True)
+                        f'<div class="ml">{lbl}</div></div>', unsafe_allow_html=True)
             if scores:
                 st.markdown("**Available methods:**")
                 for m in scores.keys(): st.markdown(f"  • {m}")
 
-        # Tabs — exact mockup labels
-        t1,t2,t3,t4,t5,t6 = st.tabs([
-            "01  LEADERBOARD","02  DEGRADATION",
-            "03  COMPARISON","04  FAILURES","05  RADAR",
-            "06  ALL RUNS"])
+        # PDF export — triggered from sidebar button
+        if st.session_state.get('_trigger_pdf'):
+            st.session_state['_trigger_pdf'] = False
+            _render_pdf_export(scores, per_run, mm, latest_run.name)
 
-        with t1: view_leaderboard(scores, per_run)
-        with t2: view_degradation_curve(scores, per_run, mm)
-        with t3: view_comparison(scores, per_run, mm)
-        with t4: view_failure_gallery(scores, per_run, mm)
-        with t5: view_radar_chart(scores, per_run)
-        with t6: view_all_runs(per_run)
+        # Tabs
+        t1,t2,t3,t4,t5,t6 = st.tabs([
+            "01  LEADERBOARD","02  HEATMAP",
+            "04  DEGRADATION","06  RADAR",
+            "09  FAILURES","03  RECONSTRUCTION"])
+
+        with t1: view_leaderboard(scores_f, per_run, sel_metrics, mm, level_range)
+        with t2: view_heatmap(scores_f, per_run, mm, level_range)
+        with t3: view_degradation_curve(scores_f, per_run, mm, level_range)
+        with t4: view_radar_chart(scores_f, per_run, sel_metrics)
+        with t5: view_failure_gallery(scores_f, per_run, mm, level_range)
+        with t6: view_comparison(scores, per_run, mm, sel_metrics, level_range)
 
     except Exception as e:
         st.error(f"Error: {e}")
