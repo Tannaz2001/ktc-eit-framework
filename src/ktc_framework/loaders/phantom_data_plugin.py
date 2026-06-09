@@ -19,7 +19,7 @@ from typing import Optional
 import numpy as np
 from scipy.interpolate import griddata
 
-from src.ktc_framework.loaders.ktc_loader import PluginRegistry
+from src.ktc_framework.registry import PluginRegistry
 from src.ktc_framework.types import DataBatch
 
 try:
