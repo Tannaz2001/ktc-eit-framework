@@ -1,466 +1,314 @@
-"""KTC-calibrated Gauss-Newton style reconstruction.
+"""Gauss-Newton (linearised) reconstruction for the KTC 2023 EIT framework.
 
-Final update:
-- Uses real Inj/Injref and Mpat from the DataBatch.
-- Keeps only finite voltage differences, because KTC levels 2-7 may contain NaN values.
-- Prevents NaN from entering sigma_elem, sigma_map, and segmentation.
+Method
+------
+Single-step Tikhonov-regularised Gauss-Newton on KTC's own Jacobian.
+Mirrors data/KTCScoring/main.m line 59:
+
+    deltareco = (J' InvGamma_n J + L' L)^-1 J' InvGamma_n (Uel - Uelref)
+
+where:
+* ``J``         is KTC's Jacobian about sigma=1 S/m, z=1e-6.
+* ``InvGamma_n``is the noise precision built by EITFEM.SetInvGamma with
+                noise_std1=0.05, noise_std2=0.01 against the measured Uelref.
+* ``L``         is the Cholesky factor of the smoothness prior
+                SMPrior(Mesh.g, corrlength, var_sigma, mean=1).
+
+Defaults vs main.m
+------------------
+main.m uses ``corrlength = 0.115`` (the tank radius).  That is too
+permissive for inclusions on the centimetre scale: the prior smooths
+across half the tank, and the resulting reconstruction is a single
+blurred lump even when the true inclusion is small.  We default to
+``corrlength = 0.04`` (~3 cm) which keeps the prior smoothness assumption
+local to the actual inclusion size.  Empirically (sweep_recon.py on
+TrainingData) this lifts KTC score on sample 4 from +0.062 (MATLAB) /
++0.113 (corrlength=0.115 Python) to +0.221, and matches or beats MATLAB
+on samples 1 and 3.  ``corrlength`` is exposed via the constructor so
+callers can revert to the main.m value if they want byte-for-byte parity.
+
+A connected-component cleanup pass drops inclusion blobs smaller than
+``min_cc_pixels`` (default 80, i.e. ~0.1 % of the 256x256 image).  These
+are virtually always speckles from the Otsu thresholding, not real
+inclusions, and they hurt SSIM.  Set ``min_cc_pixels=0`` to disable.
 """
 
 from __future__ import annotations
 
-import warnings
+import hashlib
 from typing import Optional
+import warnings
 
 import numpy as np
-from scipy.interpolate import griddata
-from skimage.filters import threshold_multiotsu
 
 from src.ktc_framework.adapters.method_registry import register
+from src.ktc_framework.methods.eit_utils import (
+    N_MEAS_TOTAL,
+    adaptive_segment,
+    build_ktc_jacobian,
+    build_vincl,
+    load_ktc_mesh,
+    rasterize,
+)
 from src.ktc_framework.methods.method_plugin import MethodPlugin
 from src.ktc_framework.types import DataBatch
 
 
-def _has_key(obj, key: str) -> bool:
-    if hasattr(obj, key):
-        return True
-    try:
-        return key in obj
-    except TypeError:
-        return False
+# Module-level mesh + operator caches.  experiment_runner.py instantiates a
+# fresh plugin per (method, level, sample) combo (~ 21 calls for samples
+# A/B/C × 7 levels), so an instance-level cache is recreated each call and
+# every sample pays the ~25 s Jacobian rebuild.  Caching here lets repeat
+# instantiations within one process reuse the work.
+_MESH_CACHE: dict[str, dict] = {}
+_OPERATOR_CACHE: dict[tuple, tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = {}
 
 
-def _get_key(obj, key: str):
-    if hasattr(obj, key):
-        return getattr(obj, key)
-    try:
-        if key in obj:
-            return obj[key]
-    except TypeError:
-        pass
-    return None
+def _inj_key(injection_patterns: np.ndarray) -> str:
+    """Stable hash of an injection pattern matrix for cache keying."""
+    arr = np.ascontiguousarray(injection_patterns, dtype=np.float64)
+    return hashlib.md5(arr.tobytes()).hexdigest()
 
 
-def _pattern_pairs(pattern: Optional[np.ndarray]) -> np.ndarray:
-    if pattern is None:
-        return np.zeros((0, 2), dtype=int)
-
-    p = np.asarray(pattern, dtype=float)
-
-    if p.ndim != 2:
-        return np.zeros((0, 2), dtype=int)
-
-    if p.shape[0] != 32 and p.shape[1] == 32:
-        p = p.T
-
-    pairs = []
-
-    for col_i in range(p.shape[1]):
-        col = p[:, col_i]
-        pos = np.where(col > 0)[0]
-        neg = np.where(col < 0)[0]
-
-        if pos.size > 0 and neg.size > 0:
-            pairs.append([int(pos[0]), int(neg[0])])
-
-    return np.asarray(pairs, dtype=int)
+_DEFAULT_MESH = "Codes_Matlab/Mesh_sparse.mat"
 
 
-def _reshape_ktc_vector(v: np.ndarray, n_inj: int, n_meas: int) -> np.ndarray:
-    flat = np.asarray(v, dtype=float).ravel()
-    total = n_inj * n_meas
-
-    if flat.size < total:
-        padded = np.full(total, np.nan, dtype=float)
-        padded[: flat.size] = flat
-        flat = padded
-
-    return flat[:total].reshape(n_inj, n_meas)
+def _default_mpat() -> np.ndarray:
+    """Fallback Mpat: 31 adjacent differential pairs."""
+    mpat = np.zeros((32, 31), dtype=np.float64)
+    for j in range(31):
+        mpat[j, j] = 1.0
+        mpat[j + 1, j] = -1.0
+    return mpat
 
 
-def _segment_ktc(sigma: np.ndarray) -> np.ndarray:
-    x = np.nan_to_num(
-        np.asarray(sigma, dtype=float),
-        nan=0.0,
-        posinf=0.0,
-        neginf=0.0,
-    )
+def _drop_small_components(labels: np.ndarray, min_pixels: int) -> np.ndarray:
+    """Zero out connected components smaller than ``min_pixels`` per inclusion class."""
+    if min_pixels <= 0:
+        return labels
+    from scipy.ndimage import label as _cc_label
 
-    if float(np.max(x) - np.min(x)) < 1e-12:
-        return np.zeros(x.shape, dtype=int)
+    out = labels.copy()
+    for lbl in (1, 2):
+        mask = labels == lbl
+        if not mask.any():
+            continue
+        cc, n = _cc_label(mask)
+        for cid in range(1, n + 1):
+            blob = cc == cid
+            if int(blob.sum()) < min_pixels:
+                out[blob] = 0
+    return out
 
-    try:
-        t1, t2 = threshold_multiotsu(x.ravel(), classes=3)
 
-        low = x < t1
-        mid = (x >= t1) & (x <= t2)
-        high = x > t2
+def _consolidate_by_sign(
+    labels: np.ndarray, grid: np.ndarray, dominance_ratio: float = 2.0
+) -> np.ndarray:
+    """Resolve label-1/label-2 splits caused by tighter-prior ringing.
 
-        counts = [int(low.sum()), int(mid.sum()), int(high.sum())]
-        bg = int(np.argmax(counts))
+    Tightening SMPrior corrlength sharpens the inclusion core but
+    produces low-amplitude ringing of the opposite sign around it.
+    3-Otsu can then label the ringing as a second, opposite-class
+    inclusion (the "green halo" effect on purely-resistive samples).
 
-        labels = np.zeros(x.shape, dtype=int)
+    Two-pass cleanup:
 
-        if bg == 0:
-            labels[mid] = 1
-            labels[high] = 2
-        elif bg == 1:
-            labels[low] = 1
-            labels[high] = 2
-        else:
-            labels[low] = 1
-            labels[mid] = 2
+    1. **Global dominance check** -- if ``max(|deltareco|)`` of one sign
+       exceeds the other sign's by ``dominance_ratio`` (default 2.0), the
+       weaker-sign region is presumed ringing.  Set its label to 0.
 
-        return labels.astype(int)
+    2. **Per-CC consolidation** -- for the surviving inclusion mask,
+       each connected component is relabelled to match the dominant
+       deltareco sign inside it (negative => 1, positive => 2).  Handles
+       cases where core and halo *are* in the same CC.
+    """
+    from scipy.ndimage import label as _cc_label
 
-    except Exception:
-        abs_map = np.abs(x)
-        threshold = np.percentile(abs_map, 92)
+    if not (labels > 0).any():
+        return labels
 
-        labels = np.zeros(x.shape, dtype=int)
-        labels[abs_map > threshold] = 1
+    out = labels.copy()
+    finite = np.isfinite(grid)
+    g = np.where(finite, grid, 0.0)
 
-        return labels.astype(int)
+    max_pos = float(g.max())
+    min_neg = float(g.min())
+    pos_peak = max(max_pos, 0.0)
+    neg_peak = max(-min_neg, 0.0)
+
+    # Pass 1: if one sign is much stronger globally, drop the other sign.
+    if neg_peak > dominance_ratio * pos_peak and pos_peak > 0:
+        out[(out == 2)] = 0
+    elif pos_peak > dominance_ratio * neg_peak and neg_peak > 0:
+        out[(out == 1)] = 0
+
+    # Pass 2: for each surviving CC, relabel to match local dominant sign.
+    inc_mask = out > 0
+    if not inc_mask.any():
+        return out
+    cc, n = _cc_label(inc_mask)
+    for cid in range(1, n + 1):
+        region = cc == cid
+        vals = g[region]
+        max_p = float(vals.max()) if vals.size else 0.0
+        min_n = float(vals.min()) if vals.size else 0.0
+        out[region] = 1 if abs(min_n) > abs(max_p) else 2
+    return out
 
 
 @register
 class GaussNewton(MethodPlugin):
-    """Dataset-aligned regularized Gauss-Newton reconstruction for KTC EIT."""
+    """KTC linearised Gauss-Newton with SMprior smoothness regularisation.
 
-    _NODE_KEYS = ["g", "Node", "node", "p", "pts"]
-    _ELEMENT_KEYS = ["H", "Element", "element", "t", "tri"]
+    Parameters
+    ----------
+    mesh_path : str
+        Path to ``Mesh_sparse.mat`` (or its parent directory).
+    corrlength : float, default 0.04
+        SMPrior correlation length in metres.  main.m uses 0.115 (tank
+        radius); 0.04 (~3 cm) typically gives crisper inclusions without
+        losing sensitivity.
+    var_sigma : float, default 0.05**2
+        SMPrior variance (matches main.m).
+    noise_std1, noise_std2 : float, default 0.05 / 0.01
+        Noise standard deviations passed to ``EITFEM.SetInvGamma``.
+    min_cc_pixels : int, default 80
+        Drop predicted inclusion components smaller than this many pixels
+        after segmentation.  0 disables the cleanup.
+    consolidate_by_sign : bool, default True
+        When True, every spatially-contiguous non-background blob is
+        relabelled to match the sign of its strongest deltareco value
+        (negative => label 1 / resistive, positive => label 2 /
+        conductive).  This prevents ringing in a tightly-regularised
+        reconstruction from being misread as a second, opposite-class
+        inclusion (the "green halo" effect on purely-resistive samples).
+    """
 
-    def __init__(self, lamb: float = 100.0) -> None:
-        self.lamb = float(lamb)
+    _NOISE_STD1 = 0.05
+    _NOISE_STD2 = 0.01
 
-    def reconstruct(self, batch: DataBatch) -> np.ndarray:
-        if batch.mesh is None:
-            warnings.warn(
-                "GaussNewton: no mesh available; returning zeros.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-            return np.zeros((256, 256), dtype=int)
+    def __init__(
+        self,
+        mesh_path: str = _DEFAULT_MESH,
+        corrlength: float = 0.04,
+        var_sigma: float = 0.05 ** 2,
+        min_cc_pixels: int = 80,
+        consolidate_by_sign: bool = True,
+    ) -> None:
+        self._mesh_path = mesh_path
+        self._corrlength = float(corrlength)
+        self._var_sigma = float(var_sigma)
+        self._min_cc_pixels = int(min_cc_pixels)
+        self._consolidate_by_sign = bool(consolidate_by_sign)
+
+        self._mesh: Optional[dict] = None
 
         try:
-            nodes, elements = self._parse_mesh(batch.mesh)
-            electrode_nodes = self._electrode_positions(batch.mesh, nodes)
+            self._mesh = self._load_mesh_cached(mesh_path)
+        except Exception:
+            self._mesh = None
 
-            inj_pairs = _pattern_pairs(batch.injection_patterns)
-            meas_pairs = _pattern_pairs(getattr(batch, "measurement_patterns", None))
+    @staticmethod
+    def _load_mesh_cached(mesh_path: str) -> dict:
+        """Mesh load + Node rebuild costs ~5 s; cache across instantiations."""
+        if mesh_path not in _MESH_CACHE:
+            _MESH_CACHE[mesh_path] = load_ktc_mesh(mesh_path)
+        return _MESH_CACHE[mesh_path]
 
-            if inj_pairs.shape[0] == 0:
-                raise ValueError("No valid Inj current pairs found.")
+    def _ensure_mesh(self) -> dict:
+        if self._mesh is None:
+            self._mesh = self._load_mesh_cached(self._mesh_path)
+        return self._mesh
 
-            if meas_pairs.shape[0] == 0:
-                warnings.warn(
-                    "GaussNewton: no valid Mpat found; using adjacent voltage pairs.",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
-                meas_pairs = np.column_stack(
-                    [np.arange(31), np.arange(1, 32)]
-                ).astype(int)
+    def _smprior_LtL(self, mesh: dict) -> np.ndarray:
+        """Compute L'L for the SMPrior centred on sigma0=1 over Mesh.g."""
+        import KTCRegularization  # type: ignore[import-not-found]
 
-            n_inj = inj_pairs.shape[0]
-            n_meas = meas_pairs.shape[0]
+        n_sigma = mesh["n_sigma"]
+        sm = KTCRegularization.SMPrior(
+            mesh["g"],
+            self._corrlength,
+            self._var_sigma,
+            np.ones(n_sigma, dtype=np.float64),
+        )
+        L = np.asarray(sm.L)
+        return L.T @ L
 
-            J = self._build_sensitivity(
-                nodes,
-                elements,
-                electrode_nodes,
-                inj_pairs,
-                meas_pairs,
-            )
+    def _get_operators(
+        self,
+        level: int,
+        injection_patterns: np.ndarray,
+        measurement_patterns: np.ndarray,
+        reference_voltages: Optional[np.ndarray],
+    ):
+        # Cache key includes everything that affects the cached tensors:
+        # the mesh, the regularisation hyperparameters, the level (drives
+        # vincl), and the injection pattern (drives J's row layout).  We
+        # leave reference_voltages out of the key -- it's per-sample noise
+        # scale and doesn't change J or vincl.
+        cache_key = (
+            self._mesh_path,
+            self._corrlength,
+            self._var_sigma,
+            int(level),
+            _inj_key(injection_patterns),
+        )
+        cached = _OPERATOR_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
 
-            y, mask = self._prepare_difference(
-                batch.voltages,
-                batch.reference_voltages,
-                n_inj,
-                n_meas,
-            )
+        mesh = self._ensure_mesh()
+        vincl = build_vincl(level, injection_patterns)
+        J, inv_gamma_n, _solver, _Usim = build_ktc_jacobian(
+            mesh,
+            injection_patterns,
+            measurement_patterns,
+            vincl,
+            reference_voltages=reference_voltages,
+        )
+        inv_gamma_dense = (
+            inv_gamma_n.toarray() if hasattr(inv_gamma_n, "toarray") else np.asarray(inv_gamma_n)
+        )
+        LtL = self._smprior_LtL(mesh)
+        entry = (J, inv_gamma_dense, LtL, vincl)
+        _OPERATOR_CACHE[cache_key] = entry
+        return entry
 
-            if not mask.any():
-                warnings.warn(
-                    f"GaussNewton: no finite voltage differences for "
-                    f"level={batch.level}, sample={batch.sample_id}; returning zeros.",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
-                return np.zeros((256, 256), dtype=int)
-
-            y = np.nan_to_num(y, nan=0.0, posinf=0.0, neginf=0.0)
-
-            Jm = J[mask]
-            ym = y[mask]
-
-            Jm = Jm / (np.linalg.norm(Jm, axis=1, keepdims=True) + 1e-12)
-
-            A = Jm @ Jm.T
-            A.flat[:: A.shape[0] + 1] += self.lamb
-
-            coeff = np.linalg.solve(A, ym)
-            sigma_elem = Jm.T @ coeff
-
-            sigma_elem = np.nan_to_num(
-                sigma_elem,
-                nan=0.0,
-                posinf=0.0,
-                neginf=0.0,
-            )
-
-            if np.std(sigma_elem) > 1e-12:
-                sigma_elem = sigma_elem - np.median(sigma_elem)
-                sigma_elem = sigma_elem / (np.std(sigma_elem) + 1e-12)
-
-            sigma_map = self._interpolate_to_grid(
-                nodes,
-                elements,
-                sigma_elem,
-                size=256,
-            )
-
-            sigma_map = np.nan_to_num(
-                sigma_map,
-                nan=0.0,
-                posinf=0.0,
-                neginf=0.0,
-            )
-
-            print(
-                f"[DEBUG] {self.__class__.__name__} "
-                f"level={batch.level} sample={batch.sample_id} "
-                f"sigma min={sigma_map.min():.6f}, "
-                f"max={sigma_map.max():.6f}, "
-                f"std={sigma_map.std():.6f}"
-            )
-
-            labels = _segment_ktc(sigma_map)
-            self.validate_output(labels)
-
-            return labels
-
+    def reconstruct(self, batch: DataBatch) -> np.ndarray:
+        try:
+            mesh = self._ensure_mesh()
         except Exception as exc:
             warnings.warn(
-                f"GaussNewton failed after KTC alignment ({exc!r}); returning zeros.",
-                RuntimeWarning,
-                stacklevel=2,
+                f"GaussNewton: mesh unavailable ({exc}); returning zeros.",
+                RuntimeWarning, stacklevel=2,
             )
-            return np.zeros((256, 256), dtype=int)
+            return np.zeros((256, 256), dtype=np.uint8)
 
-    def _parse_mesh(self, mesh_data) -> tuple[np.ndarray, np.ndarray]:
-        node_key = next((key for key in self._NODE_KEYS if _has_key(mesh_data, key)), None)
-        elem_key = next((key for key in self._ELEMENT_KEYS if _has_key(mesh_data, key)), None)
+        mpat = (
+            np.asarray(batch.measurement_patterns, dtype=np.float64)
+            if getattr(batch, "measurement_patterns", None) is not None
+            else _default_mpat()
+        )
+        v_ref = batch.reference_voltages
+        if v_ref is None:
+            v_ref = np.full(N_MEAS_TOTAL, float(np.asarray(batch.voltages).mean()))
+        v_ref = np.asarray(v_ref, dtype=np.float64).ravel()
 
-        if node_key is None or elem_key is None:
-            raise ValueError("Mesh missing node or element arrays.")
-
-        nodes = np.asarray(_get_key(mesh_data, node_key), dtype=np.float64)
-        elements = np.asarray(_get_key(mesh_data, elem_key), dtype=np.int32)
-
-        if elements.min() >= 1:
-            elements = elements - 1
-
-        return nodes, elements
-
-    @staticmethod
-    def _prepare_difference(
-        voltages: np.ndarray,
-        reference_voltages: Optional[np.ndarray],
-        n_inj: int,
-        n_meas: int,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        v1 = _reshape_ktc_vector(voltages, n_inj, n_meas).reshape(-1)
-
-        if reference_voltages is None:
-            raise ValueError(
-                "GaussNewton requires reference_voltages for proper difference voltage calculation. "
-                "Ensure the data plugin populates batch.reference_voltages."
-            )
-
-        v0 = _reshape_ktc_vector(reference_voltages, n_inj, n_meas).reshape(-1)
-
-        y = (v1 - v0) / (np.abs(v0) + 1e-6)
-
-        mask = np.isfinite(y)
-
-        if mask.any():
-            y_finite = y[mask]
-            y[mask] = y_finite - np.median(y_finite)
-            y[mask] = y[mask] / (np.std(y[mask]) + 1e-12)
-
-        return y.astype(np.float64), mask
-
-    @staticmethod
-    def _build_sensitivity(
-        nodes: np.ndarray,
-        elements: np.ndarray,
-        electrode_nodes: np.ndarray,
-        inj_pairs: np.ndarray,
-        meas_pairs: np.ndarray,
-    ) -> np.ndarray:
-        centroids = np.mean(nodes[elements], axis=1)
-        electrode_xy = nodes[electrode_nodes]
-
-        drive = np.stack(
-            [
-                GaussNewton._point_gradient(centroids, electrode_xy, a, b)
-                for a, b in inj_pairs
-            ]
+        J, inv_gamma_n, LtL, vincl = self._get_operators(
+            batch.level, batch.injection_patterns, mpat, v_ref
         )
 
-        meas = np.stack(
-            [
-                GaussNewton._point_gradient(centroids, electrode_xy, a, b)
-                for a, b in meas_pairs
-            ]
-        )
+        v1 = np.asarray(batch.voltages, dtype=np.float64).ravel()
+        dv = (v1 - v_ref)[vincl]
 
-        sensitivity = -np.einsum("ime,jme->ijm", drive, meas)
+        # Linear difference Gauss-Newton step (main.m line 59)
+        A = J.T @ inv_gamma_n @ J + LtL
+        b = J.T @ inv_gamma_n @ dv
+        deltareco = np.linalg.solve(A, b)
 
-        J = sensitivity.reshape(
-            inj_pairs.shape[0] * meas_pairs.shape[0],
-            centroids.shape[0],
-        )
-
-        J = J / (np.linalg.norm(J, axis=0, keepdims=True) + 1e-12)
-
-        return J.astype(np.float64)
-
-    @staticmethod
-    def _point_gradient(
-        points: np.ndarray,
-        electrodes_xy: np.ndarray,
-        a: int,
-        b: int,
-    ) -> np.ndarray:
-        pa = electrodes_xy[int(a)]
-        pb = electrodes_xy[int(b)]
-
-        ra = points - pa
-        rb = points - pb
-
-        eps = 1e-3
-
-        return (
-            ra / (np.sum(ra * ra, axis=1)[:, None] + eps)
-            - rb / (np.sum(rb * rb, axis=1)[:, None] + eps)
-        )
-
-    @staticmethod
-    def _electrode_positions(mesh_data, nodes: np.ndarray) -> np.ndarray:
-        """Find 32 electrode node indices from mesh.
-
-        Strategy (in order of preference):
-        0. Use el_pos if available (pyEIT mesh objects)
-        1. Try to parse 'elfaces' from mesh_data
-        2. Auto-detect from boundary geometry
-        """
-        n_nodes = nodes.shape[0]
-
-        # Strategy 0: pyEIT mesh has el_pos directly
-        el_pos = _get_key(mesh_data, "el_pos")
-        if el_pos is not None:
-            el_pos = np.asarray(el_pos, dtype=np.int32).ravel()
-            if el_pos.shape[0] == 32:
-                return el_pos
-
-        for key in ["elfaces", "ElFaces", "el_faces", "elFaces"]:
-            elfaces = _get_key(mesh_data, key)
-
-            if elfaces is None:
-                continue
-
-            try:
-                electrode_node_list = []
-
-                for i in range(len(elfaces)):
-                    edge = np.asarray(elfaces[i], dtype=np.int32)
-                    edge_nodes = edge.ravel() - 1
-                    edge_nodes = edge_nodes[
-                        (edge_nodes >= 0) & (edge_nodes < n_nodes)
-                    ]
-
-                    if edge_nodes.size == 0:
-                        continue
-
-                    centre = nodes[np.unique(edge_nodes)].mean(axis=0)
-                    nearest = int(np.argmin(np.linalg.norm(nodes - centre, axis=1)))
-                    electrode_node_list.append(nearest)
-
-                electrode_nodes = np.asarray(electrode_node_list, dtype=np.int32)
-
-                if electrode_nodes.shape[0] == 32:
-                    return electrode_nodes
-
-            except Exception as exc:
-                warnings.warn(
-                    f"GaussNewton: elfaces parse failed ({exc!r}); "
-                    "trying boundary-based fallback.",
-                    RuntimeWarning,
-                    stacklevel=3,
-                )
-                break
-
-        # Boundary-based fallback: find nodes on unit circle
-        distances = np.linalg.norm(nodes, axis=1)
-
-        for r_min, r_max in [(0.95, 1.05), (0.90, 1.10), (0.80, 1.20)]:
-            boundary_mask = (distances >= r_min) & (distances <= r_max)
-            boundary_indices = np.where(boundary_mask)[0]
-            if len(boundary_indices) >= 32:
-                break
-        else:
-            raise ValueError(
-                f"Could not find 32 boundary nodes in mesh. "
-                f"Boundary nodes found: {len(boundary_indices)}."
-            )
-
-        angles = np.arctan2(nodes[boundary_indices, 1], nodes[boundary_indices, 0])
-        angle_indices = np.argsort(angles)
-        sorted_boundary = boundary_indices[angle_indices]
-
-        warnings.warn(
-            "GaussNewton: using boundary-based electrode detection (elfaces unavailable).",
-            RuntimeWarning,
-            stacklevel=3,
-        )
-
-        return np.array(sorted_boundary[:32], dtype=np.int32)
-
-    @staticmethod
-    def _interpolate_to_grid(
-        nodes: np.ndarray,
-        elements: np.ndarray,
-        values: np.ndarray,
-        size: int = 256,
-    ) -> np.ndarray:
-        values = np.asarray(values, dtype=np.float64).ravel()
-        centroids = np.mean(nodes[elements], axis=1)
-
-        if values.shape[0] == nodes.shape[0]:
-            values = np.mean(values[elements], axis=1)
-        elif values.shape[0] != elements.shape[0]:
-            warnings.warn(
-                f"_interpolate_to_grid: value length {values.shape[0]} does not "
-                f"match nodes {nodes.shape[0]} or elements {elements.shape[0]}. "
-                "Returning zero grid.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-            return np.zeros((size, size), dtype=np.float64)
-
-        radius = (nodes[:, 0].max() - nodes[:, 0].min()) / 2.0
-        pixwidth = 2.0 * radius / size
-        pix = np.linspace(-radius + pixwidth / 2.0, radius - pixwidth / 2.0, size)
-
-        gx, gy = np.meshgrid(pix, pix)
-
-        grid = griddata(
-            centroids,
-            values,
-            (gx, gy),
-            method="linear",
-            fill_value=0.0,
-        )
-
-        return np.flipud(grid).astype(np.float64)
+        grid = rasterize(deltareco, mesh)
+        labels = adaptive_segment(grid)
+        if self._consolidate_by_sign:
+            labels = _consolidate_by_sign(labels, grid)
+        labels = _drop_small_components(labels, self._min_cc_pixels)
+        self.validate_output(labels)
+        return labels
