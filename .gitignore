@@ -2,8 +2,10 @@
 EvaluationData/
 # Codes_Matlab/ — RESTORED: see MATLAB_REFERENCE.md (needed for validation ground truth)
 
-# ── Generated outputs ────────────────────────────────────────────────────────
+# ── Generated outputs (never commit run artifacts) ───────────────────────────
 outputs/
+reports/
+scores.json
 
 # ── Python bytecode ──────────────────────────────────────────────────────────
 __pycache__/
