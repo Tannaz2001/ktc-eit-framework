@@ -1,4 +1,4 @@
-"""Experiment runner -- loops over levels, samples, and methods from config."""
+"""Experiment runner — loops over levels, samples, and methods from config."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import os
 import subprocess
 import time
 import warnings
+from types import SimpleNamespace
 from pathlib import Path
 from typing import Any
 
@@ -18,8 +19,7 @@ from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeEl
 from rich.table import Table  # type: ignore[import]
 
 from src.ktc_framework.types import DataBatch
-from src.ktc_framework.adapters.method_registry import get as registry_get
-from src.ktc_framework.loaders.ktc_loader import PluginRegistry
+from src.ktc_framework.registry import get_method as registry_get, PluginRegistry
 from src.ktc_framework.metrics.metric_registry import register_metric, run_all_metrics
 from src.ktc_framework.metrics.ktc_score import compute_ktc_score, dice, iou, hd95
 from src.ktc_framework.metrics.composite_score import composite_score, letter_grade
@@ -29,29 +29,25 @@ from src.ktc_framework.visualization.plot_results import (
     plot_failure_gallery,
     plot_degradation_curve,
     plot_leaderboard,
+    plot_error_overlay,
 )
 from src.ktc_framework.reporting.html_report import generate_html_report
 
-# Side-effect imports -- registers data plugins into PluginRegistry
-import src.ktc_framework.loaders.mock_data_plugin        # noqa: F401
-import src.ktc_framework.loaders.ktc_data_plugin         # noqa: F401
-import src.ktc_framework.loaders.training_data_plugin    # noqa: F401
-
-# Side-effect imports -- registers reconstruction methods into method_registry
-import src.ktc_framework.methods.mock_method_plugin      # noqa: F401
-import src.ktc_framework.methods.backprojection          # noqa: F401  registers BackProjection
-import src.ktc_framework.methods.gauss_newton            # noqa: F401  registers GaussNewton
+# Importing each package runs its __init__.py, which registers all plugins.
+# To register a new method or data plugin, add it to the relevant __init__.py.
+import src.ktc_framework.methods   # noqa: F401 — registers all reconstruction methods
+import src.ktc_framework.loaders   # noqa: F401 — registers all data plugins
 
 # Register built-in metrics once at module load
-register_metric("ktc_score",        compute_ktc_score)
-register_metric("dice_resistive",   lambda pred, gt: dice(pred, gt, label=1))
-register_metric("dice_conductive",  lambda pred, gt: dice(pred, gt, label=2))
-register_metric("iou_resistive",    lambda pred, gt: iou(pred, gt, label=1))
-register_metric("iou_conductive",   lambda pred, gt: iou(pred, gt, label=2))
-register_metric("hd95_resistive",   lambda pred, gt: hd95(pred, gt, label=1))
-register_metric("hd95_conductive",  lambda pred, gt: hd95(pred, gt, label=2))
+register_metric("ktc_score",          compute_ktc_score)
+register_metric("dice_resistive",     lambda pred, gt: dice(pred, gt, label=1))
+register_metric("dice_conductive",    lambda pred, gt: dice(pred, gt, label=2))
+register_metric("iou_resistive",      lambda pred, gt: iou(pred, gt, label=1))
+register_metric("iou_conductive",     lambda pred, gt: iou(pred, gt, label=2))
+register_metric("hd95_resistive",     lambda pred, gt: hd95(pred, gt, label=1))
+register_metric("hd95_conductive",    lambda pred, gt: hd95(pred, gt, label=2))
 
-console = Console(safe_box=True)  # safe_box=True uses ASCII box-drawing (cp1252-safe on Windows)
+console = Console(safe_box=True)  # ASCII box-drawing — safe on Windows cp1252 terminals
 
 
 class BatchRunner:
@@ -72,7 +68,7 @@ class BatchRunner:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Load shared resources once -- passed to every DataBatch at run time
+        # Load shared resources once — passed to every DataBatch at run time
         self.mesh = self._load_mesh(config.get("mesh_path", ""))
         self.ref_voltages = self._load_reference(config.get("dataset_root", ""))
 
@@ -98,6 +94,17 @@ class BatchRunner:
                         str(mat_file), squeeze_me=True, struct_as_record=False
                     )
                     mesh_struct = mat["Mesh"]
+                    mesh2_struct = mat.get("Mesh2")
+                    if mesh2_struct is not None:
+                        mesh_struct = SimpleNamespace(
+                            Mesh=mesh_struct,
+                            Mesh2=mesh2_struct,
+                            H=mesh_struct.H,
+                            g=mesh_struct.g,
+                            elfaces=mesh_struct.elfaces,
+                            Node=mesh_struct.Node,
+                            Element=mesh_struct.Element,
+                        )
                     console.print(
                         f"[green]Mesh loaded:[/green] {mat_file} "
                         f"({mesh_struct.g.shape[0]} nodes, "
@@ -106,14 +113,14 @@ class BatchRunner:
                     return mesh_struct
                 except Exception as exc:
                     warnings.warn(
-                        f"Could not load Mesh_sparse.mat ({exc}) -- falling back to generated mesh.",
+                        f"Could not load Mesh_sparse.mat ({exc}) — falling back to generated mesh.",
                         RuntimeWarning,
                         stacklevel=2,
                     )
                     console.print(f"[yellow]Mesh load failed: {exc}[/yellow]")
             else:
                 console.print(
-                    f"[yellow]mesh_path '{mesh_path}' not found -- "
+                    f"[yellow]mesh_path '{mesh_path}' not found — "
                     f"falling back to generated mesh.[/yellow]"
                 )
 
@@ -127,12 +134,12 @@ class BatchRunner:
             return mesh_obj
         except ImportError:
             console.print(
-                "[yellow]pyeit not installed -- mesh unavailable; "
+                "[yellow]pyeit not installed — mesh unavailable; "
                 "BP/GaussNewton will use random fallback.[/yellow]"
             )
             return None
         except Exception as exc:
-            console.print(f"[yellow]pyEIT mesh generation failed ({exc}) -- returning None.[/yellow]")
+            console.print(f"[yellow]pyEIT mesh generation failed ({exc}) — returning None.[/yellow]")
             return None
 
     def _load_reference(self, dataset_root: str) -> np.ndarray | None:
@@ -159,7 +166,7 @@ class BatchRunner:
 
         if ref_path is None:
             console.print(
-                f"[yellow]ref.mat not found -- tried:[/yellow]\n"
+                f"[yellow]ref.mat not found — tried:[/yellow]\n"
                 + "\n".join(f"  [yellow]{p}[/yellow]" for p in candidates)
                 + "\n[yellow]Reconstruction methods will use mean-subtraction fallback.[/yellow]"
             )
@@ -185,7 +192,7 @@ class BatchRunner:
             return ref
         except Exception as exc:
             warnings.warn(
-                f"Could not load ref.mat ({exc}) -- using mean-subtraction fallback.",
+                f"Could not load ref.mat ({exc}) — using mean-subtraction fallback.",
                 RuntimeWarning,
                 stacklevel=2,
             )
@@ -197,7 +204,7 @@ class BatchRunner:
     # ------------------------------------------------------------------
 
     def run(self) -> list[dict[str, Any]]:
-        """Run all method x level x sample combinations and return results."""
+        """Run all method × level × sample combinations and return results."""
         results: list[dict[str, Any]] = []
 
         levels  = self.config.get("levels",  [])
@@ -211,7 +218,7 @@ class BatchRunner:
             TextColumn("[bold blue]{task.description}"),
             BarColumn(),
             TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TextColumn("*"),
+            TextColumn("-"),
             TimeElapsedColumn(),
             console=console,
         ) as progress:
@@ -247,7 +254,7 @@ class BatchRunner:
             data_plugin_cls = PluginRegistry.get(plugin_name)
         except KeyError:
             console.print(
-                f"[yellow]data_plugin '{plugin_name}' not registered -- "
+                f"[yellow]data_plugin '{plugin_name}' not registered — "
                 f"falling back to MockDataPlugin.[/yellow]"
             )
             from src.ktc_framework.loaders.mock_data_plugin import MockDataPlugin
@@ -260,13 +267,13 @@ class BatchRunner:
             raw_batch = data_plugin.load_sample(level=level, sample=sample)
         except FileNotFoundError:
             console.print(
-                f"[yellow]Skipping level={level} sample={sample} -- "
+                f"[yellow]Skipping level={level} sample={sample} — "
                 f"file not found in '{dataset_root}'.[/yellow]"
             )
             return None
         except ValueError as exc:
             console.print(
-                f"[red]Skipping level={level} sample={sample} -- "
+                f"[red]Skipping level={level} sample={sample} — "
                 f"validation error: {exc}[/red]"
             )
             return None
@@ -281,7 +288,11 @@ class BatchRunner:
             level              = raw_batch.level,
             sample_id          = raw_batch.sample_id,
             mesh               = self.mesh,
-            reference_voltages = self.ref_voltages,
+            reference_voltages = (
+                getattr(raw_batch, "reference_voltages", None)
+                if getattr(raw_batch, "reference_voltages", None) is not None
+                else self.ref_voltages
+            ),
             measurement_patterns=getattr(raw_batch, "measurement_patterns", None),
         )
 
@@ -289,7 +300,7 @@ class BatchRunner:
         try:
             method_plugin = registry_get(method)()
         except KeyError:
-            console.print(f"[red]Method '{method}' not registered -- skipping.[/red]")
+            console.print(f"[red]Method '{method}' not registered — skipping.[/red]")
             return None
 
         # ── reconstruct ───────────────────────────────────────────────────
@@ -321,6 +332,23 @@ class BatchRunner:
             ktc_score  = metrics.get("ktc_score", 0.0),
         )
 
+        mat_dir = self.output_dir / "mat_predictions" / method / f"level_{level}"
+        mat_dir.mkdir(parents=True, exist_ok=True)
+        mat_path = mat_dir / f"sample_{sample}.mat"
+        scipy.io.savemat(
+            str(mat_path),
+            {"reconstruction": reconstruction.astype(np.uint8)},
+        )
+
+        overlay_dir = self.output_dir / "overlays" / method / f"level_{level}"
+        overlay_dir.mkdir(parents=True, exist_ok=True)
+        overlay_path = overlay_dir / f"sample_{sample}.png"
+        plot_error_overlay(
+            pred=reconstruction,
+            gt=gt,
+            save_path=overlay_path,
+        )
+
         return {
             "method":          method,
             "level":           level,
@@ -332,7 +360,9 @@ class BatchRunner:
             "runtime_ms":      round(runtime_ms, 3),
             "git_sha":         self._git_sha(),
             "png_path":        str(png_path),
-            # internal arrays -- stripped before JSON serialisation
+            "mat_path":        str(mat_path),
+            "overlay_path":    str(overlay_path),
+            # internal arrays — stripped before JSON serialisation
             "_gt":   gt,
             "_pred": reconstruction,
         }
@@ -372,6 +402,47 @@ class BatchRunner:
         with nested_out.open("w", encoding="utf-8") as f:
             json.dump(nested, f, indent=2)
 
+        dashboard_scores: dict[str, dict[str, float]] = {}
+        per_run: dict[str, dict[str, Any]] = {}
+
+        for method in sorted({r["method"] for r in clean}):
+            method_rows = [r for r in clean if r["method"] == method]
+            metric_names = sorted(
+                {
+                    metric
+                    for row in method_rows
+                    for metric in row.get("metrics", {}).keys()
+                }
+            )
+            dashboard_scores[method] = {
+                metric: round(
+                    float(np.mean([row["metrics"].get(metric, 0.0) for row in method_rows])),
+                    6,
+                )
+                for metric in metric_names
+            }
+
+            per_run[method] = {}
+            for row in method_rows:
+                key = f"L{row['level']}_{row['sample']}"
+                per_run[method][key] = {
+                    **row.get("metrics", {}),
+                    "composite_score": row.get("composite_score", 0.0),
+                    "grade": row.get("grade", "D"),
+                    "runtime_ms": row.get("runtime_ms", 0.0),
+                    "level": row["level"],
+                    "sample": row["sample"],
+                    "png_path": row.get("png_path", ""),
+                    "mat_path": row.get("mat_path", ""),
+                    "overlay_path": row.get("overlay_path", ""),
+                }
+
+        with (self.output_dir / "dashboard_scores.json").open("w", encoding="utf-8") as f:
+            json.dump(dashboard_scores, f, indent=2)
+
+        with (self.output_dir / "per_run_metrics.json").open("w", encoding="utf-8") as f:
+            json.dump(per_run, f, indent=2)
+
     def _print_summary(self, results: list[dict[str, Any]]) -> None:
         """Print a rich table of per-run metrics."""
         table = Table(
@@ -380,15 +451,15 @@ class BatchRunner:
             header_style="bold cyan",
             min_width=80,
         )
-        table.add_column("Method",       style="bold", min_width=20)
-        table.add_column("Level",        justify="center", min_width=7)
-        table.add_column("Sample",       justify="center", min_width=8)
-        table.add_column("KTC Score",    justify="right",  min_width=10)
-        table.add_column("Dice Res.",    justify="right",  min_width=10)
-        table.add_column("Dice Cond.",   justify="right",  min_width=11)
-        table.add_column("HD95 Res.",    justify="right",  min_width=10)
-        table.add_column("HD95 Cond.",   justify="right",  min_width=11)
-        table.add_column("Runtime (ms)", justify="right",  min_width=13)
+        table.add_column("Method",        style="bold", min_width=20)
+        table.add_column("Level",         justify="center", min_width=7)
+        table.add_column("Sample",        justify="center", min_width=8)
+        table.add_column("KTC Score",     justify="right",  min_width=10)
+        table.add_column("Dice Res.",     justify="right",  min_width=10)
+        table.add_column("Dice Cond.",    justify="right",  min_width=11)
+        table.add_column("HD95 Res.",     justify="right",  min_width=10)
+        table.add_column("HD95 Cond.",    justify="right",  min_width=11)
+        table.add_column("Runtime (ms)",  justify="right",  min_width=13)
 
         for r in results:
             m = r["metrics"]
@@ -397,9 +468,9 @@ class BatchRunner:
                 str(r["level"]),
                 r["sample"],
                 f"{m['ktc_score']:.3f}",
-                f"{m['dice_resistive']:.3f}",
-                f"{m['dice_conductive']:.3f}",
-                f"{m.get('hd95_resistive', 0.0):.1f}",
+                f"{m.get('dice_resistive',  0.0):.3f}",
+                f"{m.get('dice_conductive', 0.0):.3f}",
+                f"{m.get('hd95_resistive',  0.0):.1f}",
                 f"{m.get('hd95_conductive', 0.0):.1f}",
                 f"{r['runtime_ms']:.2f}",
             )
