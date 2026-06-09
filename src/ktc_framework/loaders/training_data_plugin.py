@@ -58,6 +58,7 @@ class TrainingDataPlugin:
 
         voltages = np.asarray(data_mat['Uel'], dtype=np.float64)          # (2356,)
         injection = np.asarray(data_mat['Inj'], dtype=np.float64)         # (32, 76)
+        mpat = np.asarray(data_mat.get('Mpat'), dtype=np.float64) if 'Mpat' in data_mat else None
         ground_truth = np.asarray(truth_mat['truth'], dtype=np.uint8)     # (256, 256)
 
         return DataBatch(
@@ -66,4 +67,5 @@ class TrainingDataPlugin:
             ground_truth=ground_truth,
             level=level,
             sample_id=f"training_{sample}",
+            measurement_patterns=mpat,
         )
