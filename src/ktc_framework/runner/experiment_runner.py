@@ -19,8 +19,7 @@ from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeEl
 from rich.table import Table  # type: ignore[import]
 
 from src.ktc_framework.types import DataBatch
-from src.ktc_framework.adapters.method_registry import get as registry_get
-from src.ktc_framework.loaders.ktc_loader import PluginRegistry
+from src.ktc_framework.registry import get_method as registry_get, PluginRegistry
 from src.ktc_framework.metrics.metric_registry import register_metric, run_all_metrics
 from src.ktc_framework.metrics.ktc_score import compute_ktc_score
 from src.ktc_framework.metrics.composite_score import composite_score, letter_grade
@@ -34,17 +33,10 @@ from src.ktc_framework.visualization.plot_results import (
 )
 from src.ktc_framework.reporting.html_report import generate_html_report
 
-# Side-effect imports — registers data plugins into PluginRegistry
-import src.ktc_framework.loaders.mock_data_plugin        # noqa: F401
-import src.ktc_framework.loaders.ktc_data_plugin         # noqa: F401
-import src.ktc_framework.loaders.training_data_plugin    # noqa: F401
-
-# Side-effect imports — registers reconstruction methods into method_registry
-import src.ktc_framework.methods.mock_method_plugin      # noqa: F401
-import src.ktc_framework.methods.backprojection          # noqa: F401  registers BackProjection
-import src.ktc_framework.methods.gauss_newton            # noqa: F401  registers GaussNewton
-import src.ktc_framework.methods.reference_fem           # noqa: F401  registers ReferenceFEM
-import src.ktc_framework.methods.groundtruth_oracle      # noqa: F401  registers GroundTruthOracle
+# Importing each package runs its __init__.py, which registers all plugins.
+# To register a new method or data plugin, add it to the relevant __init__.py.
+import src.ktc_framework.methods   # noqa: F401 — registers all reconstruction methods
+import src.ktc_framework.loaders   # noqa: F401 — registers all data plugins
 
 # Register built-in metrics once at module load
 register_metric("ktc_score", compute_ktc_score)

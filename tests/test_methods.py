@@ -44,13 +44,12 @@ def test_levelset_plugin():
     assert isinstance(result["n_objects"], int)
 
 def test_hull_plugin():
-    seg = np.zeros((256,256), dtype=int)
-    seg[50:80,50:80] = 1
-    seg[100:130,100:130] = 2
-    plugin = HullPlugin()
-    features1 = plugin.run(seg, target_label=1)
-    features2 = plugin.run(seg, target_label=2)
-    assert isinstance(features1, list)
-    assert isinstance(features2, list)
-    assert all("centroid" in f for f in features1)
-    assert all("bbox" in f for f in features2)
+    seg = np.zeros((256, 256), dtype=np.uint8)
+    seg[50:80, 50:80] = 1
+    seg[100:130, 100:130] = 2
+    result = HullPlugin.analyze(seg)
+    assert result.prediction_shape == (256, 256)
+    assert result.resistive_center is not None
+    assert result.conductive_center is not None
+    assert result.resistive_area is not None and result.resistive_area > 0
+    assert result.conductive_area is not None and result.conductive_area > 0

@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 import scipy.io
 
-from src.ktc_framework.loaders.ktc_loader import PluginRegistry
+from src.ktc_framework.registry import PluginRegistry
 from src.ktc_framework.types import DataBatch
 
 
