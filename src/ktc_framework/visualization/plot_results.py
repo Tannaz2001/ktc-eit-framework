@@ -314,3 +314,63 @@ def plot_electrodes(save_path: str | Path = "outputs/figures/electrodes.png") ->
     Path(save_path).parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(save_path, dpi=150)
     plt.close(fig)
+
+
+# ── Multi-method comparison panel ──────────────────────────────────────────
+
+def plot_comparison_panel(
+    gt: np.ndarray,
+    methods_dict: dict[str, np.ndarray],
+    save_path: str | Path = "outputs/comparison_panel.png",
+) -> None:
+    """Save GT + one column per method side-by-side.
+
+    Parameters
+    ----------
+    gt : np.ndarray
+        Ground truth (256, 256).
+    methods_dict : dict[str, np.ndarray]
+        ``{"Method Name": prediction_array, ...}`` in display order.
+    save_path : str | Path
+        Output file path.
+    """
+    n_panels = 1 + len(methods_dict)
+    fig, axes = plt.subplots(1, n_panels, figsize=(4 * n_panels, 4))
+    if n_panels == 1:
+        axes = [axes]
+
+    axes[0].imshow(gt, cmap=_EIT_CMAP, vmin=0, vmax=2)
+    axes[0].set_title("Ground Truth", fontsize=12, fontweight="bold")
+    axes[0].axis("off")
+
+    for idx, (name, pred) in enumerate(methods_dict.items(), start=1):
+        axes[idx].imshow(pred, cmap=_EIT_CMAP, vmin=0, vmax=2)
+        axes[idx].set_title(name, fontsize=12, fontweight="bold")
+        axes[idx].axis("off")
+
+    plt.tight_layout()
+    Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(save_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+# ── Structured single-method panel (runner-style output) ───────────────────
+
+def save_method_panel(
+    pred: np.ndarray,
+    gt: np.ndarray,
+    level: int,
+    sample: str,
+    method: str,
+    output_dir: str | Path = "outputs",
+) -> str:
+    """Save a GT | Pred | Error panel at ``output_dir/level_{L}/sample_{S}/{method}.png``.
+
+    Returns the saved file path as a string.
+    """
+    save_dir = Path(output_dir) / f"level_{level}" / f"sample_{sample}"
+    save_dir.mkdir(parents=True, exist_ok=True)
+    save_path = save_dir / f"{method}.png"
+    plot_panel(pred=pred, gt=gt, method=method, level=level, sample=str(sample),
+               save_path=save_path)
+    return str(save_path)

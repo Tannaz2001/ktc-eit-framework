@@ -2,9 +2,10 @@
 ktc_loader.py
 -------------
 Provides:
-  - PluginRegistry  : lightweight name → class registry with decorator support
   - KTCValidator    : static validation helpers for KTC DataBatch objects
   - KTCLoader       : loads KTC .mat files (v5 and v7.3) and returns DataBatch
+
+PluginRegistry has moved to src.ktc_framework.registry — import it from there.
 """
 
 from __future__ import annotations
@@ -17,55 +18,13 @@ from typing import List
 import numpy as np
 import scipy.io
 
+from src.ktc_framework.registry import PluginRegistry  # re-exported for backward compat
 from src.ktc_framework.types import DataBatch
 
 try:
     import h5py as _h5py
 except ImportError:
     _h5py = None  # type: ignore[assignment]
-
-
-# ---------------------------------------------------------------------------
-# PluginRegistry
-# ---------------------------------------------------------------------------
-
-class PluginRegistry:
-    """Maps string names to plugin classes.
-
-    Usage
-    -----
-    @PluginRegistry.register('my_plugin')
-    class MyPlugin:
-        ...
-
-    cls = PluginRegistry.get('my_plugin')
-    """
-
-    _registry: dict[str, type] = {}
-
-    @classmethod
-    def register(cls, name: str):
-        """Class decorator that stores the decorated class under *name*."""
-        def decorator(plugin_cls: type) -> type:
-            cls._registry[name] = plugin_cls
-            return plugin_cls
-        return decorator
-
-    @classmethod
-    def get(cls, name: str) -> type:
-        """Return the class registered under *name*.
-
-        Raises
-        ------
-        KeyError
-            If *name* is not registered; the message lists available names.
-        """
-        if name not in cls._registry:
-            available = ", ".join(sorted(cls._registry)) or "<none>"
-            raise KeyError(
-                f"Plugin '{name}' not found. Available plugins: {available}"
-            )
-        return cls._registry[name]
 
 
 # ---------------------------------------------------------------------------

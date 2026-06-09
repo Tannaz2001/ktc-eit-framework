@@ -1,30 +1,10 @@
-"""Plugin registry — maps method names to their classes."""
+"""
+Method registry shim — delegates to src.ktc_framework.registry.
 
-from __future__ import annotations
+All reconstruction method plugins import `register` from here.
+The actual registry state lives in registry.py (single source of truth).
+"""
 
-from typing import Type
+from src.ktc_framework.registry import register_method as register, get_method as get, list_methods
 
-
-_REGISTRY: dict[str, Type] = {}
-
-
-def register(cls: Type) -> Type:
-    """Decorator — adds a class to the registry under its name."""
-    _REGISTRY[cls.__name__] = cls
-    return cls
-
-
-def get(name: str) -> Type:
-    """Look up a registered method class by name."""
-    if name not in _REGISTRY:
-        available = ", ".join(sorted(_REGISTRY.keys()))
-        raise KeyError(
-            f"Method '{name}' not found in registry. "
-            f"Available: {available or 'none registered yet'}"
-        )
-    return _REGISTRY[name]
-
-
-def list_methods() -> list[str]:
-    """Return all registered method names."""
-    return sorted(_REGISTRY.keys())
+__all__ = ["register", "get", "list_methods"]
