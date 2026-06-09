@@ -1,516 +1,161 @@
-"""KTC-calibrated BackProjection reconstruction.
+"""Back-projection reconstruction for the KTC 2023 EIT framework.
 
-Final update:
-- Uses real Inj/Injref and Mpat from the DataBatch.
-- Keeps only finite voltage differences, because KTC levels 2-7 may contain NaN values.
-- Prevents NaN from entering sigma_elem, sigma_map, and segmentation.
+Method
+------
+Linear back-projection on top of KTC's own forward operator:
+
+    deltareco = J^T * (Uel - Uelref)
+
+where J is the Jacobian computed by KTC's EITFEM (data/KTCScoring/KTCFwd.py)
+at homogeneous sigma=1 S/m, contact impedance 1e-6.  Difference imaging
+requires an empty-tank reference: we use the MEASURED Uelref from ref.mat
+(carried on ``batch.reference_voltages``), NOT an FEM-simulated reference.
+The simulated reference disagrees with Uelref by ~22% RMS even on the
+correct mesh -- using the measured one removes the bias.
+
+The previous implementation used pyEIT's BP solver on a synthetic
+386-node unit-circle mesh; it could not reproduce KTC's CEM forward
+operator (quadratic triangles, contact impedance, vincl-masked
+measurements) and the back-projection landed the inclusion in the wrong
+place with a 35% systematic offset.  See trace_phase1.py.
 """
 
 from __future__ import annotations
 
-import warnings
+import hashlib
+from pathlib import Path
 from typing import Optional
+import warnings
 
 import numpy as np
-from scipy.interpolate import griddata
-from scipy.ndimage import gaussian_filter
-from skimage.morphology import remove_small_objects
-from skimage.filters import threshold_multiotsu
 
 from src.ktc_framework.adapters.method_registry import register
+from src.ktc_framework.methods.eit_utils import (
+    N_MEAS_TOTAL,
+    adaptive_segment,
+    build_ktc_jacobian,
+    build_vincl,
+    load_ktc_mesh,
+    rasterize,
+)
 from src.ktc_framework.methods.method_plugin import MethodPlugin
 from src.ktc_framework.types import DataBatch
 
 
-_N_ELECTRODES = 32
-_ANGLES = np.linspace(0, 2 * np.pi, _N_ELECTRODES, endpoint=False)
-_ELEC_X, _ELEC_Y = np.cos(_ANGLES), np.sin(_ANGLES)
-_IMG_SIZE = 256
-_gx, _gy = np.meshgrid(np.linspace(-1, 1, _IMG_SIZE), np.linspace(-1, 1, _IMG_SIZE))
-_CIRCLE_MASK = (_gx ** 2 + _gy ** 2) <= 1.0
-
-# Hardcoded electrode node indices for KTC mesh (boundary-detected from standard KTC mesh)
-# If your mesh has different electrode positions, run extract_electrode_nodes.py to generate this
-_KTC_ELECTRODE_NODES_FALLBACK = None  # Will be auto-detected from boundary
-
-def _has_key(obj, key: str) -> bool:
-    if hasattr(obj, key):
-        return True
-    try:
-        return key in obj
-    except TypeError:
-        return False
+_DEFAULT_MESH = "Codes_Matlab/Mesh_sparse.mat"
+_DEFAULT_MPAT_PATH = "Codes_Matlab/TrainingData/ref.mat"
 
 
-def _get_key(obj, key: str):
-    if hasattr(obj, key):
-        return getattr(obj, key)
-    try:
-        if key in obj:
-            return obj[key]
-    except TypeError:
-        pass
-    return None
+# Module-level caches shared across plugin instantiations.  The runner
+# constructs a fresh BackProjection per (method, level, sample), so an
+# instance cache rebuilds the Jacobian every sample (~25 s wasted each).
+_MESH_CACHE: dict[str, dict] = {}
+_JAC_CACHE: dict[tuple, tuple[np.ndarray, np.ndarray]] = {}
 
 
-def _pattern_pairs(pattern: Optional[np.ndarray]) -> np.ndarray:
-    if pattern is None:
-        return np.zeros((0, 2), dtype=int)
-
-    p = np.asarray(pattern, dtype=float)
-
-    if p.ndim != 2:
-        return np.zeros((0, 2), dtype=int)
-
-    if p.shape[0] != 32 and p.shape[1] == 32:
-        p = p.T
-
-    pairs = []
-
-    for col_i in range(p.shape[1]):
-        col = p[:, col_i]
-        pos = np.where(col > 0)[0]
-        neg = np.where(col < 0)[0]
-
-        if pos.size > 0 and neg.size > 0:
-            pairs.append([int(pos[0]), int(neg[0])])
-
-    return np.asarray(pairs, dtype=int)
+def _inj_key(injection_patterns: np.ndarray) -> str:
+    arr = np.ascontiguousarray(injection_patterns, dtype=np.float64)
+    return hashlib.md5(arr.tobytes()).hexdigest()
 
 
-def _reshape_ktc_vector(v: np.ndarray, n_inj: int, n_meas: int) -> np.ndarray:
-    flat = np.asarray(v, dtype=float).ravel()
-    total = n_inj * n_meas
-
-    if flat.size < total:
-        padded = np.full(total, np.nan, dtype=float)
-        padded[: flat.size] = flat
-        flat = padded
-
-    return flat[:total].reshape(n_inj, n_meas)
+def _load_mesh_cached(mesh_path: str) -> dict:
+    if mesh_path not in _MESH_CACHE:
+        _MESH_CACHE[mesh_path] = load_ktc_mesh(mesh_path)
+    return _MESH_CACHE[mesh_path]
 
 
-def _segment_ktc(sigma: np.ndarray) -> np.ndarray:
-    x = np.nan_to_num(
-        np.asarray(sigma, dtype=float),
-        nan=0.0,
-        posinf=0.0,
-        neginf=0.0,
-    )
-
-    if float(np.max(x) - np.min(x)) < 1e-12:
-        return np.zeros(x.shape, dtype=int)
-
-    try:
-        t1, t2 = threshold_multiotsu(x.ravel(), classes=3)
-
-        low = x < t1
-        mid = (x >= t1) & (x <= t2)
-        high = x > t2
-
-        counts = [int(low.sum()), int(mid.sum()), int(high.sum())]
-        bg = int(np.argmax(counts))
-
-        labels = np.zeros(x.shape, dtype=int)
-
-        if bg == 0:
-            labels[mid] = 1
-            labels[high] = 2
-        elif bg == 1:
-            labels[low] = 1
-            labels[high] = 2
-        else:
-            labels[low] = 1
-            labels[mid] = 2
-
-        return labels.astype(int)
-
-    except Exception:
-        abs_map = np.abs(x)
-        threshold = np.percentile(abs_map, 92)
-
-        labels = np.zeros(x.shape, dtype=int)
-        labels[abs_map > threshold] = 1
-
-        return labels.astype(int)
+def _default_mpat() -> np.ndarray:
+    """Fallback Mpat: 31 adjacent differential pairs (col j: +1 at j, -1 at j+1)."""
+    mpat = np.zeros((32, 31), dtype=np.float64)
+    for j in range(31):
+        mpat[j, j] = 1.0
+        mpat[j + 1, j] = -1.0
+    return mpat
 
 
 @register
 class BackProjection(MethodPlugin):
-    """Dataset-aligned BackProjection reconstruction for KTC EIT."""
+    """KTC linear back-projection: deltareco = J^T (Uel - Uelref)."""
 
-    def __init__(self, smooth_sigma: float = 8.0, threshold_std: float = 0.8):
-        self.smooth_sigma = smooth_sigma
-        self.threshold_std = threshold_std
+    def __init__(self, mesh_path: str = _DEFAULT_MESH) -> None:
+        self._mesh_path = mesh_path
+        self._mesh: Optional[dict] = None
+        try:
+            self._mesh = _load_mesh_cached(mesh_path)
+        except Exception:
+            self._mesh = None
 
+    def _ensure_mesh(self) -> dict:
+        if self._mesh is None:
+            self._mesh = _load_mesh_cached(self._mesh_path)
+        return self._mesh
 
-    _NODE_KEYS = ["g", "Node", "node", "p", "pts"]
-    _ELEMENT_KEYS = ["H", "Element", "element", "t", "tri"]
+    def _get_jacobian(
+        self,
+        level: int,
+        injection_patterns: np.ndarray,
+        measurement_patterns: np.ndarray,
+        reference_voltages: Optional[np.ndarray],
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Compute J + vincl for this level, or return the cached pair."""
+        cache_key = (self._mesh_path, int(level), _inj_key(injection_patterns))
+        cached = _JAC_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+
+        mesh = self._ensure_mesh()
+        vincl = build_vincl(level, injection_patterns)
+        J, _inv_gamma, _solver, _Usim = build_ktc_jacobian(
+            mesh,
+            injection_patterns,
+            measurement_patterns,
+            vincl,
+            reference_voltages=reference_voltages,
+        )
+        entry = (J, vincl)
+        _JAC_CACHE[cache_key] = entry
+        return entry
 
     def reconstruct(self, batch: DataBatch) -> np.ndarray:
-        if batch.mesh is None:
-            warnings.warn(
-                "BackProjection: no mesh available; returning zeros.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-            return np.zeros((256, 256), dtype=int)
-
         try:
-            nodes, elements = self._parse_mesh(batch.mesh)
-            electrode_nodes = self._electrode_positions(batch.mesh, nodes)
-
-            inj_pairs = _pattern_pairs(batch.injection_patterns)
-            meas_pairs = _pattern_pairs(getattr(batch, "measurement_patterns", None))
-
-            if inj_pairs.shape[0] == 0:
-                raise ValueError("No valid injection pairs found from Inj.")
-
-            if meas_pairs.shape[0] == 0:
-                warnings.warn(
-                    "BackProjection: no valid Mpat found; using adjacent voltage pairs.",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
-                meas_pairs = np.column_stack(
-                    [np.arange(31), np.arange(1, 32)]
-                ).astype(int)
-
-            n_inj = inj_pairs.shape[0]
-            n_meas = meas_pairs.shape[0]
-
-            y = self._prepare_difference(
-                batch.voltages,
-                batch.reference_voltages,
-                n_inj,
-                n_meas,
-            )
-
-            mask = np.isfinite(y)
-
-            if not mask.any():
-                warnings.warn(
-                    f"BackProjection: no finite voltage differences for "
-                    f"level={batch.level}, sample={batch.sample_id}; returning zeros.",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
-                return np.zeros((256, 256), dtype=int)
-
-            y = np.nan_to_num(y, nan=0.0, posinf=0.0, neginf=0.0)
-
-            J = self._build_sensitivity(
-                nodes,
-                elements,
-                electrode_nodes,
-                inj_pairs,
-                meas_pairs,
-            )
-
-            Jm = J[mask]
-            ym = y[mask]
-
-            sigma_elem = Jm.T @ ym
-
-            sigma_elem = np.nan_to_num(
-                sigma_elem,
-                nan=0.0,
-                posinf=0.0,
-                neginf=0.0,
-            )
-
-            if np.std(sigma_elem) > 1e-12:
-                sigma_elem = sigma_elem - np.median(sigma_elem)
-                sigma_elem = sigma_elem / (np.std(sigma_elem) + 1e-12)
-
-            sigma_map = self._interpolate_to_grid(
-                nodes,
-                elements,
-                sigma_elem,
-                size=256,
-            )
-
-            sigma_map = np.nan_to_num(
-                sigma_map,
-                nan=0.0,
-                posinf=0.0,
-                neginf=0.0,
-            )
-
-            print(
-                f"[DEBUG] {self.__class__.__name__} "
-                f"level={batch.level} sample={batch.sample_id} "
-                f"sigma min={sigma_map.min():.6f}, "
-                f"max={sigma_map.max():.6f}, "
-                f"std={sigma_map.std():.6f}"
-            )
-
-            labels = _segment_ktc(sigma_map)
-            self.validate_output(labels)
-
-            return labels
-
+            mesh = self._ensure_mesh()
         except Exception as exc:
             warnings.warn(
-                f"BackProjection failed after KTC alignment ({exc!r}); returning zeros.",
-                RuntimeWarning,
-                stacklevel=2,
+                f"BackProjection: mesh unavailable ({exc}); returning zeros.",
+                RuntimeWarning, stacklevel=2,
             )
-            return np.zeros((256, 256), dtype=int)
+            return np.zeros((256, 256), dtype=np.uint8)
 
-    def _parse_mesh(self, mesh_data) -> tuple[np.ndarray, np.ndarray]:
-        node_key = next((key for key in self._NODE_KEYS if _has_key(mesh_data, key)), None)
-        elem_key = next((key for key in self._ELEMENT_KEYS if _has_key(mesh_data, key)), None)
-
-        if node_key is None or elem_key is None:
-            raise ValueError("Mesh missing node or element arrays.")
-
-        nodes = np.asarray(_get_key(mesh_data, node_key), dtype=np.float64)
-        elements = np.asarray(_get_key(mesh_data, elem_key), dtype=np.int32)
-
-        if nodes.ndim == 2 and nodes.shape[1] > 2:
-            nodes = nodes[:, :2]
-
-        if elements.min() >= 1:
-            elements = elements - 1
-
-        return nodes, elements
-
-    @staticmethod
-    def _prepare_difference(
-        voltages: np.ndarray,
-        reference_voltages: Optional[np.ndarray],
-        n_inj: int,
-        n_meas: int,
-    ) -> np.ndarray:
-        v1 = _reshape_ktc_vector(voltages, n_inj, n_meas).reshape(-1)
-
-        if reference_voltages is None:
-            raise ValueError(
-                "BackProjection requires reference_voltages for proper difference voltage calculation. "
-                "Ensure KTCDataPlugin.load_sample() populates batch.reference_voltages. "
-                "Mean subtraction is mathematically incorrect for EIT reconstruction."
-            )
-
-        v0 = _reshape_ktc_vector(reference_voltages, n_inj, n_meas).reshape(-1)
-
-        y = (v1 - v0) / (np.abs(v0) + 1e-6)
-
-        finite = np.isfinite(y)
-
-        if finite.any():
-            y_finite = y[finite]
-            y[finite] = y_finite - np.median(y_finite)
-            y[finite] = y[finite] / (np.std(y[finite]) + 1e-12)
-
-        return y.astype(np.float64)
-
-    @staticmethod
-    def _build_sensitivity(
-        nodes: np.ndarray,
-        elements: np.ndarray,
-        electrode_nodes: np.ndarray,
-        inj_pairs: np.ndarray,
-        meas_pairs: np.ndarray,
-    ) -> np.ndarray:
-        centroids = np.mean(nodes[elements], axis=1)
-        electrode_xy = nodes[electrode_nodes]
-
-        drive = np.stack(
-            [
-                BackProjection._point_gradient(centroids, electrode_xy, a, b)
-                for a, b in inj_pairs
-            ]
+        # Measurement pattern: carried on the batch when the loader could
+        # find ref.mat; otherwise fall back to the canonical KTC pattern.
+        mpat = (
+            np.asarray(batch.measurement_patterns, dtype=np.float64)
+            if getattr(batch, "measurement_patterns", None) is not None
+            else _default_mpat()
         )
 
-        meas = np.stack(
-            [
-                BackProjection._point_gradient(centroids, electrode_xy, a, b)
-                for a, b in meas_pairs
-            ]
+        # Reference voltage: measured Uelref from ref.mat.  If the loader
+        # never populated it, fall back to subtracting the mean -- this
+        # removes the DC offset but is strictly worse than a real Uelref.
+        v_ref = batch.reference_voltages
+        if v_ref is None:
+            v_ref = np.full(N_MEAS_TOTAL, float(np.asarray(batch.voltages).mean()))
+        v_ref = np.asarray(v_ref, dtype=np.float64).ravel()
+
+        J, vincl = self._get_jacobian(
+            batch.level, batch.injection_patterns, mpat, v_ref
         )
 
-        sensitivity = -np.einsum("ime,jme->ijm", drive, meas)
+        v1 = np.asarray(batch.voltages, dtype=np.float64).ravel()
+        # dv on the full 2356 grid, then restricted to the valid measurements
+        # for this level (matches J's row count by construction).
+        dv_full = v1 - v_ref
+        dv = dv_full[vincl]
 
-        J = sensitivity.reshape(
-            inj_pairs.shape[0] * meas_pairs.shape[0],
-            centroids.shape[0],
-        )
+        # Pure back-projection: deltareco_node = J^T @ dv.
+        deltareco = J.T @ dv
 
-        J = J / (np.linalg.norm(J, axis=0, keepdims=True) + 1e-12)
-
-        return J.astype(np.float64)
-
-    @staticmethod
-    def _point_gradient(
-        points: np.ndarray,
-        electrodes_xy: np.ndarray,
-        a: int,
-        b: int,
-    ) -> np.ndarray:
-        pa = electrodes_xy[int(a)]
-        pb = electrodes_xy[int(b)]
-
-        ra = points - pa
-        rb = points - pb
-
-        eps = 1e-3
-
-        return (
-            ra / (np.sum(ra * ra, axis=1)[:, None] + eps)
-            - rb / (np.sum(rb * rb, axis=1)[:, None] + eps)
-        )
-
-    @staticmethod
-    def _electrode_positions(mesh_data, nodes: np.ndarray) -> np.ndarray:
-        """Find 32 electrode node indices from mesh.
-
-        Strategy (in order of preference):
-        0. Use el_pos if available (pyEIT mesh objects)
-        1. Try to parse 'elfaces' from mesh_data
-        2. Use hardcoded values if available for this mesh type
-        3. Auto-detect from boundary geometry
-        """
-        n_nodes = nodes.shape[0]
-
-        # Strategy 0: pyEIT mesh has el_pos directly
-        el_pos = _get_key(mesh_data, "el_pos")
-        if el_pos is not None:
-            el_pos = np.asarray(el_pos, dtype=np.int32).ravel()
-            if el_pos.shape[0] == 32:
-                return el_pos
-
-        # Strategy 1: Try elfaces from mesh data
-        for key in ["elfaces", "ElFaces", "el_faces", "elFaces"]:
-            elfaces = _get_key(mesh_data, key)
-
-            if elfaces is None:
-                continue
-
-            try:
-                electrode_node_list = []
-
-                for i in range(len(elfaces)):
-                    edge = np.asarray(elfaces[i], dtype=np.int32)
-                    edge_nodes = edge.ravel() - 1
-                    edge_nodes = edge_nodes[
-                        (edge_nodes >= 0) & (edge_nodes < n_nodes)
-                    ]
-
-                    if edge_nodes.size == 0:
-                        continue
-
-                    centre = nodes[np.unique(edge_nodes)].mean(axis=0)
-                    nearest = int(np.argmin(np.linalg.norm(nodes - centre, axis=1)))
-                    electrode_node_list.append(nearest)
-
-                electrode_nodes = np.asarray(electrode_node_list, dtype=np.int32)
-
-                if electrode_nodes.shape[0] == 32:
-                    return electrode_nodes
-
-            except Exception as exc:
-                warnings.warn(
-                    f"BackProjection: elfaces parse failed ({exc!r}); "
-                    "trying fallback strategies.",
-                    RuntimeWarning,
-                    stacklevel=3,
-                )
-                break
-
-        # Strategy 2: Use hardcoded values if available
-        if _KTC_ELECTRODE_NODES_FALLBACK is not None:
-            if _KTC_ELECTRODE_NODES_FALLBACK.shape[0] == 32:
-                return _KTC_ELECTRODE_NODES_FALLBACK
-
-        # Strategy 3: Auto-detect from boundary geometry
-        return BackProjection._electrode_positions_fallback(nodes)
-
-    @staticmethod
-    def _electrode_positions_fallback(nodes: np.ndarray) -> np.ndarray:
-        """Find 32 electrode positions on boundary circle.
-
-        Since mesh 'elfaces' may not be available, this method:
-        1. Finds all boundary nodes (distance from origin ~1.0)
-        2. Sorts them by angle around the circle
-        3. Returns the 32 most evenly distributed nodes
-
-        This is a robust fallback that doesn't require pre-parsed electrode data.
-        """
-        n_nodes = nodes.shape[0]
-
-        if n_nodes < 32:
-            raise ValueError(
-                f"Mesh has {n_nodes} nodes but needs >=32 for 32-electrode system. "
-                "Check mesh file structure."
-            )
-
-        distances = np.linalg.norm(nodes, axis=1)
-
-        # Find boundary nodes (on the unit circle)
-        # Try progressively looser criteria to find 32 boundary nodes
-        for r_min, r_max in [(0.95, 1.05), (0.90, 1.10), (0.80, 1.20)]:
-            boundary_mask = (distances >= r_min) & (distances <= r_max)
-            boundary_indices = np.where(boundary_mask)[0]
-
-            if len(boundary_indices) >= 32:
-                break
-        else:
-            raise ValueError(
-                f"Could not find 32 boundary nodes in mesh. "
-                f"Boundary nodes (0.80-1.20): {len(boundary_indices)}. "
-                "Mesh may be malformed or use non-standard coordinates."
-            )
-
-        angles = np.arctan2(nodes[boundary_indices, 1], nodes[boundary_indices, 0])
-        angle_indices = np.argsort(angles)
-        sorted_boundary = boundary_indices[angle_indices]
-
-        electrode_nodes = sorted_boundary[:32]
-
-        warnings.warn(
-            "BackProjection: using boundary-based electrode detection (elfaces unavailable). "
-            "Results may differ from reference if electrode mapping is incorrect.",
-            RuntimeWarning,
-            stacklevel=3,
-        )
-
-        return np.array(electrode_nodes, dtype=np.int32)
-
-    @staticmethod
-    def _interpolate_to_grid(
-        nodes: np.ndarray,
-        elements: np.ndarray,
-        values: np.ndarray,
-        size: int = 256,
-    ) -> np.ndarray:
-        values = np.asarray(values, dtype=np.float64).ravel()
-        centroids = np.mean(nodes[elements], axis=1)
-
-        if values.shape[0] == nodes.shape[0]:
-            values = np.mean(values[elements], axis=1)
-        elif values.shape[0] != elements.shape[0]:
-            warnings.warn(
-                f"_interpolate_to_grid: value length {values.shape[0]} does not "
-                f"match nodes {nodes.shape[0]} or elements {elements.shape[0]}. "
-                "Returning zero grid.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-            return np.zeros((size, size), dtype=np.float64)
-
-        radius = (nodes[:, 0].max() - nodes[:, 0].min()) / 2.0
-        pixwidth = 2.0 * radius / size
-        pix = np.linspace(-radius + pixwidth / 2.0, radius - pixwidth / 2.0, size)
-
-        gx, gy = np.meshgrid(pix, pix)
-
-        grid = griddata(
-            centroids,
-            values,
-            (gx, gy),
-            method="linear",
-            fill_value=0.0,
-        )
-
-        return np.flipud(grid).astype(np.float64)
+        grid = rasterize(deltareco, mesh)
+        labels = adaptive_segment(grid)
+        self.validate_output(labels)
+        return labels
