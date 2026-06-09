@@ -1,38 +1,41 @@
-# ── Dataset folders (download from Zenodo, not tracked in git) ──────────────
+# Dataset (download from Zenodo)
 EvaluationData/
-# Codes_Matlab/ — RESTORED: see MATLAB_REFERENCE.md (needed for validation ground truth)
 
-# ── Generated outputs ────────────────────────────────────────────────────────
+# MATLAB generated files
+Codes_Matlab/Output/
+*.asv
+
+# Generated outputs
 outputs/
+scores.json
+reports/
 
-# ── Python bytecode ──────────────────────────────────────────────────────────
+# Python bytecode
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
-.Python
 
-# ── Virtual environments ──────────────────────────────────────────────────────
+# Virtual environments
 .venv/
 venv/
 env/
-ENV/
 
-# ── IDE / editor ──────────────────────────────────────────────────────────────
+# IDE / editor
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# ── Claude Code internal files ────────────────────────────────────────────────
-.claude/
-
-# ── OS noise ──────────────────────────────────────────────────────────────────
+# OS noise
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# ── Test / coverage artifacts ─────────────────────────────────────────────────
+# Test / coverage
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Claude Code
+.claude/
