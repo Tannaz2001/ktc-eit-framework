@@ -347,7 +347,7 @@ def load_data(_cache_key: str = "") -> Tuple[Dict, Dict, Dict]:
 
     scores = {}
     # Try run folder first, then root fallback
-    for candidate in [run_dir / "scores.json", Path("scores.json"),
+    for candidate in [run_dir / "dashboard_scores.json", run_dir / "scores.json", Path("scores.json"),
                       Path("outputs/scores.json")]:
         if candidate.exists():
             with open(candidate, 'r') as f:
@@ -361,6 +361,39 @@ def load_data(_cache_key: str = "") -> Tuple[Dict, Dict, Dict]:
             with open(candidate, 'r') as f:
                 per_run = json.load(f)
             break
+
+    if isinstance(scores, list):
+        flat_runs = scores
+        buckets = {}
+        for run in flat_runs:
+            buckets.setdefault(run["method"], []).append(run)
+
+        scores = {}
+        for method, rows in buckets.items():
+            metric_names = sorted({
+                metric
+                for row in rows
+                for metric in row.get("metrics", {}).keys()
+            })
+            scores[method] = {
+                metric: float(np.mean([row.get("metrics", {}).get(metric, 0.0) for row in rows]))
+                for metric in metric_names
+            }
+
+        if not per_run:
+            per_run = {}
+            for method, rows in buckets.items():
+                per_run[method] = {}
+                for row in rows:
+                    key = f"L{row['level']}_{row['sample']}"
+                    per_run[method][key] = {
+                        **row.get("metrics", {}),
+                        "composite_score": row.get("composite_score", 0.0),
+                        "grade": row.get("grade", "D"),
+                        "runtime_ms": row.get("runtime_ms", 0.0),
+                        "level": row["level"],
+                        "sample": row["sample"],
+                    }
 
     return scores, per_run, create_method_mapping(scores, per_run)
 
@@ -681,6 +714,8 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
             'Dice (C)':  metrics.get('Dice (conductive)', metrics.get('dice_conductive',0)),
             'IoU (R)':   metrics.get('IoU (resistive)',   metrics.get('iou_resistive',0)),
             'IoU (C)':   metrics.get('IoU (conductive)',  metrics.get('iou_conductive',0)),
+            'HD95 (R)':  metrics.get('hd95_resistive',  0),
+            'HD95 (C)':  metrics.get('hd95_conductive', 0),
         })
     leaderboard_data.sort(key=lambda x: x['Composite Score'], reverse=True)
     df = pd.DataFrame(leaderboard_data)
@@ -938,8 +973,8 @@ def view_comparison(scores:Dict, per_run:Dict, mm:Dict, sel_metrics:list=None, l
     if p1: st.info(f"{m1} is a custom method — connect its backend to see metrics.")
     if p2: st.info(f"{m2} is a custom method — connect its backend to see metrics.")
 
-    met1 = per_run.get(m1i,{}).get(sid,{}) if not p1 else {}
-    met2 = per_run.get(m2i,{}).get(sid,{}) if not p2 else {}
+    met1 = per_run.get(m1i or m1, {}).get(sid, {}) if not p1 else {}
+    met2 = per_run.get(m2i or m2, {}).get(sid, {}) if not p2 else {}
 
     # Metric comparison table — only show selected metrics
     st.markdown('<div class="slbl">METRIC COMPARISON</div>', unsafe_allow_html=True)
