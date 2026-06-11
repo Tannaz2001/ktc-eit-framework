@@ -169,6 +169,29 @@ def load_config(config_path: str) -> dict[str, Any]:
                 f"got {m!r} in methods list {methods!r}"
             )
 
+    # Optional runtime method plugin folders. Files in these folders are
+    # imported before methods are looked up in the registry.
+    method_plugin_paths = config.get("method_plugin_paths", [])
+    if method_plugin_paths is None:
+        method_plugin_paths = []
+    if not isinstance(method_plugin_paths, list):
+        raise ConfigError(
+            f"Config error: 'method_plugin_paths' must be a list, "
+            f"got {method_plugin_paths!r}"
+        )
+    for path in method_plugin_paths:
+        if not isinstance(path, str) or not path.strip():
+            raise ConfigError(
+                f"Config error: each method plugin path must be a non-empty string, "
+                f"got {path!r}"
+            )
+        if not os.path.isdir(path):
+            raise ConfigError(
+                f"Config error: method plugin path does not exist or is not a "
+                f"directory: {path!r}"
+            )
+    config["method_plugin_paths"] = method_plugin_paths
+
     # ── 7. Resolve mesh_path (auto-detect if not specified or missing) ─────
     mesh_path = config.get("mesh_path", "")
     if not mesh_path or not os.path.exists(mesh_path):
