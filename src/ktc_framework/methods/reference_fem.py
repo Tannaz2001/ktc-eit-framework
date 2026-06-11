@@ -165,6 +165,22 @@ def _prior_for_mesh(mesh_key: tuple[int, int, int, float, float]):
 
 _REFERENCE_CACHE: dict[tuple[int, int, int, float, float], tuple[object, object, tuple, tuple]] = {}
 
+# Caches the expensive, per-sample-invariant operators: the converted Mesh,
+# the Jacobian, and the full noise-precision matrix InvGamma_n.  These depend
+# only on (mesh, injection pattern, measurement pattern, level, reference
+# voltages, noise params) -- all constant across the A/B/C samples of a level.
+# Without this, every sample paid a ~10 s SolveForward + Jacobian rebuild.
+# Mirrors the _OPERATOR_CACHE approach already used in gauss_newton.py.
+_OPERATOR_CACHE: dict[tuple, tuple[object, object, object, object]] = {}
+
+
+def _ref_key(reference: np.ndarray) -> str:
+    """Stable hash of the reference voltages for cache keying."""
+    import hashlib
+
+    arr = np.ascontiguousarray(np.asarray(reference, dtype=np.float64))
+    return hashlib.md5(arr.tobytes()).hexdigest()
+
 
 @register
 class LinearDifferenceReconstruction(MethodPlugin):
@@ -224,9 +240,6 @@ class LinearDifferenceReconstruction(MethodPlugin):
                     "LinearDifferenceReconstruction requires both Mesh and Mesh2 structs."
                 )
 
-            mesh = _convert_mesh(mesh_struct)
-            mesh2 = _convert_mesh(mesh2_struct)
-
             inj = np.asarray(batch.injection_patterns, dtype=float)
             mpat = np.asarray(batch.measurement_patterns, dtype=float)
             ref = np.asarray(reference, dtype=float).reshape(-1, 1)
@@ -245,23 +258,49 @@ class LinearDifferenceReconstruction(MethodPlugin):
                 )
                 return np.zeros((256, 256), dtype=np.uint8)
 
-            cache_key = (
+            # ── operator cache: mesh conversion + prior + forward solve + Jacobian ──
+            # All of these are identical for every sample at the same level, so
+            # build them once and reuse.  The per-sample voltages only enter via
+            # delta_u below (cheap matrix-vector ops).  This is what makes the
+            # A/B/C samples of a level near-instant after the first one.
+            op_key = (
                 id(batch.mesh),
                 inj.shape[1],
                 mpat.shape[1],
+                int(batch.level),
                 self.corrlength,
                 self.var_sigma,
+                self.noise_std1,
+                self.noise_std2,
+                _ref_key(ref),
             )
-            _REFERENCE_CACHE.setdefault(cache_key, (mesh, mesh2, inj.shape, mpat.shape))
-            sigma0, prior = _prior_for_mesh(cache_key)
+            cached_ops = _OPERATOR_CACHE.get(op_key)
+            if cached_ops is None:
+                mesh = _convert_mesh(mesh_struct)
+                mesh2 = _convert_mesh(mesh2_struct)
 
-            solver = KTCFwd.EITFEM(mesh2, inj, mpat, vincl)
-            solver.SetInvGamma(self.noise_std1, self.noise_std2, ref)
-            solver.SolveForward(sigma0.copy(), 1e-6 * np.ones((32, 1)))
-            jacobian = solver.Jacobian(sigma0.copy(), 1e-6 * np.ones((32, 1)))
+                prior_key = (
+                    id(batch.mesh),
+                    inj.shape[1],
+                    mpat.shape[1],
+                    self.corrlength,
+                    self.var_sigma,
+                )
+                _REFERENCE_CACHE.setdefault(prior_key, (mesh, mesh2, inj.shape, mpat.shape))
+                sigma0, prior = _prior_for_mesh(prior_key)
+
+                solver = KTCFwd.EITFEM(mesh2, inj, mpat, vincl)
+                solver.SetInvGamma(self.noise_std1, self.noise_std2, ref)
+                solver.SolveForward(sigma0.copy(), 1e-6 * np.ones((32, 1)))
+                jacobian = solver.Jacobian(sigma0.copy(), 1e-6 * np.ones((32, 1)))
+                inv_gamma_full = solver.InvGamma_n
+
+                _OPERATOR_CACHE[op_key] = (mesh, jacobian, inv_gamma_full, prior)
+            else:
+                mesh, jacobian, inv_gamma_full, prior = cached_ops
 
             delta_u = voltages - ref
-            gamma = solver.InvGamma_n[np.ix_(flat_mask, flat_mask)]
+            gamma = inv_gamma_full[np.ix_(flat_mask, flat_mask)]
             lhs = jacobian.T @ gamma @ jacobian + prior.L.T @ prior.L
             rhs = jacobian.T @ gamma @ delta_u[flat_mask]
             delta_reco = np.linalg.solve(lhs, rhs)
