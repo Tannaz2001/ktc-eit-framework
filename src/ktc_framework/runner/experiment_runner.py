@@ -19,7 +19,12 @@ from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeEl
 from rich.table import Table  # type: ignore[import]
 
 from src.ktc_framework.types import DataBatch
-from src.ktc_framework.registry import get_method as registry_get, PluginRegistry
+from src.ktc_framework.adapters.method_adapter import MethodAdapter
+from src.ktc_framework.registry import (
+    get_method as registry_get,
+    load_external_methods,
+    PluginRegistry,
+)
 from src.ktc_framework.metrics.metric_registry import register_metric, run_all_metrics
 from src.ktc_framework.metrics.ktc_score import compute_ktc_score, dice, iou, hd95
 from src.ktc_framework.metrics.composite_score import composite_score, letter_grade
@@ -67,6 +72,10 @@ class BatchRunner:
         self.config = config
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        method_plugin_paths = self.config.get("method_plugin_paths", [])
+        if method_plugin_paths:
+            load_external_methods(method_plugin_paths)
 
         # Load shared resources once — passed to every DataBatch at run time
         self.mesh = self._load_mesh(config.get("mesh_path", ""))
@@ -298,7 +307,7 @@ class BatchRunner:
 
         # ── load method ───────────────────────────────────────────────────
         try:
-            method_plugin = registry_get(method)()
+            method_plugin = MethodAdapter(registry_get(method)())
         except KeyError:
             console.print(f"[red]Method '{method}' not registered — skipping.[/red]")
             return None
