@@ -39,6 +39,8 @@ HOW TO ADD A NEW DATA PLUGIN
 
 from __future__ import annotations
 
+import importlib.util
+from pathlib import Path
 from typing import Type
 
 
@@ -72,6 +74,35 @@ def get_method(name: str) -> Type:
 def list_methods() -> list[str]:
     """Return names of all registered reconstruction methods."""
     return sorted(_METHODS)
+
+
+def load_external_methods(plugin_paths: list[str]) -> None:
+    """Import external method plugins from runtime-configured folders.
+
+    Each imported file is expected to register one or more reconstruction
+    methods using ``@register_method``. Importing the file is enough for the
+    decorator to run.
+    """
+    for plugin_path in plugin_paths:
+        path = Path(plugin_path).expanduser()
+
+        if not path.exists():
+            raise FileNotFoundError(f"Method plugin path does not exist: {path}")
+        if not path.is_dir():
+            raise NotADirectoryError(f"Method plugin path is not a directory: {path}")
+
+        for file_path in sorted(path.glob("*.py")):
+            if file_path.name.startswith("_"):
+                continue
+
+            module_name = f"ktc_external_method_{file_path.stem}"
+            spec = importlib.util.spec_from_file_location(module_name, file_path)
+
+            if spec is None or spec.loader is None:
+                raise ImportError(f"Could not load method plugin: {file_path}")
+
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
 
 
 # ---------------------------------------------------------------------------
