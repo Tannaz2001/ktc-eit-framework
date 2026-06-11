@@ -422,17 +422,9 @@ def load_comparison_panel(sample_id:str, outputs_dir:str="") -> Image.Image:
 # =========================================================
 # SCORING  (original — untouched)
 # =========================================================
-def calculate_composite_score(metrics:Dict[str,float], weights:Dict[str,float]) -> float:
-    ktc    = metrics.get('KTC score',        metrics.get('ktc_score',0))
-    dice_r = metrics.get('Dice (resistive)', metrics.get('dice_resistive',0))
-    dice_c = metrics.get('Dice (conductive)',metrics.get('dice_conductive',0))
-    iou_r  = metrics.get('IoU (resistive)',  metrics.get('iou_resistive',0))
-    iou_c  = metrics.get('IoU (conductive)', metrics.get('iou_conductive',0))
-    hd95_r = metrics.get('hd95_resistive',0); hd95_c = metrics.get('hd95_conductive',0)
-    h_r = max(0,1-(hd95_r/100)); h_c = max(0,1-(hd95_c/100))
-    t1=(1-ktc)*100; t2=((dice_r+dice_c)/2)*100; t3=((iou_r+iou_c)/2)*100
-    t4=((h_r+h_c)/2)*100; t5=t1
-    return (weights['tier1']*t1+weights['tier2']*t2+weights['tier3']*t3+weights['tier4']*t4+weights['tier5']*t5)/sum(weights.values())
+def calculate_composite_score(metrics:Dict[str,float], weights:Dict[str,float]=None) -> float:
+    ktc = metrics.get('KTC score', metrics.get('ktc_score', 0))
+    return round(ktc * 100, 2)
 
 def letter_grade(score:float) -> str:
     return 'A' if score>=85 else 'B' if score>=70 else 'C' if score>=55 else 'D'
@@ -501,7 +493,7 @@ def render_sidebar():
     st.sidebar.markdown("---")
 
     # ── Reset All Filters ─────────────────────────────────────
-    ALL_METRICS_SIDEBAR = ['KTC Score','Dice (R)','Dice (C)','IoU (R)','IoU (C)','HD95 (R)','HD95 (C)']
+    ALL_METRICS_SIDEBAR = ['KTC Score']
     if st.sidebar.button("Reset All Filters", key="reset_all_btn", use_container_width=True):
         st.session_state.selected_metrics  = ALL_METRICS_SIDEBAR.copy()
         st.session_state.selected_methods  = st.session_state.get('_available_methods', []).copy()
@@ -520,7 +512,7 @@ def render_sidebar():
 
     # ── Metric Selector ──────────────────────────────────────
     st.sidebar.markdown("## Metrics")
-    ALL_METRICS_SIDEBAR = ['KTC Score','Dice (R)','Dice (C)','IoU (R)','IoU (C)','HD95 (R)','HD95 (C)']
+    ALL_METRICS_SIDEBAR = ['KTC Score']
     if 'selected_metrics' not in st.session_state:
         st.session_state.selected_metrics = ALL_METRICS_SIDEBAR.copy()
     for m in ALL_METRICS_SIDEBAR:
@@ -678,12 +670,12 @@ def render_sidebar():
 # =========================================================
 def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=None, level_range:tuple=(1,7)):
     if sel_metrics is None:
-        sel_metrics = ['KTC Score','Dice (R)','Dice (C)','IoU (R)','IoU (C)','HD95 (R)','HD95 (C)']
+        sel_metrics = ['KTC Score']
     if mm is None:
         mm = {}
     lvl_min, lvl_max = level_range
     st.markdown('<div class="slbl">01 · LEADERBOARD — BAR + TABLE · SIMPLE COMPARISON + DETAILS</div>', unsafe_allow_html=True)
-    weights = {'tier1':0.40,'tier2':0.00,'tier3':0.20,'tier4':0.10,'tier5':0.05}
+    weights = None  # composite score is KTC-only
 
     # Filter per_run to only samples within the level range
     # Sample IDs that are numeric map directly to levels; filter accordingly
@@ -710,12 +702,6 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
             'Method':method_name,'Composite Score':comp,'Grade':grade,
             'Color':st.session_state.method_colors[method_name],
             'KTC Score': metrics.get('KTC score', metrics.get('ktc_score',0)),
-            'Dice (R)':  metrics.get('Dice (resistive)',  metrics.get('dice_resistive',0)),
-            'Dice (C)':  metrics.get('Dice (conductive)', metrics.get('dice_conductive',0)),
-            'IoU (R)':   metrics.get('IoU (resistive)',   metrics.get('iou_resistive',0)),
-            'IoU (C)':   metrics.get('IoU (conductive)',  metrics.get('iou_conductive',0)),
-            'HD95 (R)':  metrics.get('hd95_resistive',  0),
-            'HD95 (C)':  metrics.get('hd95_conductive', 0),
         })
     leaderboard_data.sort(key=lambda x: x['Composite Score'], reverse=True)
     df = pd.DataFrame(leaderboard_data)
@@ -753,7 +739,7 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
             text=f"{row['Composite Score']:.1f} ({row['Grade']})", textposition='outside',
             textfont=dict(family="JetBrains Mono",size=9,color="#1f2328"),
             hovertemplate=(f"<b>{row['Method']}</b><br>Score: {row['Composite Score']:.1f} ({row['Grade']})<br>"
-                           f"KTC: {row['KTC Score']:.4f}<br>Dice R/C: {row['Dice (R)']:.4f}/{row['Dice (C)']:.4f}<br><extra></extra>")
+                           f"KTC: {row['KTC Score']:.4f}<br><extra></extra>")
         ))
     fig.update_layout(
         xaxis_title="Method", yaxis_title="Score (0–100)", yaxis_range=[0,115],
@@ -772,19 +758,12 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
     # Build full display_df first
     display_df = df.drop(columns=['Color']).copy()
     display_df['Composite Score'] = display_df['Composite Score'].round(2)
-    for c in ['KTC Score','Dice (R)','Dice (C)','IoU (R)','IoU (C)']:
-        if c in display_df.columns:
-            display_df[c] = display_df[c].round(4)
+    if 'KTC Score' in display_df.columns:
+        display_df['KTC Score'] = display_df['KTC Score'].round(4)
 
     # Map sidebar metric names to table column names
     METRIC_COL_MAP = {
         'KTC Score':  'KTC Score',
-        'Dice (R)':   'Dice (R)',
-        'Dice (C)':   'Dice (C)',
-        'IoU (R)':    'IoU (R)',
-        'IoU (C)':    'IoU (C)',
-        'HD95 (R)':   None,   # not in leaderboard data (scores.json doesn't have HD95)
-        'HD95 (C)':   None,
     }
     # Always keep Method, Composite Score, Grade; filter the rest
     always_cols = ['Method','Composite Score','Grade']
@@ -934,12 +913,6 @@ def view_comparison(scores:Dict, per_run:Dict, mm:Dict, sel_metrics:list=None, l
     # Map sidebar metric display names to internal per_run keys
     METRIC_DISPLAY_MAP = {
         'KTC Score':  'ktc_score',
-        'Dice (R)':   'dice_resistive',
-        'Dice (C)':   'dice_conductive',
-        'IoU (R)':    'iou_resistive',
-        'IoU (C)':    'iou_conductive',
-        'HD95 (R)':   'hd95_resistive',
-        'HD95 (C)':   'hd95_conductive',
     }
     # Which internal keys to show — driven by sel_metrics
     if sel_metrics:
@@ -991,29 +964,6 @@ def view_comparison(scores:Dict, per_run:Dict, mm:Dict, sel_metrics:list=None, l
             comp_df[col] = comp_df[col].apply(lambda x: f"{x:.4f}")
     st.dataframe(comp_df, use_container_width=True, hide_index=True)
 
-    # Radar — axes driven by sel_metrics
-    st.markdown('<div class="slbl">RADAR COMPARISON</div>', unsafe_allow_html=True)
-    radar_keys = [k for k in show_keys if k in met1] or list(met1.keys())[:5]
-    cats = [k.replace('_',' ').title() for k in radar_keys]
-    pc = st.session_state.get('_pcolors', {})
-    pb = pc.get('bg','#f6f8fa'); pg = pc.get('grid','#d0d7de')
-    pt = pc.get('text','#848d97'); pleg = pc.get('legend','rgba(255,255,255,.9)')
-    pp = pc.get('paper','rgba(0,0,0,0)')
-    fig = go.Figure()
-    for label, met, c in [(m1, met1, PALETTE[0]), (m2, met2, PALETTE[1])]:
-        v = [met.get(k,0) for k in radar_keys]; v.append(v[0])
-        fig.add_trace(go.Scatterpolar(r=v, theta=cats+[cats[0]], fill='toself', name=label,
-            line_color=c, fillcolor=hex_to_rgba(c, 0.13)))
-    fig.update_layout(
-        polar=dict(bgcolor=pb,
-            radialaxis=dict(visible=True,range=[0,1],gridcolor=pg,linecolor=pg,tickfont=dict(size=8,color=pt)),
-            angularaxis=dict(gridcolor=pg,linecolor=pg,tickfont=dict(size=9,color=pt))),
-        showlegend=True, height=460, paper_bgcolor=pp,
-        font=dict(family="JetBrains Mono,monospace",color=pt,size=9),
-        legend=dict(bgcolor=pleg,bordercolor=pg,borderwidth=1,font=dict(size=9)),
-        margin=dict(l=50,r=50,t=30,b=50))
-    st.plotly_chart(fig, use_container_width=True)
-
     # Visual comparison — images from backend
     st.markdown('<div class="slbl">VISUAL COMPARISON</div>', unsafe_allow_html=True)
     panel = load_comparison_panel(sid)
@@ -1062,7 +1012,6 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
     grade_counts = {'A':0,'B':0,'C':0,'D':0}
     root_causes  = []
     summary_rows = []
-    _weights     = {'tier1':0.40,'tier2':0.00,'tier3':0.20,'tier4':0.10,'tier5':0.05}
 
     for disp in scores.keys():
         ik = mm.get(disp)
@@ -1085,30 +1034,16 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
             'Worst Samples':       ', '.join(str(s) for s, _ in worst3),
         })
 
-        # per-sample KPI + root cause (filtered)
+        # per-sample KPI + failing-run list (filtered)
         for sid, m in samples_f.items():
             ktc = m.get('ktc_score', 0)
             all_ktc.append(ktc)
-            comp = calculate_composite_score(
-                {'ktc_score': ktc,
-                 'dice_resistive':  m.get('dice_resistive',  0),
-                 'dice_conductive': m.get('dice_conductive', 0),
-                 'iou_resistive':   m.get('iou_resistive',   0),
-                 'iou_conductive':  m.get('iou_conductive',  0)},
-                _weights)
+            comp = calculate_composite_score({'ktc_score': ktc})
             g = letter_grade(comp)
             grade_counts[g] += 1
             if g in ('C', 'D'):
-                metric_scores = {
-                    'HD95_R': m.get('hd95_resistive',  0),
-                    'Dice_C': 1 - m.get('dice_conductive', 1),
-                    'KTC':    ktc,
-                    'IoU_C':  1 - m.get('iou_conductive',  1),
-                }
-                cause = max(metric_scores, key=metric_scores.get)
                 root_causes.append({
                     'Method': disp, 'Sample': sid, 'Grade': g,
-                    'Root Cause': cause,
                     'KTC': round(ktc, 4), 'Composite': round(comp, 1),
                 })
 
@@ -1238,12 +1173,6 @@ def view_radar_chart(scores:Dict, per_run:Dict, sel_metrics:list=None):
     # Map sidebar display names → scores.json key names
     SIDEBAR_TO_SCORE_KEY = {
         'KTC Score':  ['KTC score','ktc_score'],
-        'Dice (R)':   ['Dice (resistive)','dice_resistive'],
-        'Dice (C)':   ['Dice (conductive)','dice_conductive'],
-        'IoU (R)':    ['IoU (resistive)','iou_resistive'],
-        'IoU (C)':    ['IoU (conductive)','iou_conductive'],
-        'HD95 (R)':   ['hd95_resistive'],
-        'HD95 (C)':   ['hd95_conductive'],
     }
     avail_score_keys = sorted({k for m in scores.values() for k in m.keys()})
 
@@ -1258,10 +1187,9 @@ def view_radar_chart(scores:Dict, per_run:Dict, sel_metrics:list=None):
         if not default_keys:
             default_keys = avail_score_keys[:min(7,len(avail_score_keys))]
     else:
-        RADAR_PREFERRED = ['KTC score','Dice (resistive)','Dice (conductive)',
-                           'IoU (resistive)','IoU (conductive)','hd95_resistive','hd95_conductive']
+        RADAR_PREFERRED = ['KTC score','ktc_score']
         default_keys = [m for m in RADAR_PREFERRED if m in avail_score_keys]
-        if len(default_keys) < 3:
+        if not default_keys:
             default_keys = avail_score_keys[:min(7,len(avail_score_keys))]
 
     chosen = st.multiselect("Choose metrics (7-axis):", avail_score_keys,
@@ -1332,13 +1260,11 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
             sample_metrics.update(s.keys())
     metric_opts = sorted(sample_metrics)
     if not metric_opts:
-        metric_opts = ['ktc_score','dice_resistive','dice_conductive','iou_resistive','iou_conductive']
+        metric_opts = ['ktc_score']
 
     # Map sidebar selected_metrics display names → internal keys for default selection
     DISPLAY_TO_INTERNAL = {
-        'KTC Score': 'ktc_score', 'Dice (R)': 'dice_resistive', 'Dice (C)': 'dice_conductive',
-        'IoU (R)': 'iou_resistive', 'IoU (C)': 'iou_conductive',
-        'HD95 (R)': 'hd95_resistive', 'HD95 (C)': 'hd95_conductive',
+        'KTC Score': 'ktc_score',
     }
     sel_metrics_sidebar = st.session_state.get('selected_metrics', [])
     default_hm_metric = 'ktc_score'
@@ -1453,8 +1379,6 @@ def _render_pdf_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str):
         body_style   = ParagraphStyle('b', parent=styles['Normal'],  fontSize=8,  spaceAfter=2, textColor=rl_colors.HexColor('#57606a'), fontName='Courier')
         label_style  = ParagraphStyle('l', parent=styles['Normal'],  fontSize=7,  spaceAfter=1, textColor=rl_colors.HexColor('#848d97'), fontName='Courier')
 
-        _weights = {'tier1':0.40,'tier2':0.00,'tier3':0.20,'tier4':0.10,'tier5':0.05}
-
         story = []
         story.append(Paragraph("EIT Reconstruction Dashboard — Export Report", title_style))
         story.append(Paragraph(f"Run: {run_name}   Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}", label_style))
@@ -1463,19 +1387,15 @@ def _render_pdf_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str):
 
         # ── Section 1: Leaderboard ────────────────────────────
         story.append(Paragraph("01 · LEADERBOARD", h2_style))
-        lb_data = [['Method','Composite','Grade','KTC Score','Dice (R)','Dice (C)','IoU (R)','IoU (C)']]
+        lb_data = [['Method','Composite','Grade','KTC Score']]
         for method_name, metrics in scores.items():
-            comp  = calculate_composite_score(metrics, _weights)
+            comp  = calculate_composite_score(metrics)
             grade = letter_grade(comp)
             lb_data.append([
                 method_name,
                 f"{comp:.2f}",
                 grade,
                 f"{metrics.get('KTC score', metrics.get('ktc_score',0)):.4f}",
-                f"{metrics.get('Dice (resistive)', metrics.get('dice_resistive',0)):.4f}",
-                f"{metrics.get('Dice (conductive)', metrics.get('dice_conductive',0)):.4f}",
-                f"{metrics.get('IoU (resistive)', metrics.get('iou_resistive',0)):.4f}",
-                f"{metrics.get('IoU (conductive)', metrics.get('iou_conductive',0)):.4f}",
             ])
         grade_colors_pdf = {'A': rl_colors.HexColor('#dafbe1'), 'B': rl_colors.HexColor('#ddf4ff'),
                             'C': rl_colors.HexColor('#fff8c5'), 'D': rl_colors.HexColor('#ffebe9')}
@@ -1506,13 +1426,9 @@ def _render_pdf_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str):
             if not ik or ik not in per_run: continue
             samples = per_run[ik]
             ktc_vals = [v['ktc_score'] for v in samples.values()]
-            dice_r   = [v.get('dice_resistive',0) for v in samples.values()]
-            dice_c   = [v.get('dice_conductive',0) for v in samples.values()]
             story.append(Paragraph(f"  {disp}", body_style))
             stat_data = [['Metric','Mean','Std Dev','Min','Max'],
                          ['KTC Score', f"{np.mean(ktc_vals):.4f}", f"{np.std(ktc_vals):.4f}", f"{np.min(ktc_vals):.4f}", f"{np.max(ktc_vals):.4f}"],
-                         ['Dice (R)',  f"{np.mean(dice_r):.4f}",   f"{np.std(dice_r):.4f}",   f"{np.min(dice_r):.4f}",   f"{np.max(dice_r):.4f}"],
-                         ['Dice (C)',  f"{np.mean(dice_c):.4f}",   f"{np.std(dice_c):.4f}",   f"{np.min(dice_c):.4f}",   f"{np.max(dice_c):.4f}"],
                          ]
             st_tbl = Table(stat_data, colWidths=[3.5*cm, 2.5*cm, 2.5*cm, 2.5*cm, 2.5*cm])
             st_tbl.setStyle(TableStyle([
@@ -1559,8 +1475,7 @@ def _render_pdf_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str):
         for disp, ik in mm.items():
             if not ik or ik not in per_run: continue
             story.append(Paragraph(f"  {disp}", body_style))
-            metric_keys = ['ktc_score','dice_resistive','dice_conductive',
-                           'iou_resistive','iou_conductive','hd95_resistive','hd95_conductive']
+            metric_keys = ['ktc_score']
             hdr = ['Sample'] + [k.replace('_',' ').title() for k in metric_keys]
             all_rows = [hdr]
             for sid, m in sorted(per_run[ik].items()):
@@ -1642,8 +1557,7 @@ def main():
         st.session_state['_available_methods'] = list(scores.keys())
 
         # Selected metrics + methods + level range from sidebar
-        sel_metrics = st.session_state.get('selected_metrics', [
-            'KTC Score','Dice (R)','Dice (C)','IoU (R)','IoU (C)','HD95 (R)','HD95 (C)'])
+        sel_metrics = st.session_state.get('selected_metrics', ['KTC Score'])
         sel_methods = st.session_state.get('selected_methods', list(scores.keys()))
         if not sel_methods:
             sel_methods = list(scores.keys())  # fallback: show all if none checked

@@ -2,7 +2,7 @@
 prepare_dashboard.py  —  Bridge between BatchRunner and Streamlit dashboard.
 
 BatchRunner (run.py) saves outputs/scores.json as a flat list:
-  [ {method, level, sample, metrics: {ktc_score, dice_resistive, ...}}, ... ]
+  [ {method, level, sample, metrics: {ktc_score}}, ... ]
 
 The Streamlit dashboard (app.py) reads from a timestamped run folder pointed
 to by outputs/latest.txt.
@@ -83,9 +83,7 @@ def main() -> None:
         json.dump(scores, f, indent=2)
     print(f"[OK] Averaged scores → {scores_out}")
     for method, m in scores.items():
-        print(f"     {method}: KTC={m.get('ktc_score', 0):.4f}  "
-              f"Dice_R={m.get('dice_resistive', 0):.4f}  "
-              f"Dice_C={m.get('dice_conductive', 0):.4f}")
+        print(f"     {method}: KTC={m.get('ktc_score', 0):.4f}")
 
     # ── Build per-run metrics (for degradation curve & comparison) ────
     per_run: dict[str, dict] = defaultdict(dict)

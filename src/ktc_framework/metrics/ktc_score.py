@@ -1,9 +1,9 @@
-"""Scoring module — pure-Python port of KTCssim.m / scoringFunction.m + HD95."""
+"""Scoring module — pure-Python port of KTCssim.m / scoringFunction.m."""
 
 from __future__ import annotations
 
 import numpy as np
-from scipy.ndimage import gaussian_filter, distance_transform_edt
+from scipy.ndimage import gaussian_filter
 
 
 def _ktcssim(truth: np.ndarray, reco: np.ndarray, r: float = 80.0) -> float:
@@ -69,64 +69,8 @@ def compute_ktc_score(pred: np.ndarray, gt: np.ndarray) -> float:
     return round(0.5 * (norm_res + norm_cond), 6)
 
 
-def dice(pred: np.ndarray, gt: np.ndarray, label: int) -> float:
-    """Dice score for a single class label."""
-    pred_mask = (pred == label)
-    gt_mask = (gt == label)
-    tp = int(np.logical_and(pred_mask, gt_mask).sum())
-    fp = int(np.logical_and(pred_mask, ~gt_mask).sum())
-    fn = int(np.logical_and(~pred_mask, gt_mask).sum())
-    denom = 2 * tp + fp + fn
-    return (2 * tp / denom) if denom > 0 else 0.0
-
-
-def iou(pred: np.ndarray, gt: np.ndarray, label: int) -> float:
-    """IoU score for a single class label."""
-    pred_mask = (pred == label)
-    gt_mask = (gt == label)
-    tp = int(np.logical_and(pred_mask, gt_mask).sum())
-    fp = int(np.logical_and(pred_mask, ~gt_mask).sum())
-    fn = int(np.logical_and(~pred_mask, gt_mask).sum())
-    denom = tp + fp + fn
-    return (tp / denom) if denom > 0 else 0.0
-
-
-def hd95(pred: np.ndarray, gt: np.ndarray, label: int) -> float:
-    """95th-percentile Hausdorff Distance for a single class label (pixels).
-
-    Uses distance transforms for efficiency — O(N) vs O(N²) for brute force.
-    Returns 0.0 if either mask is empty (no surface to measure).
-
-    Lower is better. A score of 0.0 means perfect boundary overlap.
-    """
-    pred_mask = (pred == label)
-    gt_mask = (gt == label)
-
-    # If either mask is empty there is no surface — return 0 to avoid inf
-    if not pred_mask.any() or not gt_mask.any():
-        return 0.0
-
-    # Distance from every gt pixel to nearest pred boundary pixel, and vice versa
-    dist_pred_to_gt = distance_transform_edt(~pred_mask)   # dist of each px to pred surface
-    dist_gt_to_pred = distance_transform_edt(~gt_mask)     # dist of each px to gt surface
-
-    # Hausdorff: directed distances at surface pixels only
-    hd_pred = dist_gt_to_pred[pred_mask]   # how far pred boundary is from gt
-    hd_gt = dist_pred_to_gt[gt_mask]       # how far gt boundary is from pred
-
-    all_distances = np.concatenate([hd_pred, hd_gt])
-    return float(np.percentile(all_distances, 95))
-
-
 def compute_all_metrics(pred: np.ndarray, gt: np.ndarray) -> dict[str, float]:
-    """
-    Compute all metrics for one sample.
-    Dice and IoU are computed separately for resistive (1) and conductive (2).
-    """
+    """Compute all metrics for one sample. KTC score is the only metric."""
     return {
         "ktc_score": compute_ktc_score(pred, gt),
-        "dice_resistive": dice(pred, gt, label=1),
-        "dice_conductive": dice(pred, gt, label=2),
-        "iou_resistive": iou(pred, gt, label=1),
-        "iou_conductive": iou(pred, gt, label=2),
     }
