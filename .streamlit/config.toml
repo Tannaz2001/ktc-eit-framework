@@ -1,0 +1,6 @@
+[server]
+fileWatcherType = "poll"
+runOnSave = true
+
+[browser]
+gatherUsageStats = false

@@ -6,6 +6,8 @@ Data:   all original logic preserved unchanged
 
 import streamlit as st
 import json
+import subprocess
+import sys
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -37,6 +39,14 @@ button[kind="header"],
 .st-emotion-cache-1q1n0ol,
 .eyeqlp51,
 [data-testid="stBaseButton-headerNoPadding"]{display:none!important;}
+
+/* ── hide Material icon text that leaks through the collapse button ── */
+section[data-testid="stSidebar"] button[data-testid="stBaseButton-headerNoPadding"] p,
+section[data-testid="stSidebar"] button[data-testid="stBaseButton-headerNoPadding"] span,
+[data-testid="stSidebarCollapseButton"] p,
+[data-testid="stSidebarCollapseButton"] span {
+  visibility:hidden!important; font-size:0!important; color:transparent!important;
+}
 
 /* ── LIGHT theme tokens ── */
 :root{
@@ -80,41 +90,73 @@ section[data-testid="stSidebar"] *{
 section[data-testid="stSidebar"] h1,
 section[data-testid="stSidebar"] h2,
 section[data-testid="stSidebar"] h3{
-  font-size:8px!important;font-weight:600!important;color:var(--tx3)!important;
+  font-size:10px!important;font-weight:700!important;color:var(--tx3)!important;
   text-transform:uppercase!important;letter-spacing:.14em!important;
-  border:none!important;padding:0!important;margin:11px 0 6px!important;line-height:1!important;
+  border:none!important;padding:0!important;margin:14px 0 7px!important;line-height:1!important;
 }
 section[data-testid="stSidebar"] p,
 section[data-testid="stSidebar"] .stMarkdown p{
-  font-size:9px!important;margin:3px 0!important;line-height:1.4!important;color:var(--tx2)!important;
+  font-size:11px!important;margin:4px 0!important;line-height:1.5!important;color:var(--tx2)!important;
 }
 section[data-testid="stSidebar"] label{
-  font-size:8px!important;color:var(--tx3)!important;
-  text-transform:uppercase!important;letter-spacing:.1em!important;
+  font-size:11px!important;color:var(--tx2)!important;
+  letter-spacing:.02em!important;
+  /* NO text-transform — method names like BackProjection must stay readable */
 }
 section[data-testid="stSidebar"] input[type="text"],
 section[data-testid="stSidebar"] input[type="number"]{
-  font-size:9px!important;padding:5px 7px!important;
+  font-size:11px!important;padding:6px 8px!important;
   background:var(--inp-bg)!important;border:1px solid var(--inp-bd)!important;
   color:var(--inp-tx)!important;border-radius:5px!important;
 }
 section[data-testid="stSidebar"] button{
-  font-size:9px!important;padding:5px 0!important;width:100%!important;
-  border:1px solid var(--grn-bd)!important;border-radius:5px!important;
+  font-size:11px!important;padding:7px 0!important;width:100%!important;
+  border:1px solid var(--grn-bd)!important;border-radius:6px!important;
   color:var(--grn)!important;background:transparent!important;text-align:center!important;
 }
 section[data-testid="stSidebar"] button:hover{background:var(--grn-bg)!important;}
-section[data-testid="stSidebar"] hr{border-color:var(--bd)!important;margin:11px 0!important;}
+/* ── ▶ run-method buttons: compact, sit beside the checkbox ── */
+section[data-testid="stSidebar"] [data-testid^="stColumn"] button[kind="secondary"]{
+  font-size:11px!important;padding:4px 0!important;
+  border-color:var(--bd)!important;color:var(--tx3)!important;
+}
+section[data-testid="stSidebar"] [data-testid^="stColumn"] button[kind="secondary"]:hover{
+  background:var(--grn-bg)!important;border-color:var(--grn-bd)!important;color:var(--grn)!important;
+}
+section[data-testid="stSidebar"] hr{border-color:var(--bd)!important;margin:13px 0!important;}
+
+/* ── file uploader: hide drag-drop UI, keep Browse button ── */
+[data-testid="stFileUploaderDropzone"]{
+  border:1px solid var(--bd)!important;border-radius:6px!important;
+  background:transparent!important;padding:2px 4px!important;
+}
+[data-testid="stFileUploaderDropzone"] span,
+[data-testid="stFileUploaderDropzone"] small,
+[data-testid="stFileUploaderDropzone"] [data-testid="stMarkdownContainer"]{
+  display:none!important;
+}
+/* target the inner text nodes that show "Drag and drop" */
+[data-testid="stFileUploaderDropzone"] > div > div:not(:has(button)){
+  display:none!important;
+}
+[data-testid="stFileUploaderDropzone"] button{
+  width:100%!important;font-family:'JetBrains Mono',monospace!important;
+  font-size:11px!important;font-weight:600!important;
+  color:var(--grn)!important;background:transparent!important;
+  border:1px solid var(--grn-bd)!important;border-radius:6px!important;
+  padding:7px 0!important;cursor:pointer!important;
+}
+[data-testid="stFileUploaderDropzone"] button:hover{background:var(--grn-bg)!important;}
 
 /* ── checkboxes ── */
-[data-testid="stCheckbox"] label{color:var(--tx2)!important;font-size:9px!important;}
+[data-testid="stCheckbox"] label{color:var(--tx2)!important;font-size:11px!important;}
 [data-testid="stCheckbox"] input + div,
 [data-testid="stCheckbox"] span[data-baseweb="checkbox"]{
   background:var(--chk-bg)!important;border-color:var(--bd)!important;
 }
 
 /* ── slider ── */
-[data-testid="stSlider"] label{color:var(--tx3)!important;font-size:8px!important;}
+[data-testid="stSlider"] label{color:var(--tx3)!important;font-size:10px!important;}
 [data-testid="stSlider"] [data-baseweb="slider"] div{background:var(--bd)!important;}
 [data-testid="stSlider"] [data-baseweb="slider"] [data-testid="stThumbValue"]{
   color:var(--tx)!important;background:var(--sur)!important;border-color:var(--bd)!important;
@@ -123,29 +165,32 @@ section[data-testid="stSidebar"] hr{border-color:var(--bd)!important;margin:11px
 /* ── selectbox + multiselect ── */
 .stSelectbox>div>div,.stMultiSelect>div>div{
   background:var(--sur)!important;border:1px solid var(--bd)!important;
-  border-radius:5px!important;font-family:'JetBrains Mono',monospace!important;
-  font-size:9px!important;padding:4px 8px!important;color:var(--tx2)!important;
+  border-radius:6px!important;font-family:'JetBrains Mono',monospace!important;
+  font-size:11px!important;padding:6px 10px!important;color:var(--tx2)!important;
 }
 .stSelectbox label,.stMultiSelect label{
-  font-family:'JetBrains Mono',monospace!important;font-size:8px!important;
+  font-family:'JetBrains Mono',monospace!important;font-size:10px!important;
   color:var(--tx3)!important;text-transform:uppercase!important;letter-spacing:.1em!important;
 }
 /* dropdown popup */
 [data-baseweb="popover"] ul,[data-baseweb="menu"]{
   background:var(--sur)!important;border:1px solid var(--bd)!important;
 }
-[data-baseweb="menu"] li{background:var(--sur)!important;color:var(--tx2)!important;}
+[data-baseweb="menu"] li{
+  background:var(--sur)!important;color:var(--tx2)!important;
+  font-size:11px!important;
+}
 [data-baseweb="menu"] li:hover{background:var(--bg)!important;}
 
 /* ── tabs ── */
 .stTabs [data-baseweb="tab-list"]{
   background:var(--sur)!important;border:1px solid var(--bd)!important;
-  border-radius:7px!important;padding:4px!important;gap:2px!important;margin-bottom:11px!important;
+  border-radius:7px!important;padding:4px!important;gap:2px!important;margin-bottom:12px!important;
 }
 .stTabs [data-baseweb="tab"]{
-  font-family:'JetBrains Mono',monospace!important;font-size:9px!important;font-weight:500!important;
+  font-family:'JetBrains Mono',monospace!important;font-size:11px!important;font-weight:500!important;
   color:var(--tx3)!important;background:transparent!important;border:none!important;
-  border-radius:5px 5px 0 0!important;padding:5px 11px!important;letter-spacing:.05em!important;
+  border-radius:5px 5px 0 0!important;padding:6px 14px!important;letter-spacing:.04em!important;
 }
 .stTabs [data-baseweb="tab"]:hover{color:var(--tx)!important;}
 .stTabs [aria-selected="true"]{
@@ -161,80 +206,80 @@ section[data-testid="stSidebar"] hr{border-color:var(--bd)!important;margin:11px
 }
 .stDataFrame thead th{
   background:var(--bg)!important;color:var(--tx3)!important;
-  font-family:'JetBrains Mono',monospace!important;font-size:8px!important;
-  text-transform:uppercase!important;letter-spacing:.1em!important;
-  border-bottom:1px solid var(--bd)!important;padding:4px 7px!important;
+  font-family:'JetBrains Mono',monospace!important;font-size:10px!important;
+  text-transform:uppercase!important;letter-spacing:.08em!important;
+  border-bottom:1px solid var(--bd)!important;padding:6px 9px!important;
 }
 .stDataFrame tbody td{
   background:var(--sur)!important;color:var(--tx)!important;
-  font-family:'JetBrains Mono',monospace!important;font-size:9px!important;
-  border-bottom:1px solid var(--bg)!important;padding:5px 7px!important;
+  font-family:'JetBrains Mono',monospace!important;font-size:11px!important;
+  border-bottom:1px solid var(--bg)!important;padding:6px 9px!important;
 }
 .stDataFrame tbody tr:hover td{background:var(--bg)!important;}
 
 /* ── buttons ── */
 .stButton>button{
   background:transparent!important;color:var(--grn)!important;
-  border:1px solid var(--grn-bd)!important;border-radius:5px!important;
-  font-family:'JetBrains Mono',monospace!important;font-size:9px!important;
-  font-weight:600!important;padding:5px 10px!important;
+  border:1px solid var(--grn-bd)!important;border-radius:6px!important;
+  font-family:'JetBrains Mono',monospace!important;font-size:11px!important;
+  font-weight:600!important;padding:7px 14px!important;
 }
 .stButton>button:hover{background:var(--grn-bg)!important;}
 
 /* ── alerts + expander ── */
 .stAlert{
   background:var(--sur)!important;border:1px solid var(--bd)!important;
-  border-radius:7px!important;font-size:9px!important;color:var(--tx)!important;
+  border-radius:7px!important;font-size:11px!important;color:var(--tx)!important;
 }
 .streamlit-expanderHeader{
   background:var(--sur)!important;border:1px solid var(--bd)!important;
-  border-radius:5px!important;font-size:9px!important;font-weight:600!important;
-  color:var(--tx)!important;padding:5px 10px!important;
+  border-radius:6px!important;font-size:11px!important;font-weight:600!important;
+  color:var(--tx)!important;padding:7px 12px!important;
 }
 .streamlit-expanderContent{
   background:var(--sur)!important;border:1px solid var(--bd)!important;border-top:none!important;
 }
 
 /* ── typography ── */
-h1{font-family:'Inter',sans-serif!important;font-size:13px!important;font-weight:500!important;color:var(--tx)!important;margin:0 0 2px!important;}
-h2{font-family:'Inter',sans-serif!important;font-size:13px!important;font-weight:600!important;color:var(--tx)!important;border-bottom:1px solid var(--bd)!important;padding-bottom:4px!important;margin:14px 0 9px!important;}
-h3{font-family:'Inter',sans-serif!important;font-size:11px!important;font-weight:600!important;color:var(--tx2)!important;margin:9px 0 5px!important;}
-p,.stMarkdown p{font-size:9px!important;color:var(--tx2)!important;line-height:1.4!important;}
-.slbl{font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.13em;margin-bottom:8px;}
+h1{font-family:'Inter',sans-serif!important;font-size:15px!important;font-weight:500!important;color:var(--tx)!important;margin:0 0 3px!important;}
+h2{font-family:'Inter',sans-serif!important;font-size:15px!important;font-weight:600!important;color:var(--tx)!important;border-bottom:1px solid var(--bd)!important;padding-bottom:5px!important;margin:16px 0 10px!important;}
+h3{font-family:'Inter',sans-serif!important;font-size:13px!important;font-weight:600!important;color:var(--tx2)!important;margin:10px 0 6px!important;}
+p,.stMarkdown p{font-size:11px!important;color:var(--tx2)!important;line-height:1.5!important;}
+.slbl{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.12em;margin-bottom:10px;}
 
 /* ── header ── */
-.dash-header{background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:12px 18px 11px;margin-bottom:10px;position:relative;overflow:hidden;}
+.dash-header{background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:14px 20px 13px;margin-bottom:12px;position:relative;overflow:hidden;}
 .dash-header::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#2da44e,#0969da,#8250df);}
-.dash-title{font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--tx);line-height:1.2;margin-bottom:3px;}
-.dash-sub{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--tx3);}
+.dash-title{font-family:'Inter',sans-serif;font-size:15px;font-weight:500;color:var(--tx);line-height:1.2;margin-bottom:4px;}
+.dash-sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx3);}
 
 /* ── KPI cards ── */
-.kpi-row{display:flex;gap:8px;margin-bottom:10px;}
-.kpi{flex:1;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:8px 10px;position:relative;overflow:hidden;}
+.kpi-row{display:flex;gap:10px;margin-bottom:12px;}
+.kpi{flex:1;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:11px 13px;position:relative;overflow:hidden;}
 .kpi::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--kc,#2da44e);opacity:.8;}
-.kpi-n{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:500;color:var(--tx);line-height:1;}
-.kpi-l{font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.1em;margin-top:4px;}
-.kpi-s{font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--tx3);margin-top:2px;}
+.kpi-n{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;color:var(--tx);line-height:1;}
+.kpi-l{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.1em;margin-top:5px;}
+.kpi-s{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tx3);margin-top:3px;}
 
 /* ── chips ── */
-.chips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:9px;}
-.chip{display:inline-flex;align-items:center;gap:4px;font-size:9px;color:var(--tx2);background:var(--bg);border:1px solid var(--bd);padding:2px 8px 2px 5px;border-radius:20px;font-family:'JetBrains Mono',monospace;}
-.chip-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--tx2);background:var(--bg);border:1px solid var(--bd);padding:3px 10px 3px 7px;border-radius:20px;font-family:'JetBrains Mono',monospace;}
+.chip-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
 
 /* ── metric + failure cards ── */
-.mcard{background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:8px 10px;margin-bottom:8px;}
-.mcard .mv{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:500;color:var(--tx);line-height:1;margin-bottom:4px;}
-.mcard .ml{font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.1em;}
-.fcard{background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 11px;}
-.frank{font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:600;color:var(--red);letter-spacing:.1em;margin-bottom:4px;}
-.fktc{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:500;color:var(--tx);line-height:1;}
-.flbl{font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--tx3);letter-spacing:.08em;margin:3px 0 6px;}
-.fbar{height:3px;border-radius:2px;background:var(--bg);overflow:hidden;margin-top:6px;}
-.fbar-f{height:3px;border-radius:2px;}
+.mcard{background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 13px;margin-bottom:9px;}
+.mcard .mv{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:500;color:var(--tx);line-height:1;margin-bottom:5px;}
+.mcard .ml{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.1em;}
+.fcard{background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:11px 13px;}
+.frank{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;color:var(--red);letter-spacing:.1em;margin-bottom:5px;}
+.fktc{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;color:var(--tx);line-height:1;}
+.flbl{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tx3);letter-spacing:.07em;margin:4px 0 7px;}
+.fbar{height:4px;border-radius:2px;background:var(--bg);overflow:hidden;margin-top:7px;}
+.fbar-f{height:4px;border-radius:2px;}
 
 /* ── live badge ── */
-.sb-live{display:inline-flex;align-items:center;gap:4px;font-size:9px;color:var(--grn);background:var(--grn-bg);border:1px solid var(--grn-bd);padding:2px 8px;border-radius:20px;margin-top:7px;}
-.ldot{width:5px;height:5px;background:var(--grn);border-radius:50%;}
+.sb-live{display:inline-flex;align-items:center;gap:5px;font-size:10px;color:var(--grn);background:var(--grn-bg);border:1px solid var(--grn-bd);padding:3px 10px;border-radius:20px;margin-top:7px;}
+.ldot{width:6px;height:6px;background:var(--grn);border-radius:50%;}
 
 /* ── tier bar ── */
 .tier-bar-wrap{height:3px;background:var(--bd);border-radius:2px;margin-top:3px;}
@@ -285,6 +330,37 @@ p,.stMarkdown p{font-size:9px!important;color:var(--tx2)!important;line-height:1
 .eit-dark input[type="text"],.eit-dark input[type="number"]{background:var(--inp-bg)!important;border-color:var(--inp-bd)!important;color:var(--inp-tx)!important;}
 .eit-dark h1,.eit-dark h2,.eit-dark h3{color:var(--tx)!important;}
 </style>
+<script>
+(function(){
+  /* Hide Streamlit's sidebar collapse/expand icon (shows as raw text when
+     Material Symbols font fails to load).  Uses MutationObserver so it fires
+     even after Streamlit's own JS re-renders the sidebar. */
+  function purgeSidebarIcon(){
+    try {
+      var doc = window.parent ? window.parent.document : document;
+      /* 1. Hide the collapse-button element by every known data-testid variant */
+      ['stSidebarCollapseButton','collapsedControl','stBaseButton-headerNoPadding'].forEach(function(tid){
+        doc.querySelectorAll('[data-testid="'+tid+'"]').forEach(function(el){
+          el.style.setProperty('display','none','important');
+        });
+      });
+      /* 2. Also target any leaf node in the sidebar whose text starts with
+         "keyboard" — that is the raw icon fallback text */
+      doc.querySelectorAll('section[data-testid="stSidebar"] *').forEach(function(el){
+        if(!el.children.length && /^keyboard/i.test((el.textContent||'').trim())){
+          el.style.setProperty('display','none','important');
+        }
+      });
+    } catch(e){}
+  }
+  purgeSidebarIcon();
+  /* Re-run on every DOM mutation so Streamlit re-renders don't bring it back */
+  try {
+    var target = (window.parent||window).document.body;
+    if(target) new MutationObserver(purgeSidebarIcon).observe(target,{childList:true,subtree:true});
+  } catch(e){}
+})();
+</script>
 """
 st.markdown(CSS, unsafe_allow_html=True)
 
@@ -310,91 +386,21 @@ def hex_to_rgba(hex_color: str, alpha: float = 0.1) -> str:
     return f"rgba({r},{g},{b},{alpha})"
 
 # =========================================================
-# DATA LOADING  (original — untouched)
+# DATA LOADING — all schema knowledge lives in the framework data layer
 # =========================================================
-def create_method_mapping(scores: Dict, per_run: Dict) -> Dict[str, str]:
-    mapping = {}
-    for display_name in scores.keys():
-        display_lower = display_name.lower()
-        for internal_key in per_run.keys():
-            if internal_key.replace('_','-') in display_lower or internal_key.replace('_',' ') in display_lower:
-                mapping[display_name] = internal_key; break
-            elif display_name.split()[0].lower().replace('-','_') == internal_key.split('_')[0]:
-                mapping[display_name] = internal_key; break
-    return mapping
-
-def find_latest_run() -> Path:
-    """Return the most recent run folder, or fallback to outputs/."""
-    runs_root = Path("outputs")
-    # Check the pointer file written by example_usage.py
-    pointer = runs_root / "latest.txt"
-    if pointer.exists():
-        latest = Path(pointer.read_text().strip())
-        if latest.exists():
-            return latest
-    # Fallback: find newest run_YYYYMMDD_HHMMSS folder
-    run_dirs = sorted(runs_root.glob("run_*"), reverse=True)
-    if run_dirs:
-        return run_dirs[0]
-    # Final fallback: flat outputs/ folder (old structure)
-    return runs_root
+from src.ktc_framework.reporting.data_layer import (
+    find_latest_run,
+    load_run_data,
+    create_method_mapping,
+    filter_by_level,
+    count_gt_missing,
+)
 
 
 @st.cache_data
 def load_data(_cache_key: str = "") -> Tuple[Dict, Dict, Dict]:
     """Load scores + per-run metrics from the latest run folder."""
-    run_dir = find_latest_run()
-
-    scores = {}
-    # Try run folder first, then root fallback
-    for candidate in [run_dir / "dashboard_scores.json", run_dir / "scores.json", Path("scores.json"),
-                      Path("outputs/scores.json")]:
-        if candidate.exists():
-            with open(candidate, 'r') as f:
-                scores = json.load(f)
-            break
-
-    per_run = {}
-    for candidate in [run_dir / "per_run_metrics.json",
-                      Path("outputs/per_run_metrics.json")]:
-        if candidate.exists():
-            with open(candidate, 'r') as f:
-                per_run = json.load(f)
-            break
-
-    if isinstance(scores, list):
-        flat_runs = scores
-        buckets = {}
-        for run in flat_runs:
-            buckets.setdefault(run["method"], []).append(run)
-
-        scores = {}
-        for method, rows in buckets.items():
-            metric_names = sorted({
-                metric
-                for row in rows
-                for metric in row.get("metrics", {}).keys()
-            })
-            scores[method] = {
-                metric: float(np.mean([row.get("metrics", {}).get(metric, 0.0) for row in rows]))
-                for metric in metric_names
-            }
-
-        if not per_run:
-            per_run = {}
-            for method, rows in buckets.items():
-                per_run[method] = {}
-                for row in rows:
-                    key = f"L{row['level']}_{row['sample']}"
-                    per_run[method][key] = {
-                        **row.get("metrics", {}),
-                        "composite_score": row.get("composite_score", 0.0),
-                        "grade": row.get("grade", "D"),
-                        "runtime_ms": row.get("runtime_ms", 0.0),
-                        "level": row["level"],
-                        "sample": row["sample"],
-                    }
-
+    scores, per_run = load_run_data(find_latest_run())
     return scores, per_run, create_method_mapping(scores, per_run)
 
 @st.cache_data
@@ -427,7 +433,8 @@ def calculate_composite_score(metrics:Dict[str,float], weights:Dict[str,float]=N
     return round(ktc * 100, 2)
 
 def letter_grade(score:float) -> str:
-    return 'A' if score>=85 else 'B' if score>=70 else 'C' if score>=55 else 'D'
+    # Same thresholds as src/ktc_framework/metrics/composite_score.py
+    return 'A' if score>=80 else 'B' if score>=60 else 'C' if score>=40 else 'D'
 
 def all_methods(scores:Dict) -> List[str]:
     return list(scores.keys())+[m for m in st.session_state.get('custom_methods',[]) if m not in scores]
@@ -469,6 +476,185 @@ def inject_theme(dark: bool):
     st.markdown(f"<script>{js}</script>", unsafe_allow_html=True)
 
 # =========================================================
+# BENCHMARK LAUNCHER — the dashboard drives the backend
+# =========================================================
+BENCH_LOG = Path("outputs/benchmark_log.txt")
+
+
+def launch_benchmark(config_path: str | Path) -> bool:
+    """Start `python example_usage.py --no-app --config <cfg>` in the background.
+
+    The bridge writes latest.txt last, so the dashboard only flips to the new
+    run once it is fully prepared.
+    """
+    proc = st.session_state.get('bench_proc')
+    if proc is not None and proc.poll() is None:
+        st.sidebar.warning("A benchmark is already running — wait for it to finish.")
+        return False
+    import os as _os
+    BENCH_LOG.parent.mkdir(exist_ok=True)
+    log = open(BENCH_LOG, "w", encoding="utf-8")
+    _env = {**_os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+    st.session_state.bench_proc = subprocess.Popen(
+        [sys.executable, "example_usage.py", "--no-app", "--config", str(config_path)],
+        stdout=log, stderr=subprocess.STDOUT,
+        cwd=str(Path(__file__).resolve().parent),
+        env=_env,
+    )
+    st.session_state.bench_config = Path(config_path).stem
+    return True
+
+
+def write_runtime_config(method_name: str) -> Path:
+    """Generate a one-method benchmark config for a runtime-registered method."""
+    cfg_path = Path("configs") / f"runtime_{method_name}.yaml"
+    cfg_path.write_text(
+        "# Auto-generated by the dashboard Register button.\n"
+        "data_plugin: KTCDataPlugin\n"
+        "dataset_root: EvaluationData\n"
+        "mesh_path: Codes_Matlab/Mesh_sparse.mat\n\n"
+        "levels: [1, 2, 3, 4, 5, 6, 7]\n"
+        "samples: [A, B, C]\n\n"
+        f"methods:\n  - {method_name}\n\n"
+        "method_plugin_paths:\n  - external_methods\n\n"
+        "output_dir: outputs/\n",
+        encoding="utf-8",
+    )
+    return cfg_path
+
+
+def render_benchmark_status() -> None:
+    """Sidebar status for the running/finished benchmark subprocess."""
+    proc = st.session_state.get('bench_proc')
+    if proc is not None:
+        code = proc.poll()
+        cfg = st.session_state.get('bench_config', '')
+        if code is None:
+            st.sidebar.markdown(
+                f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;'
+                f'color:var(--amb);margin:4px 0">RUNNING · {cfg}</div>',
+                unsafe_allow_html=True)
+            if st.sidebar.button("Refresh status", use_container_width=True, key="bench_refresh"):
+                st.rerun()
+        elif code == 0:
+            st.session_state.bench_proc = None
+            st.cache_data.clear()
+            st.rerun()  # latest.txt now points at the new run
+        else:
+            st.session_state.bench_proc = None
+            st.sidebar.error(f"Benchmark failed (exit {code}) — see log below.")
+    if proc is not None and proc.poll() is None and BENCH_LOG.exists():
+        tail = BENCH_LOG.read_text(encoding="utf-8", errors="replace").splitlines()
+        tail = [ln for ln in tail if ln.strip()][-8:]
+        if tail:
+            log_html = "".join(
+                f'<div style="white-space:pre;overflow-x:hidden;text-overflow:ellipsis">'
+                f'{ln.replace("&","&amp;").replace("<","&lt;")}</div>'
+                for ln in tail
+            )
+            st.sidebar.markdown(
+                f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
+                f'color:var(--tx3);background:var(--bg);border:1px solid var(--bd);'
+                f'border-radius:6px;padding:8px 10px;margin-top:7px;line-height:1.6">'
+                f'<div style="font-size:9px;font-weight:700;text-transform:uppercase;'
+                f'letter-spacing:.1em;color:var(--tx3);margin-bottom:5px">Benchmark log</div>'
+                f'{log_html}</div>',
+                unsafe_allow_html=True)
+
+
+def render_bench_progress() -> None:
+    """Full-width progress banner in the main area while a benchmark subprocess runs."""
+    proc = st.session_state.get('bench_proc')
+    if proc is None or proc.poll() is not None:
+        return
+
+    import re as _re
+    completed, total = 0, 0
+    cur_method, cur_level, cur_sample = "", "", ""
+
+    if BENCH_LOG.exists():
+        for line in BENCH_LOG.read_text(encoding="utf-8", errors="replace").splitlines():
+            m = _re.search(
+                r'\[BENCH_PROGRESS\] completed=(\d+)/(\d+)'
+                r'(?:\s+method=(\S+)\s+level=(\S+)\s+sample=(\S+))?',
+                line,
+            )
+            if m:
+                completed  = int(m.group(1))
+                total      = int(m.group(2))
+                cur_method = m.group(3) or ""
+                cur_level  = m.group(4) or ""
+                cur_sample = m.group(5) or ""
+
+    if total == 0:
+        try:
+            import yaml as _yaml
+            cfg_name  = st.session_state.get('bench_config', 'ktc_all_methods')
+            cfg_path  = Path("configs") / f"{cfg_name}.yaml"
+            if not cfg_path.exists():
+                cfg_path = Path("configs/ktc_all_methods.yaml")
+            cfg   = _yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+            total = (len(cfg.get("methods", [])) *
+                     len(cfg.get("levels",  [])) *
+                     len(cfg.get("samples", [])))
+        except Exception:
+            total = 105  # 5 methods × 7 levels × 3 samples
+
+    pct      = min(completed / total, 1.0) if total > 0 else 0.0
+    pct_px   = f"{pct * 100:.1f}%"
+    cfg_lbl  = st.session_state.get('bench_config', 'ktc_all_methods')
+    cur_info = (f"&nbsp;·&nbsp; {cur_method} &nbsp;L{cur_level}/{cur_sample}"
+                if cur_method else "&nbsp;·&nbsp; initialising…")
+
+    st.markdown(
+        f'<div style="background:var(--sur);border:1px solid var(--bd);border-radius:7px;'
+        f'padding:14px 18px 12px;margin-bottom:14px;position:relative;overflow:hidden">'
+        f'<div style="position:absolute;top:0;left:0;right:0;height:3px;'
+        f'background:linear-gradient(90deg,#2da44e,#0969da,#8250df)"></div>'
+        f'<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px">'
+        f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:12px;font-weight:700;'
+        f'color:var(--amb);letter-spacing:.05em">BENCHMARK RUNNING</div>'
+        f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--tx3)">'
+        f'{cfg_lbl}{cur_info}</div>'
+        f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:12px;font-weight:600;'
+        f'color:var(--tx)">{completed}&nbsp;/&nbsp;{total} runs &nbsp;'
+        f'<span style="color:var(--grn)">{pct*100:.0f}%</span></div>'
+        f'</div>'
+        f'<div style="background:var(--bd);border-radius:4px;height:8px;overflow:hidden;margin-bottom:8px">'
+        f'<div style="background:linear-gradient(90deg,#2da44e,#0969da);height:8px;'
+        f'border-radius:4px;width:{pct_px};transition:width .4s ease"></div>'
+        f'</div>'
+        f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--tx3)">'
+        f'Dashboard reloads automatically when complete &nbsp;·&nbsp; '
+        f'click Refresh to update the counter</div>'
+        f'</div>',
+        unsafe_allow_html=True)
+
+    if st.button("↻  Refresh progress", key="main_bench_refresh"):
+        st.rerun()
+    st.markdown(
+        '<hr style="border:none;border-top:1px solid var(--bd);margin:4px 0 14px">',
+        unsafe_allow_html=True)
+
+
+def append_method_to_config(method_name: str,
+                            config_path: Path = Path("configs/ktc_all_methods.yaml")) -> bool:
+    """Insert a method name under the 'methods:' key, preserving YAML comments."""
+    if not config_path.exists():
+        return False
+    text = config_path.read_text(encoding="utf-8")
+    if f"- {method_name}" in text:
+        return False
+    lines = text.splitlines(keepends=True)
+    for i, ln in enumerate(lines):
+        if ln.strip() == "methods:":
+            lines.insert(i + 1, f"  - {method_name}\n")
+            config_path.write_text("".join(lines), encoding="utf-8")
+            return True
+    return False
+
+
+# =========================================================
 # SIDEBAR
 # =========================================================
 def render_sidebar():
@@ -476,11 +662,27 @@ def render_sidebar():
     if 'dark_mode' not in st.session_state:
         st.session_state.dark_mode = False
 
-    st.sidebar.markdown("""
-    <div style="border-bottom:1px solid var(--bd);padding-bottom:11px;margin-bottom:11px">
-      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;color:var(--tx);letter-spacing:.06em">EIT BENCH</div>
-      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--tx3);margin-top:2px;letter-spacing:.08em">RECONSTRUCTION ANALYSIS</div>
+    # Data-age label: read latest.txt mtime to tell user how fresh the dashboard is
+    import time as _time
+    _lt = Path("outputs/latest.txt")
+    if _lt.exists():
+        _age_s = _time.time() - _lt.stat().st_mtime
+        if _age_s < 3600:
+            _age_str = f"{int(_age_s//60)}m ago"
+        elif _age_s < 86400:
+            _age_str = f"{int(_age_s//3600)}h ago"
+        else:
+            _age_str = f"{int(_age_s//86400)}d ago"
+        _live_sub = f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--tx3);margin-top:4px">data from {_age_str}</div>'
+    else:
+        _live_sub = ""
+
+    st.sidebar.markdown(f"""
+    <div style="border-bottom:1px solid var(--bd);padding-bottom:13px;margin-bottom:13px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;color:var(--tx);letter-spacing:.06em">EIT BENCH</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tx3);margin-top:3px;letter-spacing:.08em">RECONSTRUCTION ANALYSIS</div>
       <div class="sb-live"><div class="ldot"></div>LIVE</div>
+      {_live_sub}
     </div>
     """, unsafe_allow_html=True)
 
@@ -489,6 +691,30 @@ def render_sidebar():
     if st.sidebar.button(dark_label, key="theme_toggle", use_container_width=True):
         st.session_state.dark_mode = not st.session_state.dark_mode
         st.rerun()
+
+    st.sidebar.markdown("---")
+
+    # ── Run Benchmark — one button drives the whole backend ───
+    st.sidebar.markdown("## Run Benchmark")
+    # Estimate runtime: read method count from YAML (~4 min per method on real data)
+    try:
+        import yaml as _yaml
+        _cfg_path = Path("configs/ktc_all_methods.yaml")
+        _n_methods = len(_yaml.safe_load(_cfg_path.read_text()).get("methods", []))
+        _eta = f"~{_n_methods * 4} min"
+        _n_str = str(_n_methods)
+    except Exception:
+        _eta = "several min"
+        _n_str = "all"
+    st.sidebar.markdown(
+        f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#848d97;'
+        f'margin-bottom:7px">Runs configs/ktc_all_methods.yaml ({_n_str} methods). '
+        f'Est. <b style="color:#9a6700">{_eta}</b> — dashboard reloads automatically when done.</div>',
+        unsafe_allow_html=True)
+    if st.sidebar.button("Run all methods", use_container_width=True, key="run_full_btn"):
+        if launch_benchmark(Path("configs/ktc_all_methods.yaml")):
+            st.rerun()
+    render_benchmark_status()
 
     st.sidebar.markdown("---")
 
@@ -528,25 +754,37 @@ def render_sidebar():
 
     # ── Method Selector ──────────────────────────────────────
     st.sidebar.markdown("## Methods")
-    # Method names come from session_state after data load; init with empty
+    st.sidebar.markdown(
+        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#848d97;'
+        'margin-bottom:8px">Checkbox = show in charts &nbsp;·&nbsp; ▶ = run that method only</div>',
+        unsafe_allow_html=True)
     available_methods = st.session_state.get('_available_methods', [])
     if 'selected_methods' not in st.session_state or not st.session_state.selected_methods:
         st.session_state.selected_methods = available_methods.copy()
-    # Sync: add any new method not yet in selected list
     for am in available_methods:
         if am not in st.session_state.selected_methods:
             st.session_state.selected_methods.append(am)
+
     if available_methods:
         for m in available_methods:
-            checked = m in st.session_state.selected_methods
-            if st.sidebar.checkbox(m, value=checked, key=f"method_{m}"):
-                if m not in st.session_state.selected_methods:
+            # Abbreviate for display so long names don't truncate
+            short = m.replace("Reconstruction","Recon").replace("Difference","Diff").replace("Projection","Proj")
+            c_chk, c_run = st.sidebar.columns([4, 1])
+            with c_chk:
+                checked = m in st.session_state.selected_methods
+                new_val = st.checkbox(short, value=checked, key=f"method_{m}",
+                                      help=m)  # full name in tooltip
+                if new_val and m not in st.session_state.selected_methods:
                     st.session_state.selected_methods.append(m)
-            else:
-                if m in st.session_state.selected_methods:
+                elif not new_val and m in st.session_state.selected_methods:
                     st.session_state.selected_methods.remove(m)
+            with c_run:
+                if st.button("▶", key=f"run_m_{m}",
+                             help=f"Benchmark {m} only\n→ configs/runtime_{m}.yaml"):
+                    if launch_benchmark(write_runtime_config(m)):
+                        st.rerun()
     else:
-        st.sidebar.markdown('<div style="font-size:9px;color:var(--tx3)">Loading methods...</div>', unsafe_allow_html=True)
+        st.sidebar.markdown('<div style="font-size:11px;color:var(--tx3)">Loading methods...</div>', unsafe_allow_html=True)
 
     st.sidebar.markdown("---")
 
@@ -575,44 +813,125 @@ def render_sidebar():
 
     st.sidebar.markdown("---")
 
-    # Data files
+    # Data files — checked inside the ACTIVE run folder, not the project root
     st.sidebar.markdown("## Data Files")
-    for p, lbl in [("scores.json","scores.json"),("outputs/per_run_metrics.json","per_run_metrics.json")]:
-        ok = Path(p).exists()
+    active_run = find_latest_run()
+    for lbl in ["scores.json", "per_run_metrics.json"]:
+        ok = (active_run / lbl).exists()
         color = "#1a7f37" if ok else "#cf222e"
         icon  = "OK" if ok else "ERR"
         st.sidebar.markdown(
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:{color};margin:3px 0">{icon}  {lbl}</div>',
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:{color};margin:4px 0">{icon}  {lbl}</div>',
             unsafe_allow_html=True)
 
     st.sidebar.markdown("---")
 
-    # Add method
+    # ── Add / Register external methods ──────────────────────
     st.sidebar.markdown("## Add Method")
-    st.sidebar.markdown('<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:#848d97;margin-bottom:5px">Type a name then click Register.</div>', unsafe_allow_html=True)
 
-    if 'custom_methods' not in st.session_state:
-        st.session_state.custom_methods = []
+    # ── 1. Scan button — always visible ──────────────────────
+    #    Picks up any .py already in external_methods/ so the user
+    #    doesn't have to re-upload files that are already on disk.
+    from src.ktc_framework.registry import (
+        get_method as _get_method, list_methods as _list_methods,
+        load_external_methods as _load_ext,
+    )
+    if 'uploaded_methods' not in st.session_state:
+        st.session_state.uploaded_methods = {}
 
-    new_name = st.sidebar.text_input("name", key="new_method_input",
-                                     placeholder="e.g. gauss_newton_v2",
-                                     label_visibility="collapsed")
-    if st.sidebar.button("Register", use_container_width=True, key="sb_add"):
-        n = new_name.strip()
-        if n and n not in st.session_state.custom_methods:
-            st.session_state.custom_methods.append(n)
-        elif n:
-            st.sidebar.warning("Already registered")
+    if st.sidebar.button("Scan external_methods/", key="scan_ext_btn",
+                         use_container_width=True,
+                         help="Detect any @register_method classes already in external_methods/"):
+        ext_dir = Path("external_methods")
+        ext_dir.mkdir(exist_ok=True)
+        py_files = list(ext_dir.glob("*.py"))
+        if py_files:
+            before = set(_list_methods())
+            try:
+                _load_ext([str(ext_dir)])
+                new_methods = sorted(set(_list_methods()) - before)
+                for nm in new_methods:
+                    fname = next(
+                        (f.name for f in py_files
+                         if nm.lower() in f.stem.lower()), py_files[0].name
+                    )
+                    st.session_state.uploaded_methods[nm] = fname
+                if new_methods:
+                    st.sidebar.success(f"Found: {', '.join(new_methods)}")
+                else:
+                    st.sidebar.info("No new methods found in external_methods/")
+            except Exception as exc:
+                st.sidebar.error(f"Scan failed: {exc}")
+        else:
+            st.sidebar.info("external_methods/ is empty — upload a .py file below.")
 
-    if st.session_state.custom_methods:
-        to_remove = None
-        for m in st.session_state.custom_methods:
-            ca, cb = st.sidebar.columns([5,1])
-            ca.markdown(f'<div style="font-size:9px;color:#57606a;padding:2px 0">• {m}</div>', unsafe_allow_html=True)
-            if cb.button("x", key=f"rm_{m}"): to_remove = m
-        if to_remove:
-            st.session_state.custom_methods.remove(to_remove)
-            st.rerun()
+    # ── 2. Registered methods — always show with action buttons ─
+    if st.session_state.uploaded_methods:
+        st.sidebar.markdown(
+            '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
+            'color:var(--tx3);margin:6px 0 4px;text-transform:uppercase;'
+            'letter-spacing:.1em">Registered plugins</div>',
+            unsafe_allow_html=True)
+        for nm, fname in list(st.session_state.uploaded_methods.items()):
+            st.sidebar.markdown(
+                f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;'
+                f'color:var(--tx2);padding:3px 0 1px">• {nm}<br>'
+                f'<span style="font-size:10px;color:var(--tx3)">{fname}</span></div>',
+                unsafe_allow_html=True)
+            ca, cb, cc = st.sidebar.columns([2, 1, 1])
+            if ca.button("Register", key=f"reg_{nm}",
+                         help=f"Run benchmark for {nm} only → configs/runtime_{nm}.yaml"):
+                if launch_benchmark(write_runtime_config(nm)):
+                    st.rerun()
+            if cb.button("+all", key=f"cfg_{nm}",
+                         help="Add to ktc_all_methods.yaml for future full runs"):
+                if append_method_to_config(nm):
+                    st.sidebar.success(f"{nm} added to ktc_all_methods.yaml")
+                else:
+                    st.sidebar.info("Already in config")
+            if cc.button("x", key=f"rm_up_{nm}", help="Remove plugin file from disk"):
+                (Path("external_methods") / fname).unlink(missing_ok=True)
+                del st.session_state.uploaded_methods[nm]
+                st.rerun()
+    else:
+        st.sidebar.markdown(
+            '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
+            'color:var(--tx3);margin:5px 0">No plugins registered yet.<br>'
+            'Upload a .py file or click Scan.</div>',
+            unsafe_allow_html=True)
+
+    # ── 3. Upload new plugin ─────────────────────────────────
+    st.sidebar.markdown(
+        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
+        'color:var(--tx3);margin:8px 0 5px;text-transform:uppercase;'
+        'letter-spacing:.1em">Upload new plugin</div>',
+        unsafe_allow_html=True)
+    up = st.sidebar.file_uploader("Upload plugin (.py)", type=["py"], key="method_upload",
+                                  label_visibility="collapsed")
+    if up is not None:
+        sig = f"{up.name}:{up.size}"
+        if st.session_state.get('_last_method_upload') != sig:
+            st.session_state['_last_method_upload'] = sig
+            dest_dir = Path("external_methods")
+            dest_dir.mkdir(exist_ok=True)
+            dest = dest_dir / Path(up.name).name
+            before = set(_list_methods())
+            dest.write_bytes(up.getbuffer())
+            try:
+                _load_ext([str(dest_dir)])
+                new_methods = sorted(set(_list_methods()) - before)
+                if new_methods:
+                    for nm in new_methods:
+                        if not callable(getattr(_get_method(nm), "reconstruct", None)):
+                            st.sidebar.warning(f"{nm} has no reconstruct(batch) — will fail at run time.")
+                        st.session_state.uploaded_methods[nm] = dest.name
+                    st.sidebar.success(f"Registered: {', '.join(new_methods)}")
+                else:
+                    dest.unlink(missing_ok=True)
+                    st.sidebar.warning("No @register_method class found — file removed.")
+            except Exception as exc:
+                dest.unlink(missing_ok=True)
+                st.sidebar.error(f"Rejected {dest.name}: {exc}")
 
     # ── Export ───────────────────────────────────────────────
     st.sidebar.markdown("---")
@@ -631,7 +950,7 @@ def render_sidebar():
         # Current loaded run name
         current_run = find_latest_run().name
         st.sidebar.markdown(
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--grn);margin:3px 0">'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--grn);margin:4px 0">'
             f'Active: {current_run}</div>', unsafe_allow_html=True)
 
         default_idx = run_names.index(current_run) if current_run in run_names else 0
@@ -651,18 +970,18 @@ def render_sidebar():
             with open(preview_scores_path) as f:
                 preview = json.load(f)
             st.sidebar.markdown(
-                f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--tx3);margin:4px 0 2px">Preview: {chosen_run}</div>',
+                f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--tx3);margin:5px 0 3px">Preview: {chosen_run}</div>',
                 unsafe_allow_html=True)
             for method, mets in preview.items():
                 ktc = mets.get('KTC score', mets.get('ktc_score', '—'))
                 ktc_str = f"{ktc:.4f}" if isinstance(ktc, float) else str(ktc)
                 st.sidebar.markdown(
-                    f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--tx2);padding:1px 0">'
+                    f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--tx2);padding:2px 0">'
                     f'  {method}: KTC={ktc_str}</div>',
                     unsafe_allow_html=True)
     else:
         st.sidebar.markdown(
-            '<div style="font-size:9px;color:var(--tx3);margin:3px 0">No runs yet.<br>Run example_usage.py first.</div>',
+            '<div style="font-size:11px;color:var(--tx3);margin:4px 0">No runs yet.<br>Run example_usage.py first.</div>',
             unsafe_allow_html=True)
 
 # =========================================================
@@ -675,15 +994,6 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
         mm = {}
     lvl_min, lvl_max = level_range
     st.markdown('<div class="slbl">01 · LEADERBOARD — BAR + TABLE · SIMPLE COMPARISON + DETAILS</div>', unsafe_allow_html=True)
-    weights = None  # composite score is KTC-only
-
-    # Filter per_run to only samples within the level range
-    # Sample IDs that are numeric map directly to levels; filter accordingly
-    def sample_in_level(sid):
-        try:
-            return lvl_min <= int(sid) <= lvl_max
-        except (ValueError, TypeError):
-            return True  # non-numeric sample IDs always pass through
 
     if lvl_min != 1 or lvl_max != 7:
         st.markdown(
@@ -696,12 +1006,20 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
     for i,(method_name,metrics) in enumerate(scores.items()):
         if method_name not in st.session_state.method_colors:
             st.session_state.method_colors[method_name] = mcol(len(st.session_state.method_colors))
-        comp  = calculate_composite_score(metrics, weights)
+        # Average KTC over the level-filtered per-run entries when available;
+        # the precomputed scores.json average covers all levels.
+        ik = mm.get(method_name)
+        entries = filter_by_level(per_run.get(ik, {}), lvl_min, lvl_max) if ik else {}
+        if entries:
+            ktc_val = float(np.mean([e.get('ktc_score', 0.0) for e in entries.values()]))
+        else:
+            ktc_val = metrics.get('KTC score', metrics.get('ktc_score', 0))
+        comp  = calculate_composite_score({'ktc_score': ktc_val})
         grade = letter_grade(comp)
         leaderboard_data.append({
             'Method':method_name,'Composite Score':comp,'Grade':grade,
             'Color':st.session_state.method_colors[method_name],
-            'KTC Score': metrics.get('KTC score', metrics.get('ktc_score',0)),
+            'KTC Score': ktc_val,
         })
     leaderboard_data.sort(key=lambda x: x['Composite Score'], reverse=True)
     df = pd.DataFrame(leaderboard_data)
@@ -712,7 +1030,7 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
         (f"{df.iloc[0]['Composite Score']:.1f}", "TOP SCORE",  df.iloc[0]['Method'][:22], "--c1"),
         (f"{df['Composite Score'].mean():.1f}",  "AVG SCORE",  f"σ = {df['Composite Score'].std():.1f}", "--c2"),
         (str(len(df)),                           "METHODS",    f"{gc.get('A',0)}A  {gc.get('B',0)}B  {gc.get('C',0)}C  {gc.get('D',0)}D", "--c3"),
-        (f"{df['KTC Score'].min():.4f}",         "BEST KTC",   "lower is better", "--c4"),
+        (f"{df['KTC Score'].max():.4f}",         "BEST KTC",   "higher is better", "--c4"),
     ]
     kpi_html = '<div class="kpi-row">'
     for num, lbl, sub, kc in kpis:
@@ -815,8 +1133,9 @@ def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple
 
     lvl_min, lvl_max = level_range
     dm = all_methods(scores)
+    # Default: all methods so GroundTruthOracle is always visible as the reference ceiling
     chosen = st.multiselect("Select methods:", dm,
-        default=[m for m in dm[:3] if m not in st.session_state.get('custom_methods',[])])
+        default=[m for m in dm if m not in st.session_state.get('custom_methods',[])])
 
     if not chosen:
         st.info("Select at least one method.")
@@ -839,21 +1158,21 @@ def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple
     for i, disp_name in enumerate(chosen):
         ik = mm.get(disp_name)
         if not ik or ik not in per_run: continue
-        samps = per_run[ik]
-
-        # Filter by level range: sample IDs that are numeric = level number
-        def _in_range(sid):
-            try:    return lvl_min <= int(sid) <= lvl_max
-            except: return True
-        sids = sorted(s for s in samps.keys() if _in_range(s))
-        if not sids:
+        samps = filter_by_level(per_run[ik], lvl_min, lvl_max)
+        if not samps:
             continue
 
-        ktc = [samps[s]['ktc_score'] for s in sids]
-        x   = [int(s) if str(s).isdigit() else j+1 for j,s in enumerate(sids)]
+        # x = difficulty level; y = mean KTC over that level's samples;
+        # band = ±1 std across the samples within each level
+        levels   = sorted({int(e['level']) for e in samps.values()})
+        by_level = {lv: [e['ktc_score'] for e in samps.values() if int(e['level']) == lv]
+                    for lv in levels}
+        ktc = [float(np.mean(by_level[lv])) for lv in levels]
+        sds = [float(np.std(by_level[lv]))  for lv in levels]
+        x   = levels
         c   = mcol(i)
         mu  = np.mean(ktc); sd = np.std(ktc)
-        upper = [v + sd for v in ktc]; lower = [max(0, v - sd) for v in ktc]
+        upper = [v + s for v, s in zip(ktc, sds)]; lower = [max(0, v - s) for v, s in zip(ktc, sds)]
         # Confidence band
         fig.add_trace(go.Scatter(
             x=x+x[::-1], y=upper+lower[::-1],
@@ -874,7 +1193,7 @@ def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple
 
     fig.update_layout(
         title=f"KTC Score — Levels {lvl_min}–{lvl_max}",
-        xaxis_title="Level / Sample ID", yaxis_title="KTC Score ↓",
+        xaxis_title="Difficulty Level", yaxis_title="KTC Score (higher = better)",
         height=420, hovermode='x unified',
         paper_bgcolor=pp, plot_bgcolor=pb,
         font=dict(family="JetBrains Mono,monospace", color=pt, size=9),
@@ -889,7 +1208,7 @@ def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple
         st.markdown('<div class="slbl">KTC STATISTICS</div>', unsafe_allow_html=True)
         st.dataframe(pd.DataFrame(stats).round(4), use_container_width=True, hide_index=True)
 
-        best  = min(stats, key=lambda r: r['Mean KTC'])
+        best  = max(stats, key=lambda r: r['Mean KTC'])
         worst = max(stats, key=lambda r: r['Std Dev'])
         st.markdown(
             f'<div style="background:var(--grn-bg);border:1px solid var(--grn-bd);border-radius:7px;padding:10px 14px;margin-top:8px">'
@@ -922,23 +1241,20 @@ def view_comparison(scores:Dict, per_run:Dict, mm:Dict, sel_metrics:list=None, l
 
     lvl_min, lvl_max = level_range
 
-    def _in_range(sid):
-        try:    return lvl_min <= int(sid) <= lvl_max
-        except: return True
-
     dm = all_methods(scores)
     fi = list(per_run.keys())[0] if per_run else None
-    # Filter sample list by level range
-    all_samps = list(per_run[fi].keys()) if fi else []
-    samps = [s for s in all_samps if _in_range(s)]
-    if not samps:
-        samps = all_samps  # fallback: show all if filter leaves nothing
+    entries = filter_by_level(per_run[fi], lvl_min, lvl_max) if fi else {}
+    if not entries and fi:
+        entries = per_run[fi]  # fallback: show all if filter leaves nothing
+    levels_avail = sorted({int(e['level']) for e in entries.values()}) or ALL_LEVELS
 
     c1,c2,c3,c4 = st.columns(4)
     m1  = c1.selectbox("Method 1:", dm, index=0)
     m2  = c2.selectbox("Method 2:", dm, index=min(1,len(dm)-1))
-    sid = c3.selectbox("Sample:", samps)
-    lvl = c4.selectbox("Level:", ALL_LEVELS, index=0)
+    lvl = c3.selectbox("Level:", levels_avail, index=0)
+    samps = sorted({e['sample'] for e in entries.values() if int(e['level']) == lvl})
+    sid = c4.selectbox("Sample:", samps) if samps else None
+    run_key = f"L{lvl}_{sid}"
 
     m1i = mm.get(m1); m2i = mm.get(m2)
     p1  = m1 in st.session_state.get('custom_methods', [])
@@ -946,8 +1262,8 @@ def view_comparison(scores:Dict, per_run:Dict, mm:Dict, sel_metrics:list=None, l
     if p1: st.info(f"{m1} is a custom method — connect its backend to see metrics.")
     if p2: st.info(f"{m2} is a custom method — connect its backend to see metrics.")
 
-    met1 = per_run.get(m1i or m1, {}).get(sid, {}) if not p1 else {}
-    met2 = per_run.get(m2i or m2, {}).get(sid, {}) if not p2 else {}
+    met1 = per_run.get(m1i or m1, {}).get(run_key, {}) if not p1 else {}
+    met2 = per_run.get(m2i or m2, {}).get(run_key, {}) if not p2 else {}
 
     # Metric comparison table — only show selected metrics
     st.markdown('<div class="slbl">METRIC COMPARISON</div>', unsafe_allow_html=True)
@@ -998,16 +1314,13 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
 
     lvl_min, lvl_max = level_range
 
-    def _in_range(sid):
-        try:    return lvl_min <= int(sid) <= lvl_max
-        except: return True
-
     if lvl_min != 1 or lvl_max != 7:
         st.markdown(
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--amb);margin-bottom:6px">'
             f'Filtered: levels {lvl_min}–{lvl_max}</div>', unsafe_allow_html=True)
 
     # ── Pass 1: collect all per-run data for KPI counts, root cause, summary ─
+    # KTC score is higher = better: worst runs have the LOWEST scores.
     all_ktc      = []
     grade_counts = {'A':0,'B':0,'C':0,'D':0}
     root_causes  = []
@@ -1017,20 +1330,18 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
         ik = mm.get(disp)
         if not ik or ik not in per_run:
             continue
-        samples  = per_run[ik]
-        # Apply level filter
-        samples_f = {sid: m for sid, m in samples.items() if _in_range(sid)}
+        samples_f = filter_by_level(per_run[ik], lvl_min, lvl_max)
         if not samples_f:
             continue
         ktc_vals = [v['ktc_score'] for v in samples_f.values()]
-        worst3   = sorted(samples_f.items(), key=lambda x: x[1]['ktc_score'], reverse=True)[:3]
+        worst3   = sorted(samples_f.items(), key=lambda x: x[1]['ktc_score'])[:3]
 
         # summary row (one per method)
         summary_rows.append({
             'Method':              disp,
-            'Worst KTC':           max(ktc_vals),
+            'Worst KTC':           min(ktc_vals),
             'Mean KTC':            np.mean(ktc_vals),
-            'Failures (KTC>0.3)':  sum(1 for v in ktc_vals if v > 0.3),
+            'Failures (KTC<0.3)':  sum(1 for v in ktc_vals if v < 0.3),
             'Worst Samples':       ', '.join(str(s) for s, _ in worst3),
         })
 
@@ -1038,9 +1349,10 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
         for sid, m in samples_f.items():
             ktc = m.get('ktc_score', 0)
             all_ktc.append(ktc)
-            comp = calculate_composite_score({'ktc_score': ktc})
-            g = letter_grade(comp)
-            grade_counts[g] += 1
+            # grade/composite come from the backend JSON; compute only if absent
+            comp = m.get('composite_score', calculate_composite_score({'ktc_score': ktc}))
+            g = m.get('grade', letter_grade(comp))
+            grade_counts[g] = grade_counts.get(g, 0) + 1
             if g in ('C', 'D'):
                 root_causes.append({
                     'Method': disp, 'Sample': sid, 'Grade': g,
@@ -1051,7 +1363,7 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
     total    = len(all_ktc)
     kpi2     = [
         (str(total),             "TOTAL RUNS",         "all methods × samples", "--c3"),
-        (str(grade_counts['D']), "D-GRADE FAILED",     "KTC > threshold",       "--c5"),
+        (str(grade_counts['D']), "D-GRADE FAILED",     "composite < 40",        "--c5"),
         (str(grade_counts['C']), "C-GRADE STRUGGLING", "marginal performance",  "--c4"),
         (str(grade_counts['B']), "B-GRADE STRONG",     "solid performance",     "--c1"),
     ]
@@ -1071,6 +1383,16 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
         fdf['Worst KTC'] = fdf['Worst KTC'].round(4)
         fdf['Mean KTC']  = fdf['Mean KTC'].round(4)
         st.dataframe(fdf, use_container_width=True, hide_index=True)
+        # Explain negative KTC if any method scores below zero
+        if any(r['Worst KTC'] < 0 for r in summary_rows):
+            st.markdown(
+                '<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;'
+                'color:#9a6700;background:#fff8c5;border:1px solid #f0d847;border-radius:5px;'
+                'padding:5px 10px;margin-top:4px">'
+                'KTC < 0 means the reconstruction is <b>worse than the all-water baseline</b> '
+                '(random noise artefacts confuse the SSIM metric). '
+                'Composite scores below zero are expected for poorly-initialised solvers.</div>',
+                unsafe_allow_html=True)
 
     # ── Root cause analysis table ─────────────────────────────
     if root_causes:
@@ -1123,16 +1445,17 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
 
     st.markdown("---")
 
-    # ── Per-method worst-3 cards (original logic, level-filtered) ─
+    # ── Per-method worst-3 cards (lowest KTC = worst, level-filtered) ─
+    run_dir = find_latest_run()
     for disp in scores.keys():
         ik = mm.get(disp)
         if not ik or ik not in per_run:
             st.info(f"No per-run data for {disp}")
             continue
-        samples_f2 = {sid: m for sid, m in per_run[ik].items() if _in_range(sid)}
+        samples_f2 = filter_by_level(per_run[ik], lvl_min, lvl_max)
         if not samples_f2:
             continue
-        worst3 = sorted(samples_f2.items(), key=lambda x: x[1]['ktc_score'], reverse=True)[:3]
+        worst3 = sorted(samples_f2.items(), key=lambda x: x[1]['ktc_score'])[:3]
 
         st.markdown(
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;font-weight:600;'
@@ -1151,8 +1474,10 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
                   <div class="fbar"><div class="fbar-f" style="width:{pct}%;background:{bc}"></div></div>
                 </div>""", unsafe_allow_html=True)
                 img_shown = False
-                for p in [Path("outputs/reconstructions/level_1") / f"sample_{sid}" / f"{ik}.png",
-                          Path("outputs/error_overlays") / f"{ik}_sample_{sid}.png"]:
+                lv = int(metrics.get('level', 1))
+                sp = metrics.get('sample', sid)
+                for p in [run_dir / "reconstructions" / f"level_{lv}" / f"sample_{sp}" / f"{ik}.png",
+                          run_dir / "error_overlays" / f"{ik}_sample_{sp}.png"]:
                     if p.exists():
                         st.image(Image.open(p), use_container_width=True)
                         img_shown = True
@@ -1198,9 +1523,42 @@ def view_radar_chart(scores:Dict, per_run:Dict, sel_metrics:list=None):
         st.info("Select at least one metric.")
         return
 
+    # Radar is only meaningful with 2+ axes. With 1 metric it degrades to dots on a line.
+    if len(chosen) == 1:
+        st.info(
+            f"Radar chart needs 2+ metrics to draw a polygon — currently only **{chosen[0]}** is available. "
+            "Showing a bar comparison instead. Add more metrics (Dice, IoU…) to unlock the full radar."
+        )
+        metric = chosen[0]
+        pc2 = st.session_state.get('_pcolors', {})
+        bar_data = [(name, max(0, metrics.get(metric, 0))) for name, metrics in scores.items()]
+        bar_data.sort(key=lambda x: x[1], reverse=True)
+        fig2 = go.Figure()
+        for i, (name, val) in enumerate(bar_data):
+            fig2.add_trace(go.Bar(
+                name=name, x=[name], y=[val],
+                marker_color=mcol(i),
+                text=f"{val:.4f}", textposition='outside',
+                textfont=dict(family="JetBrains Mono", size=9),
+            ))
+        fig2.update_layout(
+            xaxis_title="Method", yaxis_title=metric.replace('_', ' ').title(),
+            yaxis_range=[0, 1.1], showlegend=False, height=360,
+            paper_bgcolor=pc2.get('paper', 'rgba(0,0,0,0)'),
+            plot_bgcolor=pc2.get('bg', '#f6f8fa'),
+            font=dict(family="JetBrains Mono,monospace", color=pc2.get('text', '#848d97'), size=9),
+            xaxis=dict(gridcolor=pc2.get('grid', '#d0d7de'), linecolor=pc2.get('grid', '#d0d7de')),
+            yaxis=dict(gridcolor=pc2.get('grid', '#d0d7de'), linecolor=pc2.get('grid', '#d0d7de')),
+            margin=dict(l=0, r=10, t=20, b=30),
+        )
+        st.plotly_chart(fig2, use_container_width=True)
+        return
+
     fig = go.Figure()
     for i,(name,metrics) in enumerate(scores.items()):
-        vals = [max(0,1-metrics.get(m,0)) if 'ktc' in m.lower() else metrics.get(m,0) for m in chosen]
+        # KTC is already higher = better on [0, 1]; clamp negatives (worse than
+        # all-water baseline) to 0 for the polar axis.
+        vals = [max(0, metrics.get(m,0)) for m in chosen]
         vals.append(vals[0])
         cats = [m.replace('_',' ').title() for m in chosen]; cats.append(cats[0])
         c = mcol(i)
@@ -1221,7 +1579,7 @@ def view_radar_chart(scores:Dict, per_run:Dict, sel_metrics:list=None):
     st.markdown('<div class="slbl">METRIC STATISTICS</div>', unsafe_allow_html=True)
     rows = []
     for m in chosen:
-        vals = [max(0,1-ms.get(m,0)) if 'ktc' in m.lower() else ms.get(m,0) for ms in scores.values()]
+        vals = [max(0, ms.get(m,0)) for ms in scores.values()]
         rows.append({'Metric':m.replace('_',' ').title(),'Mean':np.mean(vals),'Std Dev':np.std(vals),'Min':np.min(vals),'Max':np.max(vals)})
     st.dataframe(pd.DataFrame(rows).round(4), use_container_width=True, hide_index=True)
 
@@ -1236,17 +1594,12 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
 
     lvl_min, lvl_max = level_range
 
-    # Build sample ID list filtered by level range
-    all_sample_ids: list = []
-    for ik in per_run.values():
-        for sid in ik.keys():
-            try:
-                in_range = lvl_min <= int(sid) <= lvl_max
-            except (ValueError, TypeError):
-                in_range = True  # non-numeric: always include
-            if in_range and sid not in all_sample_ids:
-                all_sample_ids.append(sid)
-    all_sample_ids = sorted(all_sample_ids, key=lambda x: int(x) if str(x).isdigit() else x)
+    # Build run-key list filtered by each entry's level, ordered by (level, sample)
+    key_order: dict = {}
+    for entries in per_run.values():
+        for sid, e in filter_by_level(entries, lvl_min, lvl_max).items():
+            key_order.setdefault(sid, (int(e.get('level', 1)), str(e.get('sample', sid))))
+    all_sample_ids = sorted(key_order, key=lambda k: key_order[k])
 
     if not all_sample_ids:
         st.info(f"No samples found for levels {lvl_min}–{lvl_max}.")
@@ -1282,10 +1635,9 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
         st.markdown(
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--tx3);padding-top:28px">'
             f'Levels {lvl_min}–{lvl_max} · {len(all_sample_ids)} samples · {len(method_names)} methods. '
-            f'KTC: lower=greener. Others: higher=greener.</div>',
+            f'Higher = greener (better).</div>',
             unsafe_allow_html=True)
 
-    invert = 'ktc' in chosen_metric
     pc = st.session_state.get('_pcolors', {})
     pb = pc.get('bg', '#f6f8fa')
     pg = pc.get('grid', '#d0d7de')
@@ -1303,14 +1655,17 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
         text.append(trow)
         y_labels.append(disp)
 
-    colorscale = 'RdYlGn_r' if invert else 'RdYlGn'
+    colorscale = 'RdYlGn'  # higher = greener; KTC score is higher = better
+
+    # When columns exceed 12 the cell text overlaps — rely on hover tooltips instead
+    show_cell_text = len(all_sample_ids) <= 12
 
     fig = go.Figure(go.Heatmap(
         z=z,
-        x=[f"S{s}" for s in all_sample_ids],
+        x=[str(s) for s in all_sample_ids],
         y=y_labels,
         text=text,
-        texttemplate="%{text}",
+        texttemplate="%{text}" if show_cell_text else "",
         textfont=dict(family="JetBrains Mono,monospace", size=8),
         colorscale=colorscale,
         showscale=True,
@@ -1445,17 +1800,17 @@ def _render_pdf_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str):
 
         # ── Section 3: Failure analysis ───────────────────────
         story.append(Paragraph("09 · FAILURE ANALYSIS", h2_style))
-        fail_data = [['Method','Worst KTC','Mean KTC','Failures (KTC>0.3)','Worst Samples']]
+        fail_data = [['Method','Worst KTC','Mean KTC','Failures (KTC<0.3)','Worst Samples']]
         for disp, ik in mm.items():
             if not ik or ik not in per_run: continue
             samples  = per_run[ik]
             ktc_vals = [v['ktc_score'] for v in samples.values()]
-            worst3   = sorted(samples.items(), key=lambda x: x[1]['ktc_score'], reverse=True)[:3]
+            worst3   = sorted(samples.items(), key=lambda x: x[1]['ktc_score'])[:3]
             fail_data.append([
                 disp,
-                f"{max(ktc_vals):.4f}",
+                f"{min(ktc_vals):.4f}",
                 f"{np.mean(ktc_vals):.4f}",
-                str(sum(1 for v in ktc_vals if v > 0.3)),
+                str(sum(1 for v in ktc_vals if v < 0.3)),
                 ', '.join(str(s) for s,_ in worst3),
             ])
         f_tbl = Table(fail_data, repeatRows=1)
@@ -1511,6 +1866,202 @@ def _render_pdf_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str):
 # =========================================================
 # MAIN
 # =========================================================
+# =========================================================
+# VIEW 7 — HULL ANALYSIS
+# =========================================================
+def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple = (1, 7)):
+    """Convex-hull geometric error analysis — pred vs GT hulls."""
+    st.markdown('<div class="slbl">07 · HULL ANALYSIS — GEOMETRIC ERROR · CONVEX HULL COMPARISON</div>',
+                unsafe_allow_html=True)
+
+    pc = st.session_state.get('_pcolors', {})
+    sel_methods = list(scores.keys())
+    lvl_min, lvl_max = level_range
+
+    # ── Collect hull data across all methods ──────────────────
+    hull_rows = []
+    for method in sel_methods:
+        pr_key = mm.get(method, method)
+        entries = per_run.get(pr_key, {})
+        for key, entry in entries.items():
+            lv = int(entry.get("level", 1))
+            if lv < lvl_min or lv > lvl_max:
+                continue
+            hull = entry.get("hull", {})
+            if not hull:
+                continue
+            hull_rows.append({
+                "Method": method,
+                "Level": lv,
+                "Sample": entry.get("sample", "?"),
+                "KTC": entry.get("ktc_score", 0.0),
+                "Res Center Err": hull.get("hull_resistive_center_error"),
+                "Res Area Err": hull.get("hull_resistive_area_error"),
+                "Res Perim Err": hull.get("hull_resistive_perimeter_error"),
+                "Con Center Err": hull.get("hull_conductive_center_error"),
+                "Con Area Err": hull.get("hull_conductive_area_error"),
+                "Con Perim Err": hull.get("hull_conductive_perimeter_error"),
+                "Res Area": hull.get("hull_res_area"),
+                "Con Area": hull.get("hull_con_area"),
+                "Res Pixels": hull.get("hull_res_pixels", 0),
+                "Con Pixels": hull.get("hull_con_pixels", 0),
+            })
+
+    if not hull_rows:
+        st.info("No hull data available. Run the benchmark or `python compute_hull_data.py` to generate hull analysis.")
+        return
+
+    import pandas as _pd
+    df = _pd.DataFrame(hull_rows)
+
+    # ── KPI cards — average geometric errors per method ───────
+    st.markdown("### Method Comparison — Average Geometric Errors")
+    err_cols = ["Res Center Err", "Res Area Err", "Res Perim Err"]
+    summary = df.groupby("Method")[err_cols].mean().round(1)
+
+    kpi_html = '<div class="kpi-row">'
+    for i, method in enumerate(summary.index):
+        row = summary.loc[method]
+        c = PALETTE[i % len(PALETTE)]
+        center_e = row["Res Center Err"]
+        area_e = row["Res Area Err"]
+        center_str = f"{center_e:.1f}px" if pd.notna(center_e) else "—"
+        area_str = f"{area_e:.0f}px²" if pd.notna(area_e) else "—"
+        short = method.replace("Reconstruction", "Recon").replace("Difference", "Diff").replace("Projection", "Proj")
+        kpi_html += (
+            f'<div class="kpi" style="--kc:{c}">'
+            f'<div class="kpi-n">{center_str}</div>'
+            f'<div class="kpi-l">Center Error</div>'
+            f'<div class="kpi-s">{short} · Area Err: {area_str}</div></div>'
+        )
+    kpi_html += '</div>'
+    st.markdown(kpi_html, unsafe_allow_html=True)
+
+    # ── Bar chart: Center error by method ─────────────────────
+    st.markdown("### Resistive Region — Center Error by Method")
+    avg_center = df.dropna(subset=["Res Center Err"]).groupby("Method")["Res Center Err"].mean().sort_values()
+    if not avg_center.empty:
+        fig_ce = go.Figure()
+        colors = [PALETTE[list(scores.keys()).index(m) % len(PALETTE)] if m in scores else "#848d97"
+                  for m in avg_center.index]
+        fig_ce.add_trace(go.Bar(
+            x=avg_center.index, y=avg_center.values,
+            marker_color=colors,
+            text=[f"{v:.1f}px" for v in avg_center.values],
+            textposition="outside",
+            textfont=dict(family="JetBrains Mono", size=11),
+        ))
+        fig_ce.update_layout(
+            yaxis_title="Center Error (px)",
+            height=340,
+            margin=dict(l=50, r=20, t=30, b=40),
+            plot_bgcolor=pc.get('paper', 'rgba(0,0,0,0)'),
+            paper_bgcolor=pc.get('paper', 'rgba(0,0,0,0)'),
+            font=dict(family="JetBrains Mono", size=10, color=pc.get('text', '#848d97')),
+            yaxis=dict(gridcolor=pc.get('grid', '#d0d7de'), zeroline=False),
+        )
+        st.plotly_chart(fig_ce, use_container_width=True)
+
+    # ── Bar chart: Area error by method ───────────────────────
+    st.markdown("### Resistive Region — Hull Area Error by Method")
+    avg_area = df.dropna(subset=["Res Area Err"]).groupby("Method")["Res Area Err"].mean().sort_values()
+    if not avg_area.empty:
+        fig_ae = go.Figure()
+        colors_a = [PALETTE[list(scores.keys()).index(m) % len(PALETTE)] if m in scores else "#848d97"
+                    for m in avg_area.index]
+        fig_ae.add_trace(go.Bar(
+            x=avg_area.index, y=avg_area.values,
+            marker_color=colors_a,
+            text=[f"{v:.0f}px²" for v in avg_area.values],
+            textposition="outside",
+            textfont=dict(family="JetBrains Mono", size=11),
+        ))
+        fig_ae.update_layout(
+            yaxis_title="Area Error (px²)",
+            height=340,
+            margin=dict(l=50, r=20, t=30, b=40),
+            plot_bgcolor=pc.get('paper', 'rgba(0,0,0,0)'),
+            paper_bgcolor=pc.get('paper', 'rgba(0,0,0,0)'),
+            font=dict(family="JetBrains Mono", size=10, color=pc.get('text', '#848d97')),
+            yaxis=dict(gridcolor=pc.get('grid', '#d0d7de'), zeroline=False),
+        )
+        st.plotly_chart(fig_ae, use_container_width=True)
+
+    # ── Scatter: KTC score vs Center error ────────────────────
+    st.markdown("### KTC Score vs Center Error — Correlation")
+    scatter_df = df.dropna(subset=["Res Center Err", "KTC"])
+    if not scatter_df.empty:
+        fig_sc = go.Figure()
+        for i, method in enumerate(sel_methods):
+            mdf = scatter_df[scatter_df["Method"] == method]
+            if mdf.empty:
+                continue
+            fig_sc.add_trace(go.Scatter(
+                x=mdf["KTC"], y=mdf["Res Center Err"],
+                mode="markers",
+                name=method.replace("Reconstruction", "Recon"),
+                marker=dict(size=7, color=PALETTE[i % len(PALETTE)]),
+            ))
+        fig_sc.update_layout(
+            xaxis_title="KTC Score",
+            yaxis_title="Center Error (px)",
+            height=380,
+            margin=dict(l=50, r=20, t=30, b=40),
+            plot_bgcolor=pc.get('paper', 'rgba(0,0,0,0)'),
+            paper_bgcolor=pc.get('paper', 'rgba(0,0,0,0)'),
+            font=dict(family="JetBrains Mono", size=10, color=pc.get('text', '#848d97')),
+            xaxis=dict(gridcolor=pc.get('grid', '#d0d7de')),
+            yaxis=dict(gridcolor=pc.get('grid', '#d0d7de')),
+            legend=dict(bgcolor=pc.get('legend', 'rgba(255,255,255,.9)'),
+                        bordercolor=pc.get('grid', '#d0d7de'), borderwidth=1,
+                        font=dict(size=10)),
+        )
+        st.plotly_chart(fig_sc, use_container_width=True)
+
+    # ── Degradation: Center error across difficulty levels ────
+    st.markdown("### Hull Error Degradation by Level")
+    deg_df = df.dropna(subset=["Res Center Err"])
+    if not deg_df.empty:
+        fig_deg = go.Figure()
+        for i, method in enumerate(sel_methods):
+            mdf = deg_df[deg_df["Method"] == method]
+            if mdf.empty:
+                continue
+            by_level = mdf.groupby("Level")["Res Center Err"].mean().sort_index()
+            fig_deg.add_trace(go.Scatter(
+                x=by_level.index, y=by_level.values,
+                mode="lines+markers",
+                name=method.replace("Reconstruction", "Recon"),
+                line=dict(color=PALETTE[i % len(PALETTE)], width=2),
+                marker=dict(size=6),
+            ))
+        fig_deg.update_layout(
+            xaxis_title="Difficulty Level",
+            yaxis_title="Avg Center Error (px)",
+            height=360,
+            margin=dict(l=50, r=20, t=30, b=40),
+            plot_bgcolor=pc.get('paper', 'rgba(0,0,0,0)'),
+            paper_bgcolor=pc.get('paper', 'rgba(0,0,0,0)'),
+            font=dict(family="JetBrains Mono", size=10, color=pc.get('text', '#848d97')),
+            xaxis=dict(gridcolor=pc.get('grid', '#d0d7de'), dtick=1),
+            yaxis=dict(gridcolor=pc.get('grid', '#d0d7de')),
+            legend=dict(bgcolor=pc.get('legend', 'rgba(255,255,255,.9)'),
+                        bordercolor=pc.get('grid', '#d0d7de'), borderwidth=1,
+                        font=dict(size=10)),
+        )
+        st.plotly_chart(fig_deg, use_container_width=True)
+
+    # ── Detailed table ────────────────────────────────────────
+    st.markdown("### Per-Run Hull Metrics")
+    display_cols = ["Method", "Level", "Sample", "KTC",
+                    "Res Center Err", "Res Area Err", "Res Perim Err",
+                    "Res Pixels", "Con Pixels"]
+    tbl = df[display_cols].copy()
+    for c in ["KTC", "Res Center Err", "Res Area Err", "Res Perim Err"]:
+        tbl[c] = tbl[c].apply(lambda v: f"{v:.2f}" if pd.notna(v) else "—")
+    st.dataframe(tbl, use_container_width=True, hide_index=True)
+
+
 def main():
     render_sidebar()
     dark = st.session_state.get('dark_mode', False)
@@ -1535,18 +2086,29 @@ def main():
     </div>
     """, unsafe_allow_html=True)
 
+    # Progress banner — visible whenever a benchmark subprocess is running
+    render_bench_progress()
+
     try:
         latest_run = find_latest_run()
         _cache_key = latest_run.name
         scores, per_run, mm = load_data(_cache_key)
 
-        # Active run label
+        # Active run label (+ red badge when runs were scored against a
+        # missing ground truth — their 0.0 scores are meaningless)
+        n_gt_missing = count_gt_missing(per_run)
+        gt_badge = (
+            f' &nbsp;·&nbsp; <span style="background:#ffebe9;border:1px solid #cf222e;'
+            f'color:#cf222e;border-radius:5px;padding:1px 6px;font-weight:600">'
+            f'{n_gt_missing} runs scored without ground truth</span>'
+        ) if n_gt_missing else ''
         st.markdown(
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;'
             f'color:var(--tx3);margin:-6px 0 10px;padding:0 2px">'
             f'Run: <span style="color:var(--grn)">{latest_run.name}</span> &nbsp;·&nbsp; '
             f'{len(scores)} method(s) &nbsp;·&nbsp; '
-            f'{sum(len(v) for v in per_run.values()) if per_run else 0} total reconstructions</div>',
+            f'{sum(len(v) for v in per_run.values()) if per_run else 0} total reconstructions'
+            f'{gt_badge}</div>',
             unsafe_allow_html=True)
 
         if not scores and not per_run:
@@ -1568,22 +2130,28 @@ def main():
         if not scores_f:
             scores_f = scores  # safety: never show empty dashboard
 
-        # Dataset info expander
-        with st.expander("Dataset Information", expanded=False):
-            c1,c2,c3 = st.columns(3)
-            n_s = len(per_run.get(list(per_run.keys())[0],{})) if per_run else 0
-            n_t = sum(len(v) for v in per_run.values()) if per_run else 0
-            for col_, (num, lbl) in zip([c1,c2,c3],[
-                (str(len(scores)),"Methods Analyzed"),
-                (str(n_s),"Total Samples"),
-                (str(n_t),"Total Reconstructions")]):
-                with col_:
-                    st.markdown(
-                        f'<div class="mcard"><div class="mv" style="font-size:18px">{num}</div>'
-                        f'<div class="ml">{lbl}</div></div>', unsafe_allow_html=True)
-            if scores:
-                st.markdown("**Available methods:**")
-                for m in scores.keys(): st.markdown(f"  • {m}")
+        # Dataset info — inline KPI row (no expander = no icon issue)
+        n_s = len(per_run.get(list(per_run.keys())[0], {})) if per_run else 0
+        n_t = sum(len(v) for v in per_run.values()) if per_run else 0
+        method_list = " &nbsp;·&nbsp; ".join(
+            f'<span style="color:var(--tx)">{m}</span>' for m in scores.keys())
+        st.markdown(
+            f'<div style="display:flex;gap:8px;margin-bottom:10px">'
+            f'<div style="flex:1;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:7px 10px">'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:16px;font-weight:500;color:var(--tx)">{len(scores)}</div>'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--tx3);text-transform:uppercase;letter-spacing:.1em">Methods</div>'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--tx2);margin-top:3px">{method_list}</div>'
+            f'</div>'
+            f'<div style="flex:0 0 90px;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:7px 10px">'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:16px;font-weight:500;color:var(--tx)">{n_s}</div>'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--tx3);text-transform:uppercase;letter-spacing:.1em">Runs / method</div>'
+            f'</div>'
+            f'<div style="flex:0 0 90px;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:7px 10px">'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:16px;font-weight:500;color:var(--tx)">{n_t}</div>'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--tx3);text-transform:uppercase;letter-spacing:.1em">Total recons</div>'
+            f'</div>'
+            f'</div>',
+            unsafe_allow_html=True)
 
         # PDF export — triggered from sidebar button
         if st.session_state.get('_trigger_pdf'):
@@ -1591,10 +2159,11 @@ def main():
             _render_pdf_export(scores, per_run, mm, latest_run.name)
 
         # Tabs
-        t1,t2,t3,t4,t5,t6 = st.tabs([
+        t1,t2,t3,t4,t5,t6,t7 = st.tabs([
             "01  LEADERBOARD","02  HEATMAP",
             "04  DEGRADATION","06  RADAR",
-            "09  FAILURES","03  RECONSTRUCTION"])
+            "09  FAILURES","03  RECONSTRUCTION",
+            "07  HULL ANALYSIS"])
 
         with t1: view_leaderboard(scores_f, per_run, sel_metrics, mm, level_range)
         with t2: view_heatmap(scores_f, per_run, mm, level_range)
@@ -1602,6 +2171,7 @@ def main():
         with t4: view_radar_chart(scores_f, per_run, sel_metrics)
         with t5: view_failure_gallery(scores_f, per_run, mm, level_range)
         with t6: view_comparison(scores, per_run, mm, sel_metrics, level_range)
+        with t7: view_hull_analysis(scores_f, per_run, mm, level_range)
 
     except Exception as e:
         st.error(f"Error: {e}")

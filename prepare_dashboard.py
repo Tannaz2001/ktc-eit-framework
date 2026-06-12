@@ -1,136 +1,45 @@
 """
-prepare_dashboard.py  —  Bridge between BatchRunner and Streamlit dashboard.
+prepare_dashboard.py — snapshot existing BatchRunner output for the dashboard.
 
-BatchRunner (run.py) saves outputs/scores.json as a flat list:
-  [ {method, level, sample, metrics: {ktc_score}}, ... ]
+This is a thin wrapper: all run-folder creation and latest.txt handling lives
+in example_usage.project_to_dashboard (the backend -> frontend bridge), so
+there is exactly one producer of dashboard run folders.
 
-The Streamlit dashboard (app.py) reads from a timestamped run folder pointed
-to by outputs/latest.txt.
-
-This script:
-  1. Reads outputs/scores.json (flat list from BatchRunner)
-  2. Creates a new timestamped run folder  outputs/run_YYYYMMDD_HHMMSS/
-  3. Writes scores.json (averaged per method) into that folder
-  4. Writes per_run_metrics.json (per-run breakdown) into that folder
-  5. Updates outputs/latest.txt so the dashboard picks up the new data
+Use this when you already ran `python run.py --config ...` and only want to
+publish the results to the dashboard without re-running the benchmark.
 
 Usage:
     python prepare_dashboard.py
-    python prepare_dashboard.py --input outputs/scores.json
+    python prepare_dashboard.py --output-dir outputs/
 """
 
 from __future__ import annotations
 
 import argparse
-import json
-from collections import defaultdict
-from datetime import datetime
 from pathlib import Path
+
+from example_usage import project_to_dashboard
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Convert BatchRunner output to Streamlit dashboard format."
+        description="Publish existing BatchRunner output to the Streamlit dashboard."
     )
     parser.add_argument(
-        "--input",
+        "--output-dir",
         type=Path,
-        default=Path("outputs/scores.json"),
-        help="Flat-list scores.json produced by run.py (default: outputs/scores.json)",
+        default=Path("outputs"),
+        help="BatchRunner output folder containing dashboard_scores.json / "
+             "per_run_metrics.json (default: outputs/)",
     )
     args = parser.parse_args()
 
-    # ── Load runner output ────────────────────────────────────────────
-    if not args.input.exists():
-        print(f"[ERROR] {args.input} not found.")
-        print("  Run the benchmark first:")
-        print("    python run.py --config configs/ktc_all_methods.yaml")
-        raise SystemExit(1)
-
-    with open(args.input, encoding="utf-8") as f:
-        runs = json.load(f)
-
-    if not isinstance(runs, list) or len(runs) == 0:
-        print(f"[ERROR] {args.input} is not a list or is empty.")
-        raise SystemExit(1)
-
-    print(f"[OK] Loaded {len(runs)} runs from {args.input}")
-
-    # ── Create timestamped run folder ─────────────────────────────────
-    run_id  = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_dir = Path("outputs") / f"run_{run_id}"
-    run_dir.mkdir(parents=True, exist_ok=True)
-
-    # ── Averaged scores per method (for leaderboard & radar) ──────────
-    # BatchRunner._save already writes dashboard_scores.json next to
-    # scores.json — reuse it so there is a single source of truth.
-    # Rebuild from the flat list only for old outputs that lack it.
-    runner_scores_path = args.input.parent / "dashboard_scores.json"
-    if runner_scores_path.exists():
-        with open(runner_scores_path, encoding="utf-8") as f:
-            scores: dict[str, dict] = json.load(f)
-        print(f"[OK] Reusing runner output: {runner_scores_path}")
-    else:
-        method_buckets: dict[str, list] = defaultdict(list)
-        for run in runs:
-            method_buckets[run["method"]].append(run["metrics"])
-
-        scores = {}
-        for method, metric_list in method_buckets.items():
-            n = len(metric_list)
-            averaged: dict[str, float] = {}
-            for key in metric_list[0].keys():
-                try:
-                    averaged[key] = round(sum(m[key] for m in metric_list) / n, 6)
-                except (TypeError, KeyError):
-                    pass
-            scores[method] = averaged
-
-    # Write scores.json into run folder
-    scores_out = run_dir / "scores.json"
-    with open(scores_out, "w", encoding="utf-8") as f:
-        json.dump(scores, f, indent=2)
-    print(f"[OK] Averaged scores → {scores_out}")
-    for method, m in scores.items():
-        print(f"     {method}: KTC={m.get('ktc_score', 0):.4f}")
-
-    # ── Per-run metrics (for degradation curve & comparison) ──────────
-    # Same single-source rule: prefer the runner's per_run_metrics.json
-    # (it also carries png/mat/overlay paths the rebuild would lose).
-    runner_per_run_path = args.input.parent / "per_run_metrics.json"
-    if runner_per_run_path.exists():
-        with open(runner_per_run_path, encoding="utf-8") as f:
-            per_run: dict[str, dict] = json.load(f)
-        print(f"[OK] Reusing runner output: {runner_per_run_path}")
-    else:
-        per_run = defaultdict(dict)
-        for run in runs:
-            key = f"L{run['level']}_{run['sample']}"
-            per_run[run["method"]][key] = {
-                **run["metrics"],
-                "composite_score": run.get("composite_score", 0.0),
-                "grade":           run.get("grade", "D"),
-                "runtime_ms":      run.get("runtime_ms", 0.0),
-                "level":           run["level"],
-                "sample":          run["sample"],
-            }
-
-    per_run_out = run_dir / "per_run_metrics.json"
-    with open(per_run_out, "w", encoding="utf-8") as f:
-        json.dump(dict(per_run), f, indent=2)
-    print(f"[OK] Per-run metrics  → {per_run_out}")
-    for method, runs_dict in per_run.items():
-        print(f"     {method}: {len(runs_dict)} individual runs")
-
-    # ── Update latest.txt so dashboard finds this run ─────────────────
-    latest_txt = Path("outputs") / "latest.txt"
-    latest_txt.write_text(str(run_dir))
-    print(f"[OK] latest.txt       → {run_dir}")
+    run_dir = project_to_dashboard(args.output_dir)
 
     print()
     print("[OK] Dashboard is ready. Run:")
     print("       python -m streamlit run app.py")
-    print(f"      (showing run: {run_id})")
+    print(f"      (showing run: {run_dir.name})")
 
 
 if __name__ == "__main__":

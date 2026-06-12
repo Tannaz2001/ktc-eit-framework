@@ -36,6 +36,7 @@ from src.ktc_framework.visualization.plot_results import (
     plot_leaderboard,
     plot_error_overlay,
 )
+from src.ktc_framework.methods.hull_plugin import HullPlugin
 from src.ktc_framework.reporting.html_report import generate_html_report
 
 # Importing each package runs its __init__.py, which registers all plugins.
@@ -250,6 +251,7 @@ class BatchRunner:
         ) as progress:
             task = progress.add_task("Running experiment...", total=total)
 
+            done = 0
             for method in methods:
                 for level in levels:
                     for sample in samples:
@@ -260,7 +262,15 @@ class BatchRunner:
                         result = self._run_one(method, level, sample)
                         if result is not None:
                             results.append(result)
+                        done += 1
                         progress.advance(task)
+                        # Machine-readable marker so the dashboard progress bar
+                        # can parse completion without scraping Rich escape codes.
+                        console.print(
+                            f"[BENCH_PROGRESS] completed={done}/{total} "
+                            f"method={method} level={level} sample={sample}",
+                            highlight=False,
+                        )
 
         n_gt_missing = sum(1 for r in results if r.get("gt_missing"))
         if n_gt_missing:
@@ -378,6 +388,29 @@ class BatchRunner:
             save_path=overlay_path,
         )
 
+        # ── hull geometry analysis ────────────────────────────────────────
+        hull_data: dict[str, float | None] = {}
+        try:
+            pred_hull = HullPlugin.analyze(reconstruction)
+            gt_hull   = HullPlugin.analyze(gt) if not gt_missing else None
+            hull_data = {
+                "hull_res_center_y":  pred_hull.resistive_center[0] if pred_hull.resistive_center else None,
+                "hull_res_center_x":  pred_hull.resistive_center[1] if pred_hull.resistive_center else None,
+                "hull_res_area":      pred_hull.resistive_area,
+                "hull_res_perimeter": pred_hull.resistive_perimeter,
+                "hull_res_pixels":    pred_hull.num_pixels_resistive,
+                "hull_con_center_y":  pred_hull.conductive_center[0] if pred_hull.conductive_center else None,
+                "hull_con_center_x":  pred_hull.conductive_center[1] if pred_hull.conductive_center else None,
+                "hull_con_area":      pred_hull.conductive_area,
+                "hull_con_perimeter": pred_hull.conductive_perimeter,
+                "hull_con_pixels":    pred_hull.num_pixels_conductive,
+            }
+            if gt_hull is not None:
+                errors = HullPlugin.compare_hulls(pred_hull, gt_hull)
+                hull_data.update({f"hull_{k}": v for k, v in errors.items()})
+        except Exception as exc:
+            console.print(f"[yellow]Hull analysis failed for {method} L{level}/{sample}: {exc}[/yellow]")
+
         return {
             "method":          method,
             "level":           level,
@@ -392,6 +425,7 @@ class BatchRunner:
             "png_path":        str(png_path),
             "mat_path":        str(mat_path),
             "overlay_path":    str(overlay_path),
+            "hull":            hull_data,
             # internal arrays — stripped before JSON serialisation
             "_gt":   gt,
             "_pred": reconstruction,
@@ -462,9 +496,11 @@ class BatchRunner:
                     "runtime_ms": row.get("runtime_ms", 0.0),
                     "level": row["level"],
                     "sample": row["sample"],
+                    "gt_missing": row.get("gt_missing", False),
                     "png_path": row.get("png_path", ""),
                     "mat_path": row.get("mat_path", ""),
                     "overlay_path": row.get("overlay_path", ""),
+                    "hull": row.get("hull", {}),
                 }
 
         with (self.output_dir / "dashboard_scores.json").open("w", encoding="utf-8") as f:
