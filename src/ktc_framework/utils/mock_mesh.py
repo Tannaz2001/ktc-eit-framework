@@ -17,15 +17,12 @@ _N_INJ_COLS   = 76
 _N_VOLTAGES   = 2356   # 76 injections × 31 pairs
 
 
-def make_adjacent_protocol(n_electrodes: int = 32) -> np.ndarray:
+def make_adjacent_protocol(n_electrodes: int = 32, n_patterns: int = _N_INJ_COLS) -> np.ndarray:
     """Build an adjacent-pair injection protocol matrix (n_electrodes × n_patterns)."""
-    n_patterns = n_electrodes * (n_electrodes - 1) // 2
     patterns = np.zeros((n_electrodes, n_patterns))
-    for i in range(n_electrodes):
-        source = i % n_patterns
-        sink   = (i + 1) % n_patterns
-        patterns[i, source] =  1.0
-        patterns[i, sink]   = -1.0
+    for j in range(n_patterns):
+        patterns[j % n_electrodes, j] =  1.0
+        patterns[(j + 1) % n_electrodes, j] = -1.0
     return patterns
 
 

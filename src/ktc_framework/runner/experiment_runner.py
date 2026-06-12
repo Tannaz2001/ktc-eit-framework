@@ -26,7 +26,7 @@ from src.ktc_framework.registry import (
     PluginRegistry,
 )
 from src.ktc_framework.metrics.metric_registry import register_metric, run_all_metrics
-from src.ktc_framework.metrics.ktc_score import compute_ktc_score, dice, iou, hd95
+from src.ktc_framework.metrics.ktc_score import compute_ktc_score
 from src.ktc_framework.metrics.composite_score import composite_score, letter_grade
 from src.ktc_framework.visualization import save_panel
 from src.ktc_framework.visualization.plot_results import (
@@ -36,6 +36,7 @@ from src.ktc_framework.visualization.plot_results import (
     plot_leaderboard,
     plot_error_overlay,
 )
+from src.ktc_framework.methods.hull_plugin import HullPlugin
 from src.ktc_framework.reporting.html_report import generate_html_report
 
 # Importing each package runs its __init__.py, which registers all plugins.
@@ -43,14 +44,9 @@ from src.ktc_framework.reporting.html_report import generate_html_report
 import src.ktc_framework.methods   # noqa: F401 — registers all reconstruction methods
 import src.ktc_framework.loaders   # noqa: F401 — registers all data plugins
 
-# Register built-in metrics once at module load
-register_metric("ktc_score",          compute_ktc_score)
-register_metric("dice_resistive",     lambda pred, gt: dice(pred, gt, label=1))
-register_metric("dice_conductive",    lambda pred, gt: dice(pred, gt, label=2))
-register_metric("iou_resistive",      lambda pred, gt: iou(pred, gt, label=1))
-register_metric("iou_conductive",     lambda pred, gt: iou(pred, gt, label=2))
-register_metric("hd95_resistive",     lambda pred, gt: hd95(pred, gt, label=1))
-register_metric("hd95_conductive",    lambda pred, gt: hd95(pred, gt, label=2))
+# Register built-in metrics once at module load.
+# KTC score is the only metric (challenge constraint — see constraint.txt).
+register_metric("ktc_score", compute_ktc_score)
 
 console = Console(safe_box=True)  # ASCII box-drawing — safe on Windows cp1252 terminals
 
@@ -80,6 +76,7 @@ class BatchRunner:
         # Load shared resources once — passed to every DataBatch at run time
         self.mesh = self._load_mesh(config.get("mesh_path", ""))
         self.ref_voltages = self._load_reference(config.get("dataset_root", ""))
+        self.data_plugin = self._load_data_plugin()
 
     # ------------------------------------------------------------------
     # Resource loaders
@@ -150,6 +147,27 @@ class BatchRunner:
         except Exception as exc:
             console.print(f"[yellow]pyEIT mesh generation failed ({exc}) — returning None.[/yellow]")
             return None
+
+    def _load_data_plugin(self):
+        """Resolve and instantiate the configured data plugin once.
+
+        Falls back to MockDataPlugin if the configured name is not registered,
+        matching the previous per-run behaviour.
+        """
+        plugin_name  = self.config.get("data_plugin", "MockDataPlugin")
+        dataset_root = self.config.get("dataset_root", "")
+
+        try:
+            data_plugin_cls = PluginRegistry.get(plugin_name)
+        except KeyError:
+            console.print(
+                f"[yellow]data_plugin '{plugin_name}' not registered — "
+                f"falling back to MockDataPlugin.[/yellow]"
+            )
+            from src.ktc_framework.loaders.mock_data_plugin import MockDataPlugin
+            data_plugin_cls = MockDataPlugin
+
+        return data_plugin_cls(dataset_root)
 
     def _load_reference(self, dataset_root: str) -> np.ndarray | None:
         """Load the empty-tank reference voltages from ``ref.mat``.
@@ -233,6 +251,7 @@ class BatchRunner:
         ) as progress:
             task = progress.add_task("Running experiment...", total=total)
 
+            done = 0
             for method in methods:
                 for level in levels:
                     for sample in samples:
@@ -243,7 +262,23 @@ class BatchRunner:
                         result = self._run_one(method, level, sample)
                         if result is not None:
                             results.append(result)
+                        done += 1
                         progress.advance(task)
+                        # Machine-readable marker so the dashboard progress bar
+                        # can parse completion without scraping Rich escape codes.
+                        console.print(
+                            f"[BENCH_PROGRESS] completed={done}/{total} "
+                            f"method={method} level={level} sample={sample}",
+                            highlight=False,
+                        )
+
+        n_gt_missing = sum(1 for r in results if r.get("gt_missing"))
+        if n_gt_missing:
+            console.print(
+                f"\n[bold red]{n_gt_missing} of {len(results)} runs were scored "
+                f"against an all-zero ground truth — their scores are "
+                f"meaningless. Check the dataset layout / GT folder.[/bold red]"
+            )
 
         self._save(results)
         self._print_summary(results)
@@ -255,25 +290,11 @@ class BatchRunner:
         self, method: str, level: int, sample: str
     ) -> dict[str, Any] | None:
         """Load one sample, run one reconstruction method, return scored result."""
-        plugin_name  = self.config.get("data_plugin", "MockDataPlugin")
         dataset_root = self.config.get("dataset_root", "")
 
-        # ── load data plugin ──────────────────────────────────────────────
+        # ── load sample (plugin is constructed once in __init__) ──────────
         try:
-            data_plugin_cls = PluginRegistry.get(plugin_name)
-        except KeyError:
-            console.print(
-                f"[yellow]data_plugin '{plugin_name}' not registered — "
-                f"falling back to MockDataPlugin.[/yellow]"
-            )
-            from src.ktc_framework.loaders.mock_data_plugin import MockDataPlugin
-            data_plugin_cls = MockDataPlugin
-
-        data_plugin = data_plugin_cls(dataset_root)
-
-        # ── load sample ───────────────────────────────────────────────────
-        try:
-            raw_batch = data_plugin.load_sample(level=level, sample=sample)
+            raw_batch = self.data_plugin.load_sample(level=level, sample=sample)
         except FileNotFoundError:
             console.print(
                 f"[yellow]Skipping level={level} sample={sample} — "
@@ -325,7 +346,16 @@ class BatchRunner:
         runtime_ms = (time.perf_counter() - start) * 1000
 
         # ── score ─────────────────────────────────────────────────────────
-        gt      = batch.ground_truth
+        gt = batch.ground_truth
+        # An all-zero GT almost always means the file was missing/unreadable
+        # and the loader fell back to zeros — every score against it is 0.0.
+        gt_missing = not np.any(gt)
+        if gt_missing:
+            console.print(
+                f"[red]Ground truth for level={level} sample={sample} is all "
+                f"zeros (missing or unreadable GT file?) — KTC score for this "
+                f"run is meaningless.[/red]"
+            )
         metrics = run_all_metrics(reconstruction, gt)
         comp    = composite_score(metrics)
         grade   = letter_grade(comp)
@@ -358,10 +388,34 @@ class BatchRunner:
             save_path=overlay_path,
         )
 
+        # ── hull geometry analysis ────────────────────────────────────────
+        hull_data: dict[str, float | None] = {}
+        try:
+            pred_hull = HullPlugin.analyze(reconstruction)
+            gt_hull   = HullPlugin.analyze(gt) if not gt_missing else None
+            hull_data = {
+                "hull_res_center_y":  pred_hull.resistive_center[0] if pred_hull.resistive_center else None,
+                "hull_res_center_x":  pred_hull.resistive_center[1] if pred_hull.resistive_center else None,
+                "hull_res_area":      pred_hull.resistive_area,
+                "hull_res_perimeter": pred_hull.resistive_perimeter,
+                "hull_res_pixels":    pred_hull.num_pixels_resistive,
+                "hull_con_center_y":  pred_hull.conductive_center[0] if pred_hull.conductive_center else None,
+                "hull_con_center_x":  pred_hull.conductive_center[1] if pred_hull.conductive_center else None,
+                "hull_con_area":      pred_hull.conductive_area,
+                "hull_con_perimeter": pred_hull.conductive_perimeter,
+                "hull_con_pixels":    pred_hull.num_pixels_conductive,
+            }
+            if gt_hull is not None:
+                errors = HullPlugin.compare_hulls(pred_hull, gt_hull)
+                hull_data.update({f"hull_{k}": v for k, v in errors.items()})
+        except Exception as exc:
+            console.print(f"[yellow]Hull analysis failed for {method} L{level}/{sample}: {exc}[/yellow]")
+
         return {
             "method":          method,
             "level":           level,
             "sample":          sample,
+            "gt_missing":      gt_missing,
             "output_shape":    list(reconstruction.shape),
             "metrics":         metrics,
             "composite_score": comp,
@@ -371,6 +425,7 @@ class BatchRunner:
             "png_path":        str(png_path),
             "mat_path":        str(mat_path),
             "overlay_path":    str(overlay_path),
+            "hull":            hull_data,
             # internal arrays — stripped before JSON serialisation
             "_gt":   gt,
             "_pred": reconstruction,
@@ -441,9 +496,11 @@ class BatchRunner:
                     "runtime_ms": row.get("runtime_ms", 0.0),
                     "level": row["level"],
                     "sample": row["sample"],
+                    "gt_missing": row.get("gt_missing", False),
                     "png_path": row.get("png_path", ""),
                     "mat_path": row.get("mat_path", ""),
                     "overlay_path": row.get("overlay_path", ""),
+                    "hull": row.get("hull", {}),
                 }
 
         with (self.output_dir / "dashboard_scores.json").open("w", encoding="utf-8") as f:
@@ -464,10 +521,6 @@ class BatchRunner:
         table.add_column("Level",         justify="center", min_width=7)
         table.add_column("Sample",        justify="center", min_width=8)
         table.add_column("KTC Score",     justify="right",  min_width=10)
-        table.add_column("Dice Res.",     justify="right",  min_width=10)
-        table.add_column("Dice Cond.",    justify="right",  min_width=11)
-        table.add_column("HD95 Res.",     justify="right",  min_width=10)
-        table.add_column("HD95 Cond.",    justify="right",  min_width=11)
         table.add_column("Runtime (ms)",  justify="right",  min_width=13)
 
         for r in results:
@@ -477,10 +530,6 @@ class BatchRunner:
                 str(r["level"]),
                 r["sample"],
                 f"{m['ktc_score']:.3f}",
-                f"{m.get('dice_resistive',  0.0):.3f}",
-                f"{m.get('dice_conductive', 0.0):.3f}",
-                f"{m.get('hd95_resistive',  0.0):.1f}",
-                f"{m.get('hd95_conductive', 0.0):.1f}",
                 f"{r['runtime_ms']:.2f}",
             )
 
