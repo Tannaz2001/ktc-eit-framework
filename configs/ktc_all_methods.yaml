@@ -22,11 +22,6 @@ methods:
   - BackProjection
   - GaussNewton
   - GroundTruthOracle
-  - DampedLeastSquaresReconstruction
-
-# Runtime method adapter — every .py in these folders is imported at startup,
-# registering any @register_method class (see docs/METHOD_ADAPTER.md).
-method_plugin_paths:
-  - external_methods
+  
 
 output_dir: outputs/
