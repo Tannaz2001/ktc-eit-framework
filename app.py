@@ -565,8 +565,16 @@ def render_benchmark_status() -> None:
 def render_bench_progress() -> None:
     """Full-width progress banner in the main area while a benchmark subprocess runs."""
     proc = st.session_state.get('bench_proc')
-    if proc is None or proc.poll() is not None:
+    if proc is None:
         return
+    if proc.poll() is not None:
+        # Benchmark just finished — do one final rerun so the dashboard flips
+        # to the freshly prepared run, then stop auto-refreshing.
+        if st.session_state.get('_bench_was_running'):
+            st.session_state['_bench_was_running'] = False
+            st.rerun()
+        return
+    st.session_state['_bench_was_running'] = True
 
     import re as _re
     completed, total = 0, 0
@@ -625,8 +633,8 @@ def render_bench_progress() -> None:
         f'border-radius:4px;width:{pct_px};transition:width .4s ease"></div>'
         f'</div>'
         f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--tx3)">'
-        f'Dashboard reloads automatically when complete &nbsp;·&nbsp; '
-        f'click Refresh to update the counter</div>'
+        f'Progress updates automatically every 2s &nbsp;·&nbsp; '
+        f'dashboard reloads when complete</div>'
         f'</div>',
         unsafe_allow_html=True)
 
@@ -635,6 +643,13 @@ def render_bench_progress() -> None:
     st.markdown(
         '<hr style="border:none;border-top:1px solid var(--bd);margin:4px 0 14px">',
         unsafe_allow_html=True)
+
+    # Auto-refresh: while the benchmark subprocess is running, poll its progress
+    # every 2s and rerun automatically so the counter updates without the user
+    # having to click "Refresh progress".
+    import time as _time
+    _time.sleep(2)
+    st.rerun()
 
 
 def append_method_to_config(method_name: str,
