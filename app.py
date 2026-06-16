@@ -1164,7 +1164,6 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
     if mm is None:
         mm = {}
     lvl_min, lvl_max = level_range
-    st.markdown('<div class="slbl">01 · LEADERBOARD — BAR + TABLE · SIMPLE COMPARISON + DETAILS</div>', unsafe_allow_html=True)
 
     if lvl_min != 1 or lvl_max != 7:
         st.markdown(
@@ -1297,7 +1296,6 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
 # VIEW 2 — DEGRADATION  (original logic)
 # =========================================================
 def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
-    st.markdown('<div class="slbl">04 · DEGRADATION — LINE + CONFIDENCE BANDS · TREND OVER DIFFICULTY</div>', unsafe_allow_html=True)
     if not per_run:
         st.warning("No per-run metrics available.")
         return
@@ -1395,7 +1393,6 @@ def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple
 # VIEW 3 — COMPARISON  (original logic)
 # =========================================================
 def view_comparison(scores:Dict, per_run:Dict, mm:Dict, sel_metrics:list=None, level_range:tuple=(1,7)):
-    st.markdown('<div class="slbl">03 · RECONSTRUCTION — MEDICAL IMAGES · VISUAL PROOF</div>', unsafe_allow_html=True)
     if not per_run:
         st.warning("No per-run metrics available.")
         return
@@ -1478,7 +1475,6 @@ def view_comparison(scores:Dict, per_run:Dict, mm:Dict, sel_metrics:list=None, l
 # VIEW 4 — FAILURE GALLERY  (original logic)
 # =========================================================
 def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
-    st.markdown('<div class="slbl">09 · FAILURES — TABLE + ANALYSIS · FAILURE BREAKDOWN</div>', unsafe_allow_html=True)
     if not per_run:
         st.warning("No per-run metrics available.")
         return
@@ -1661,7 +1657,6 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
 # VIEW 5 — RADAR CHART  (original logic)
 # =========================================================
 def view_radar_chart(scores:Dict, per_run:Dict, sel_metrics:list=None):
-    st.markdown('<div class="slbl">06 · RADAR — 7-AXIS POLYGON · ALL METRICS COMPARISON</div>', unsafe_allow_html=True)
     if not scores:
         st.warning("No scores available.")
         return
@@ -1758,7 +1753,6 @@ def view_radar_chart(scores:Dict, per_run:Dict, sel_metrics:list=None):
 # VIEW HEATMAP — COLOR GRID (all 42 runs at once)
 # =========================================================
 def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
-    st.markdown('<div class="slbl">02 · HEATMAP — COLOR GRID · ALL RUNS AT ONCE</div>', unsafe_allow_html=True)
     if not per_run:
         st.warning("No per-run metrics available.")
         return
@@ -1881,157 +1875,6 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
             })
     if hm_rows:
         st.dataframe(pd.DataFrame(hm_rows), use_container_width=True, hide_index=True)
-
-
-def _render_pdf_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str):
-    """Generate a real data PDF — tables, KPIs, stats — not a page print."""
-    if not st.button("Export PDF Report", key="pdf_export_btn"):
-        return
-    try:
-        from reportlab.lib.pagesizes import A4
-        from reportlab.lib import colors as rl_colors
-        from reportlab.lib.units import cm
-        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        import datetime
-
-        buf = io.BytesIO()
-        doc = SimpleDocTemplate(buf, pagesize=A4,
-                                leftMargin=1.5*cm, rightMargin=1.5*cm,
-                                topMargin=1.5*cm, bottomMargin=1.5*cm)
-        styles = getSampleStyleSheet()
-        title_style  = ParagraphStyle('t', parent=styles['Heading1'], fontSize=14, spaceAfter=4, textColor=rl_colors.HexColor('#1f2328'))
-        h2_style     = ParagraphStyle('h2', parent=styles['Heading2'], fontSize=10, spaceAfter=3, textColor=rl_colors.HexColor('#57606a'))
-        body_style   = ParagraphStyle('b', parent=styles['Normal'],  fontSize=8,  spaceAfter=2, textColor=rl_colors.HexColor('#57606a'), fontName='Courier')
-        label_style  = ParagraphStyle('l', parent=styles['Normal'],  fontSize=7,  spaceAfter=1, textColor=rl_colors.HexColor('#848d97'), fontName='Courier')
-
-        story = []
-        story.append(Paragraph("EIT Reconstruction Dashboard — Export Report", title_style))
-        story.append(Paragraph(f"Run: {run_name}   Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}", label_style))
-        story.append(HRFlowable(width="100%", thickness=0.5, color=rl_colors.HexColor('#d0d7de')))
-        story.append(Spacer(1, 0.3*cm))
-
-        # ── Section 1: Leaderboard ────────────────────────────
-        story.append(Paragraph("01 · LEADERBOARD", h2_style))
-        lb_data = [['Method','Composite','Grade','KTC Score']]
-        for method_name, metrics in scores.items():
-            comp  = calculate_composite_score(metrics)
-            grade = letter_grade(comp)
-            lb_data.append([
-                method_name,
-                f"{comp:.2f}",
-                grade,
-                f"{metrics.get('KTC score', metrics.get('ktc_score',0)):.4f}",
-            ])
-        grade_colors_pdf = {'A': rl_colors.HexColor('#dafbe1'), 'B': rl_colors.HexColor('#ddf4ff'),
-                            'C': rl_colors.HexColor('#fff8c5'), 'D': rl_colors.HexColor('#ffebe9')}
-        lb_style = [
-            ('FONTNAME',  (0,0),(-1,0), 'Courier-Bold'),
-            ('FONTSIZE',  (0,0),(-1,-1), 7),
-            ('FONTNAME',  (0,1),(-1,-1), 'Courier'),
-            ('BACKGROUND',(0,0),(-1,0),  rl_colors.HexColor('#f6f8fa')),
-            ('TEXTCOLOR', (0,0),(-1,0),  rl_colors.HexColor('#848d97')),
-            ('TEXTCOLOR', (0,1),(-1,-1), rl_colors.HexColor('#1f2328')),
-            ('GRID',      (0,0),(-1,-1), 0.25, rl_colors.HexColor('#d0d7de')),
-            ('ROWBACKGROUNDS',(0,1),(-1,-1), [rl_colors.white, rl_colors.HexColor('#f9f9f9')]),
-            ('TOPPADDING',(0,0),(-1,-1), 4),
-            ('BOTTOMPADDING',(0,0),(-1,-1), 4),
-        ]
-        for i, row in enumerate(lb_data[1:], 1):
-            grade = row[2]
-            if grade in grade_colors_pdf:
-                lb_style.append(('BACKGROUND', (0,i), (-1,i), grade_colors_pdf[grade]))
-        lb_table = Table(lb_data, repeatRows=1)
-        lb_table.setStyle(TableStyle(lb_style))
-        story.append(lb_table)
-        story.append(Spacer(1, 0.4*cm))
-
-        # ── Section 2: Per-run stats ──────────────────────────
-        story.append(Paragraph("04 · DEGRADATION STATISTICS", h2_style))
-        for disp, ik in mm.items():
-            if not ik or ik not in per_run: continue
-            samples = per_run[ik]
-            ktc_vals = [v['ktc_score'] for v in samples.values()]
-            story.append(Paragraph(f"  {disp}", body_style))
-            stat_data = [['Metric','Mean','Std Dev','Min','Max'],
-                         ['KTC Score', f"{np.mean(ktc_vals):.4f}", f"{np.std(ktc_vals):.4f}", f"{np.min(ktc_vals):.4f}", f"{np.max(ktc_vals):.4f}"],
-                         ]
-            st_tbl = Table(stat_data, colWidths=[3.5*cm, 2.5*cm, 2.5*cm, 2.5*cm, 2.5*cm])
-            st_tbl.setStyle(TableStyle([
-                ('FONTNAME',(0,0),(-1,0),'Courier-Bold'),('FONTSIZE',(0,0),(-1,-1),7),
-                ('FONTNAME',(0,1),(-1,-1),'Courier'),
-                ('BACKGROUND',(0,0),(-1,0),rl_colors.HexColor('#f6f8fa')),
-                ('TEXTCOLOR',(0,0),(-1,0),rl_colors.HexColor('#848d97')),
-                ('GRID',(0,0),(-1,-1),0.25,rl_colors.HexColor('#d0d7de')),
-                ('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),
-            ]))
-            story.append(st_tbl)
-            story.append(Spacer(1, 0.15*cm))
-        story.append(Spacer(1, 0.3*cm))
-
-        # ── Section 3: Failure analysis ───────────────────────
-        story.append(Paragraph("09 · FAILURE ANALYSIS", h2_style))
-        fail_data = [['Method','Worst KTC','Mean KTC','Failures (KTC<0.3)','Worst Samples']]
-        for disp, ik in mm.items():
-            if not ik or ik not in per_run: continue
-            samples  = per_run[ik]
-            ktc_vals = [v['ktc_score'] for v in samples.values()]
-            worst3   = sorted(samples.items(), key=lambda x: x[1]['ktc_score'])[:3]
-            fail_data.append([
-                disp,
-                f"{min(ktc_vals):.4f}",
-                f"{np.mean(ktc_vals):.4f}",
-                str(sum(1 for v in ktc_vals if v < 0.3)),
-                ', '.join(str(s) for s,_ in worst3),
-            ])
-        f_tbl = Table(fail_data, repeatRows=1)
-        f_tbl.setStyle(TableStyle([
-            ('FONTNAME',(0,0),(-1,0),'Courier-Bold'),('FONTSIZE',(0,0),(-1,-1),7),
-            ('FONTNAME',(0,1),(-1,-1),'Courier'),
-            ('BACKGROUND',(0,0),(-1,0),rl_colors.HexColor('#f6f8fa')),
-            ('TEXTCOLOR',(0,0),(-1,0),rl_colors.HexColor('#848d97')),
-            ('GRID',(0,0),(-1,-1),0.25,rl_colors.HexColor('#d0d7de')),
-            ('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4),
-        ]))
-        story.append(f_tbl)
-        story.append(Spacer(1, 0.3*cm))
-
-        # ── Section 4: All per-run metrics ────────────────────
-        story.append(Paragraph("ALL PER-RUN METRICS", h2_style))
-        for disp, ik in mm.items():
-            if not ik or ik not in per_run: continue
-            story.append(Paragraph(f"  {disp}", body_style))
-            metric_keys = ['ktc_score']
-            hdr = ['Sample'] + [k.replace('_',' ').title() for k in metric_keys]
-            all_rows = [hdr]
-            for sid, m in sorted(per_run[ik].items()):
-                all_rows.append([str(sid)] + [f"{m.get(k,0):.4f}" for k in metric_keys])
-            all_tbl = Table(all_rows, repeatRows=1)
-            all_tbl.setStyle(TableStyle([
-                ('FONTNAME',(0,0),(-1,0),'Courier-Bold'),('FONTSIZE',(0,0),(-1,-1),6.5),
-                ('FONTNAME',(0,1),(-1,-1),'Courier'),
-                ('BACKGROUND',(0,0),(-1,0),rl_colors.HexColor('#f6f8fa')),
-                ('TEXTCOLOR',(0,0),(-1,0),rl_colors.HexColor('#848d97')),
-                ('ROWBACKGROUNDS',(0,1),(-1,-1),[rl_colors.white,rl_colors.HexColor('#f9f9f9')]),
-                ('GRID',(0,0),(-1,-1),0.2,rl_colors.HexColor('#d0d7de')),
-                ('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),
-            ]))
-            story.append(all_tbl)
-            story.append(Spacer(1, 0.2*cm))
-
-        doc.build(story)
-        buf.seek(0)
-        st.download_button(
-            label="Download PDF",
-            data=buf.getvalue(),
-            file_name=f"eit_report_{run_name}.pdf",
-            mime="application/pdf",
-            key="pdf_download_btn"
-        )
-    except ImportError:
-        st.error("reportlab not installed. Run: `pip install reportlab --break-system-packages`")
-    except Exception as e:
-        st.error(f"PDF generation error: {e}")
 
 
 def _render_pdf_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str, target=None):
@@ -2274,8 +2117,6 @@ def _render_pdf_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str, target=
 # =========================================================
 def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple = (1, 7)):
     """Convex-hull geometric error analysis — pred vs GT hulls."""
-    st.markdown('<div class="slbl">07 · HULL ANALYSIS — GEOMETRIC ERROR · CONVEX HULL COMPARISON</div>',
-                unsafe_allow_html=True)
 
     pc = st.session_state.get('_pcolors', {})
     sel_methods = list(scores.keys())
@@ -2567,10 +2408,10 @@ def main():
 
         # Tabs
         t1,t2,t3,t4,t5,t6,t7 = st.tabs([
-            "01  LEADERBOARD","02  HEATMAP",
-            "04  DEGRADATION","06  RADAR",
-            "09  FAILURES","03  RECONSTRUCTION",
-            "07  HULL ANALYSIS"])
+            "LEADERBOARD","HEATMAP",
+            "DEGRADATION","RADAR",
+            "FAILURES","RECONSTRUCTION",
+            "HULL ANALYSIS"])
 
         with t1: view_leaderboard(scores_f, per_run_f, sel_metrics, mm_f, level_range)
         with t2: view_heatmap(scores_f, per_run_f, mm_f, level_range)
