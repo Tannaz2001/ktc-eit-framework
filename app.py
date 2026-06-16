@@ -75,7 +75,7 @@ html,body{background:var(--bg)!important;color:var(--tx)!important;}
 [data-testid="stApp"]{background:var(--bg)!important;color:var(--tx)!important;}
 .main,.main .block-container{
   background:var(--bg)!important;color:var(--tx)!important;
-  padding:12px 18px 40px!important;max-width:100%!important;
+  padding:8px 20px 42px!important;max-width:100%!important;
 }
 
 /* ── sidebar — background + all text ── */
@@ -113,8 +113,13 @@ section[data-testid="stSidebar"] button{
   font-size:11px!important;padding:7px 0!important;width:100%!important;
   border:1px solid var(--grn-bd)!important;border-radius:6px!important;
   color:var(--grn)!important;background:transparent!important;text-align:center!important;
+  min-height:32px!important;
 }
 section[data-testid="stSidebar"] button:hover{background:var(--grn-bg)!important;}
+section[data-testid="stSidebar"] [data-testid="stDownloadButton"] button{
+  margin-top:6px!important;background:var(--grn-bg)!important;
+  border-color:var(--grn-bd)!important;color:var(--grn)!important;
+}
 /* ── ▶ run-method buttons: compact, sit beside the checkbox ── */
 section[data-testid="stSidebar"] [data-testid^="stColumn"] button[kind="secondary"]{
   font-size:11px!important;padding:4px 0!important;
@@ -218,13 +223,13 @@ section[data-testid="stSidebar"] hr{border-color:var(--bd)!important;margin:13px
 .stDataFrame tbody tr:hover td{background:var(--bg)!important;}
 
 /* ── buttons ── */
-.stButton>button{
+.stButton>button,.stDownloadButton>button{
   background:transparent!important;color:var(--grn)!important;
   border:1px solid var(--grn-bd)!important;border-radius:6px!important;
   font-family:'JetBrains Mono',monospace!important;font-size:11px!important;
-  font-weight:600!important;padding:7px 14px!important;
+  font-weight:600!important;padding:7px 14px!important;min-height:32px!important;
 }
-.stButton>button:hover{background:var(--grn-bg)!important;}
+.stButton>button:hover,.stDownloadButton>button:hover{background:var(--grn-bg)!important;}
 
 /* ── alerts + expander ── */
 .stAlert{
@@ -248,7 +253,7 @@ p,.stMarkdown p{font-size:11px!important;color:var(--tx2)!important;line-height:
 .slbl{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.12em;margin-bottom:10px;}
 
 /* ── header ── */
-.dash-header{background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:14px 20px 13px;margin-bottom:12px;position:relative;overflow:hidden;}
+.dash-header{background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:14px 20px 13px;margin:0 0 12px;position:relative;overflow:hidden;}
 .dash-header::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#2da44e,#0969da,#8250df);}
 .dash-title{font-family:'Inter',sans-serif;font-size:15px;font-weight:500;color:var(--tx);line-height:1.2;margin-bottom:4px;}
 .dash-sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx3);}
@@ -329,6 +334,120 @@ p,.stMarkdown p{font-size:11px!important;color:var(--tx2)!important;line-height:
 .eit-dark [data-testid="stCheckbox"] label{color:var(--tx2)!important;}
 .eit-dark input[type="text"],.eit-dark input[type="number"]{background:var(--inp-bg)!important;border-color:var(--inp-bd)!important;color:var(--inp-tx)!important;}
 .eit-dark h1,.eit-dark h2,.eit-dark h3{color:var(--tx)!important;}
+
+/* ---- UI layout polish: readable scale, aligned controls, less top whitespace ---- */
+[data-testid="stHeader"]{background:transparent!important;height:0!important;min-height:0!important;}
+[data-testid="stToolbar"],[data-testid="stDecoration"],[data-testid="stStatusWidget"]{display:none!important;}
+.main,.main .block-container{padding:4px 20px 42px!important;}
+
+section[data-testid="stSidebar"]>div:first-child{padding:12px 12px!important;}
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3{
+  font-size:11px!important;margin:12px 0 7px!important;line-height:1!important;
+}
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] .stMarkdown p,
+section[data-testid="stSidebar"] label{font-size:12px!important;line-height:1.45!important;}
+section[data-testid="stSidebar"] button,
+.stButton>button,
+.stDownloadButton>button{
+  font-size:12px!important;min-height:34px!important;padding:8px 14px!important;
+}
+section[data-testid="stSidebar"] button{padding-left:0!important;padding-right:0!important;}
+section[data-testid="stSidebar"] [data-testid^="stColumn"] button[kind="secondary"]{
+  font-size:12px!important;min-height:30px!important;padding:5px 0!important;
+}
+
+[data-testid="stCheckbox"] label{font-size:12px!important;}
+[data-testid="stSlider"] label{font-size:11px!important;}
+.stSelectbox>div>div,.stMultiSelect>div>div{
+  font-size:12px!important;min-height:36px!important;padding:7px 10px!important;
+}
+.stSelectbox label,.stMultiSelect label{font-size:11px!important;}
+[data-baseweb="menu"] li{font-size:12px!important;}
+
+.stTabs [data-baseweb="tab-list"]{
+  gap:4px!important;flex-wrap:wrap!important;margin-bottom:12px!important;
+}
+.stTabs [data-baseweb="tab"]{
+  font-size:12px!important;font-weight:600!important;min-height:34px!important;
+  padding:8px 12px!important;border-radius:5px!important;letter-spacing:.02em!important;
+}
+.stTabs [data-baseweb="tab-panel"]{padding-top:0!important;}
+
+.stDataFrame thead th{font-size:11px!important;padding:7px 10px!important;}
+.stDataFrame tbody td{font-size:12px!important;padding:7px 10px!important;}
+
+h1{font-size:18px!important;font-weight:600!important;margin:0 0 4px!important;}
+h2{font-size:16px!important;margin:14px 0 10px!important;padding-bottom:6px!important;}
+h3{font-size:14px!important;margin:10px 0 7px!important;}
+p,.stMarkdown p{font-size:13px!important;line-height:1.45!important;}
+.slbl{font-size:11px!important;letter-spacing:.1em!important;margin-bottom:10px!important;}
+
+.dash-header{padding:13px 18px 12px!important;margin:0 0 10px!important;}
+.dash-title{font-size:18px!important;font-weight:600!important;margin-bottom:3px!important;}
+.dash-sub{font-size:12px!important;}
+
+.kpi-row{gap:10px!important;margin-bottom:12px!important;align-items:stretch!important;}
+.kpi{padding:12px 14px!important;min-height:76px!important;}
+.kpi-n{font-size:21px!important;font-weight:600!important;}
+.kpi-l,.kpi-s{font-size:11px!important;}
+.chip{font-size:12px!important;padding:4px 10px 4px 8px!important;}
+
+.mcard{padding:12px 14px!important;margin-bottom:10px!important;min-height:72px!important;}
+.mcard .mv{font-size:20px!important;font-weight:600!important;}
+.mcard .ml{font-size:11px!important;letter-spacing:.08em!important;}
+.fcard{padding:12px 14px!important;min-height:108px!important;}
+.frank,.flbl{font-size:11px!important;}
+.fktc{font-size:21px!important;font-weight:600!important;}
+
+.main [style*="font-size:8px"]{font-size:11px!important;}
+.main [style*="font-size:9px"]{font-size:11px!important;}
+.main [style*="font-size:10px"]{font-size:12px!important;}
+.main [style*="font-size:11px"]{font-size:12px!important;}
+
+/* Final control polish for Streamlit/BaseWeb dropdowns and compact widgets. */
+.stSelectbox>div>div,.stMultiSelect>div>div{
+  padding:0!important;
+}
+[data-baseweb="select"]{
+  min-height:38px!important;border-radius:6px!important;
+}
+[data-baseweb="select"] > div{
+  min-height:38px!important;height:auto!important;padding:0 10px!important;
+  display:flex!important;align-items:center!important;
+  border-color:var(--bd)!important;background:var(--sur)!important;
+}
+[data-baseweb="select"] *{
+  font-family:'JetBrains Mono',monospace!important;
+  font-size:12px!important;line-height:18px!important;
+  color:var(--tx2)!important;box-sizing:border-box!important;
+}
+[data-baseweb="select"] input{
+  min-height:20px!important;height:20px!important;padding:0!important;margin:0!important;
+}
+[data-baseweb="select"] span,
+[data-baseweb="select"] div[role="button"],
+[data-baseweb="select"] div[role="combobox"]{
+  min-height:20px!important;display:flex!important;align-items:center!important;
+  overflow:visible!important;
+}
+section[data-testid="stSidebar"] [data-baseweb="select"],
+section[data-testid="stSidebar"] [data-baseweb="select"] > div{
+  min-height:36px!important;
+}
+section[data-testid="stSidebar"] [data-baseweb="select"] *{
+  font-size:12px!important;line-height:18px!important;
+}
+[data-baseweb="popover"] [role="option"],
+[data-baseweb="menu"] li{
+  font-family:'JetBrains Mono',monospace!important;
+  font-size:12px!important;line-height:1.35!important;
+  padding-top:7px!important;padding-bottom:7px!important;
+}
+.stSlider,.stSelectbox,.stMultiSelect{margin-bottom:8px!important;}
+.stCheckbox{margin-bottom:2px!important;}
 </style>
 <script>
 (function(){
@@ -402,6 +521,44 @@ def load_data(_cache_key: str = "") -> Tuple[Dict, Dict, Dict]:
     """Load scores + per-run metrics from the latest run folder."""
     scores, per_run = load_run_data(find_latest_run())
     return scores, per_run, create_method_mapping(scores, per_run)
+
+
+def apply_dashboard_filters(scores: Dict, per_run: Dict, mm: Dict,
+                            selected_methods: List[str], level_range: tuple,
+                            selected_samples: List[str]) -> Tuple[Dict, Dict, Dict]:
+    """Apply sidebar method, level, and sample filters for every tab/report."""
+    selected_methods = selected_methods or list(scores.keys())
+    selected_samples = selected_samples if selected_samples is not None else ['A', 'B', 'C']
+    sample_set = {str(s).strip().lower() for s in selected_samples}
+    lvl_min, lvl_max = level_range
+    scores_f, per_run_f, mm_f = {}, {}, {}
+
+    for display_name in selected_methods:
+        if display_name not in scores:
+            continue
+        ik = mm.get(display_name, display_name)
+        kept = {}
+        for run_key, entry in per_run.get(ik, {}).items():
+            try:
+                level_ok = lvl_min <= int(entry.get("level", 1)) <= lvl_max
+            except Exception:
+                level_ok = True
+            sample_val = str(entry.get("sample", run_key)).strip().lower()
+            sample_key = str(run_key).split("_")[-1].strip().lower()
+            sample_ok = not sample_set or sample_val in sample_set or sample_key in sample_set
+            if level_ok and sample_ok:
+                kept[run_key] = entry
+        if kept:
+            metrics = dict(scores.get(display_name, {}))
+            ktc_vals = [float(v.get("ktc_score", 0)) for v in kept.values()]
+            if ktc_vals:
+                mean_ktc = float(np.mean(ktc_vals))
+                metrics["ktc_score"] = mean_ktc
+                metrics["KTC score"] = mean_ktc
+            scores_f[display_name] = metrics
+            per_run_f[ik] = kept
+            mm_f[display_name] = ik
+    return scores_f, per_run_f, mm_f
 
 @st.cache_data
 def load_images_for_sample(sample_id:str, level:int=1, outputs_dir:str="") -> Dict[str,Image.Image]:
@@ -774,11 +931,8 @@ def render_sidebar():
         'margin-bottom:8px">Checkbox = show in charts &nbsp;·&nbsp; ▶ = run that method only</div>',
         unsafe_allow_html=True)
     available_methods = st.session_state.get('_available_methods', [])
-    if 'selected_methods' not in st.session_state or not st.session_state.selected_methods:
+    if 'selected_methods' not in st.session_state:
         st.session_state.selected_methods = available_methods.copy()
-    for am in available_methods:
-        if am not in st.session_state.selected_methods:
-            st.session_state.selected_methods.append(am)
 
     if available_methods:
         for m in available_methods:
@@ -953,6 +1107,7 @@ def render_sidebar():
     st.sidebar.markdown("## Export")
     if st.sidebar.button("Export PDF Report", use_container_width=True, key="pdf_sidebar_btn"):
         st.session_state['_trigger_pdf'] = True
+    pdf_export_slot = st.sidebar.empty()
 
     # ── Run selector ──────────────────────────────────────────
     st.sidebar.markdown("---")
@@ -998,6 +1153,7 @@ def render_sidebar():
         st.sidebar.markdown(
             '<div style="font-size:11px;color:var(--tx3);margin:4px 0">No runs yet.<br>Run example_usage.py first.</div>',
             unsafe_allow_html=True)
+    return pdf_export_slot
 
 # =========================================================
 # VIEW 1 — LEADERBOARD  (original logic)
@@ -1878,6 +2034,238 @@ def _render_pdf_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str):
         st.error(f"PDF generation error: {e}")
 
 
+def _render_pdf_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str, target=None):
+    """Styled PDF report: curated figures, compact tables, max 5 pages."""
+    target = target or st
+    try:
+        import datetime
+        import importlib
+        importlib.invalidate_caches()
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib import colors as rl_colors
+        from reportlab.lib.units import cm
+        from reportlab.pdfgen import canvas
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable, Image as RLImage
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+        max_pages = 5
+        display_methods = sorted(scores.items(), key=lambda item: calculate_composite_score(item[1]), reverse=True)[:10]
+        run_dir = Path("outputs") / run_name
+        asset_dir = Path("outputs") / "report_assets"
+        asset_dir.mkdir(parents=True, exist_ok=True)
+
+        def allowed_png(path: Path) -> bool:
+            low = str(path).lower()
+            return path.suffix.lower() == ".png" and not any(x in low for x in ("failure", "error_overlay", "error_overlays", "overlay"))
+
+        def make_chart_path(name: str) -> Path:
+            return asset_dir / f"{run_name}_{name}.png"
+
+        def save_leaderboard_png() -> Path | None:
+            if not display_methods:
+                return None
+            out = make_chart_path("leaderboard")
+            try:
+                names = [m for m, _ in display_methods[:8]][::-1]
+                vals = [calculate_composite_score(scores[m]) for m in names]
+                fig, ax = plt.subplots(figsize=(6.6, 3.25), dpi=150)
+                ax.barh(names, vals, color=[mcol(i) for i in range(len(names))])
+                ax.set_xlim(0, 100); ax.set_title("Leaderboard - Composite Score", fontsize=11, fontweight="bold")
+                ax.grid(axis="x", color="#d0d7de", linewidth=.7); ax.spines[["top", "right"]].set_visible(False)
+                ax.tick_params(axis="both", labelsize=7)
+                for i, v in enumerate(vals): ax.text(v + 1, i, f"{v:.1f}", va="center", fontsize=7)
+                fig.tight_layout(); fig.savefig(out, bbox_inches="tight", facecolor="white"); plt.close(fig)
+                return out
+            except Exception:
+                plt.close("all"); return None
+
+        def save_degradation_png() -> Path | None:
+            rows = []
+            for method, _ in display_methods:
+                ik = mm.get(method)
+                for entry in per_run.get(ik, {}).values() if ik else []:
+                    rows.append((method, int(entry.get("level", 1)), float(entry.get("ktc_score", 0))))
+            if not rows: return None
+            out = make_chart_path("degradation")
+            try:
+                df = pd.DataFrame(rows, columns=["Method", "Level", "KTC"])
+                fig, ax = plt.subplots(figsize=(6.6, 3.25), dpi=150)
+                for i, method in enumerate(df["Method"].unique()[:6]):
+                    s = df[df["Method"] == method].groupby("Level")["KTC"].mean().sort_index()
+                    ax.plot(s.index, s.values, marker="o", linewidth=1.5, markersize=3.2, color=mcol(i), label=method.replace("Reconstruction", "Recon"))
+                ax.set_title("Degradation - KTC by Difficulty", fontsize=11, fontweight="bold")
+                ax.set_xlabel("Level", fontsize=8); ax.set_ylabel("Mean KTC", fontsize=8)
+                ax.grid(color="#d0d7de", linewidth=.7); ax.legend(fontsize=5.8, frameon=False, loc="best")
+                ax.tick_params(labelsize=7); ax.spines[["top", "right"]].set_visible(False)
+                fig.tight_layout(); fig.savefig(out, bbox_inches="tight", facecolor="white"); plt.close(fig)
+                return out
+            except Exception:
+                plt.close("all"); return None
+
+        def save_radar_png() -> Path | None:
+            keys = sorted({k for metrics in scores.values() for k in metrics.keys()})
+            chosen = [k for k in ("KTC score", "ktc_score") if k in keys] or keys[:4]
+            if not chosen: return None
+            out = make_chart_path("radar")
+            try:
+                fig = plt.figure(figsize=(6.2, 3.75), dpi=150); ax = fig.add_subplot(111, polar=True)
+                labels = [k.replace("_", " ").title() for k in chosen]
+                angles = np.linspace(0, 2*np.pi, len(labels), endpoint=False).tolist(); angles += angles[:1]
+                for i, (method, metrics) in enumerate(display_methods[:6]):
+                    vals = [max(0.0, min(1.0, float(metrics.get(k, 0)))) for k in chosen]; vals += vals[:1]
+                    ax.plot(angles, vals, color=mcol(i), linewidth=1.4, label=method.replace("Reconstruction", "Recon"))
+                    ax.fill(angles, vals, color=mcol(i), alpha=.08)
+                ax.set_xticks(angles[:-1]); ax.set_xticklabels(labels, fontsize=7); ax.set_ylim(0, 1); ax.set_yticklabels([])
+                ax.grid(color="#d0d7de", linewidth=.7); ax.set_title("Radar Performance", fontsize=11, fontweight="bold", pad=10)
+                ax.legend(loc="upper right", bbox_to_anchor=(1.33, 1.08), fontsize=5.8, frameon=False)
+                fig.tight_layout(); fig.savefig(out, bbox_inches="tight", facecolor="white"); plt.close(fig)
+                return out
+            except Exception:
+                plt.close("all"); return None
+
+        def save_hull_png() -> Path | None:
+            rows = []
+            for method, _ in display_methods:
+                ik = mm.get(method)
+                for entry in per_run.get(ik, {}).values() if ik else []:
+                    hull = entry.get("hull", {})
+                    center, area = hull.get("hull_resistive_center_error"), hull.get("hull_resistive_area_error")
+                    if center is not None or area is not None: rows.append((method, center, area))
+            if not rows: return None
+            out = make_chart_path("hull")
+            try:
+                df = pd.DataFrame(rows, columns=["Method", "Center", "Area"])
+                fig, axes = plt.subplots(1, 2, figsize=(7.0, 3.25), dpi=150)
+                for ax, title, col, ylabel in [(axes[0], "Center Error", "Center", "px"), (axes[1], "Area Error", "Area", "px^2")]:
+                    s = df.dropna(subset=[col]).groupby("Method")[col].mean().sort_values().head(6)
+                    ax.bar(s.index, s.values, color=[mcol(i) for i in range(len(s))])
+                    ax.set_title(title, fontsize=9, fontweight="bold"); ax.set_ylabel(ylabel, fontsize=7)
+                    ax.grid(axis="y", color="#d0d7de", linewidth=.7); ax.spines[["top", "right"]].set_visible(False)
+                    ax.tick_params(axis="x", labelrotation=35, labelsize=5.4); ax.tick_params(axis="y", labelsize=6.4)
+                fig.suptitle("Hull Analysis - Resistive Region", fontsize=11, fontweight="bold")
+                fig.tight_layout(); fig.savefig(out, bbox_inches="tight", facecolor="white"); plt.close(fig)
+                return out
+            except Exception:
+                plt.close("all"); return None
+
+        def collect_recon_pngs() -> List[Path]:
+            roots = [run_dir / "reconstructions", Path("outputs") / "reconstructions", Path("outputs") / "figures", Path("outputs") / "images"]
+            chosen, seen = [], set()
+            for method, _ in display_methods:
+                internal = mm.get(method, method)
+                patterns = [f"{internal}.png", f"{method}.png", f"{method}_level*_sample*.png", f"{internal}_level*_sample*.png"]
+                for root in roots:
+                    if not root.exists(): continue
+                    matches = []
+                    for pattern in patterns: matches.extend(root.rglob(pattern))
+                    matches = [p for p in sorted(matches) if allowed_png(p) and p.resolve() not in seen]
+                    if matches:
+                        chosen.append(matches[0]); seen.add(matches[0].resolve()); break
+                if len(chosen) >= 4: return chosen
+            return chosen
+
+        buf = io.BytesIO()
+        doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=1.2*cm, rightMargin=1.2*cm, topMargin=1.1*cm, bottomMargin=1.1*cm)
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle("r_title", parent=styles["Heading1"], fontSize=15, leading=18, spaceAfter=3, textColor=rl_colors.HexColor("#1f2328"))
+        h2_style = ParagraphStyle("r_h2", parent=styles["Heading2"], fontSize=9.4, leading=11, spaceBefore=2, spaceAfter=4, textColor=rl_colors.HexColor("#57606a"), fontName="Courier-Bold")
+        body_style = ParagraphStyle("r_body", parent=styles["Normal"], fontSize=6.2, leading=7.6, textColor=rl_colors.HexColor("#1f2328"), fontName="Courier")
+        label_style = ParagraphStyle("r_label", parent=styles["Normal"], fontSize=6.3, leading=7.5, textColor=rl_colors.HexColor("#848d97"), fontName="Courier")
+        caption_style = ParagraphStyle("r_caption", parent=styles["Normal"], fontSize=6.2, leading=7.5, textColor=rl_colors.HexColor("#57606a"), fontName="Courier")
+
+        def para(v): return Paragraph(str(v), body_style)
+        def fit(path, max_w, max_h):
+            img = RLImage(str(path)); scale = min(max_w/img.imageWidth, max_h/img.imageHeight, 1)
+            img.drawWidth, img.drawHeight = img.imageWidth*scale, img.imageHeight*scale; return img
+        def table_style(tbl, fs=5.8):
+            tbl.setStyle(TableStyle([
+                ("FONTNAME",(0,0),(-1,0),"Courier-Bold"),("FONTNAME",(0,1),(-1,-1),"Courier"),("FONTSIZE",(0,0),(-1,-1),fs),
+                ("BACKGROUND",(0,0),(-1,0),rl_colors.HexColor("#f6f8fa")),("TEXTCOLOR",(0,0),(-1,0),rl_colors.HexColor("#57606a")),
+                ("GRID",(0,0),(-1,-1),.25,rl_colors.HexColor("#d0d7de")),("ROWBACKGROUNDS",(0,1),(-1,-1),[rl_colors.white,rl_colors.HexColor("#fbfbfb")]),
+                ("VALIGN",(0,0),(-1,-1),"MIDDLE"),("TOPPADDING",(0,0),(-1,-1),2.3),("BOTTOMPADDING",(0,0),(-1,-1),2.3),
+            ])); return tbl
+        def frame(title, path, w=8.25*cm, h=4.85*cm):
+            if not path or not path.exists():
+                return Table([[Paragraph(f"{title}<br/><font color='#848d97'>Not available</font>", caption_style)]], colWidths=[w])
+            t = Table([[Paragraph(title, caption_style)], [fit(path, w-.45*cm, h-.65*cm)]], colWidths=[w])
+            t.setStyle(TableStyle([("BOX",(0,0),(-1,-1),.35,rl_colors.HexColor("#d0d7de")),("LINEBELOW",(0,0),(-1,0),.25,rl_colors.HexColor("#d0d7de")),("ALIGN",(0,1),(-1,1),"CENTER"),("VALIGN",(0,0),(-1,-1),"MIDDLE"),("TOPPADDING",(0,0),(-1,-1),3),("BOTTOMPADDING",(0,0),(-1,-1),3)]))
+            return t
+
+        class FivePageCanvas(canvas.Canvas):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs); self._states = []
+            def showPage(self):
+                if self._pageNumber <= max_pages: self._states.append(dict(self.__dict__))
+                self._startPage()
+            def save(self):
+                total = min(len(self._states), max_pages)
+                for state in self._states[:max_pages]:
+                    self.__dict__.update(state); self.setFont("Courier", 7); self.setFillColor(rl_colors.HexColor("#848d97"))
+                    self.drawRightString(A4[0]-1.2*cm, .68*cm, f"Page {self._pageNumber} of {total}")
+                    canvas.Canvas.showPage(self)
+                canvas.Canvas.save(self)
+
+        story = [
+            Paragraph("EIT Reconstruction Dashboard - PDF Report", title_style),
+            Paragraph(f"Run: {run_name} | Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')} | Max 5 pages", label_style),
+            Paragraph("Curated report: leaderboard, hull analysis, reconstructed images, radar, degradation, compact metric tables. Failure figures are excluded.", label_style),
+            HRFlowable(width="100%", thickness=.6, color=rl_colors.HexColor("#d0d7de")), Spacer(1, .14*cm),
+        ]
+        story.append(Paragraph("01 LEADERBOARD SUMMARY", h2_style))
+        lb_rows = [[para("Method"), para("Composite"), para("Grade"), para("KTC")]]
+        for method, metrics in display_methods:
+            comp = calculate_composite_score(metrics)
+            lb_rows.append([para(method), f"{comp:.2f}", letter_grade(comp), f"{metrics.get('KTC score', metrics.get('ktc_score', 0)):.4f}"])
+        story.append(table_style(Table(lb_rows, repeatRows=1, colWidths=[7.7*cm,2.5*cm,1.8*cm,2.8*cm]), 6.0))
+        story.append(Spacer(1, .12*cm))
+
+        story.append(Paragraph("02 VISUAL SUMMARY", h2_style))
+        chart_grid = Table([
+            [frame("Leaderboard Figure", save_leaderboard_png()), frame("Radar Chart", save_radar_png())],
+            [frame("Degradation Chart", save_degradation_png()), frame("Hull Analysis Figures", save_hull_png())],
+        ], colWidths=[8.35*cm, 8.35*cm])
+        chart_grid.setStyle(TableStyle([("VALIGN",(0,0),(-1,-1),"TOP"),("LEFTPADDING",(0,0),(-1,-1),2),("RIGHTPADDING",(0,0),(-1,-1),2),("BOTTOMPADDING",(0,0),(-1,-1),4)]))
+        story.append(chart_grid)
+
+        recon = collect_recon_pngs()
+        if recon:
+            story.append(Paragraph("03 RECONSTRUCTED IMAGES", h2_style))
+            rows = []
+            for i in range(0, len(recon), 2):
+                cells = [frame(p.stem.replace("_", " ").title(), p, 8.15*cm, 4.25*cm) for p in recon[i:i+2]]
+                while len(cells) < 2: cells.append("")
+                rows.append(cells)
+            story.append(Table(rows, colWidths=[8.35*cm, 8.35*cm]))
+
+        stat_rows = [[para("Method"),para("Runs"),para("Mean KTC"),para("Std"),para("Min"),para("Max")]]
+        fail_rows = [[para("Method"),para("Worst KTC"),para("Mean KTC"),para("Failures"),para("Worst Samples")]]
+        sample_rows = [[para("Method"),para("Sample"),para("Level"),para("KTC")]]
+        for method, _ in display_methods:
+            ik = mm.get(method); samples = per_run.get(ik, {}) if ik else {}
+            vals = [float(v.get("ktc_score", 0)) for v in samples.values()]
+            if not vals: continue
+            stat_rows.append([para(method), str(len(vals)), f"{np.mean(vals):.4f}", f"{np.std(vals):.4f}", f"{np.min(vals):.4f}", f"{np.max(vals):.4f}"])
+            worst = sorted(samples.items(), key=lambda item: item[1].get("ktc_score", 0))[:3]
+            fail_rows.append([para(method), f"{min(vals):.4f}", f"{np.mean(vals):.4f}", str(sum(1 for v in vals if v < .3)), para(", ".join(str(s) for s,_ in worst))])
+            for sid, metrics in worst[:2]:
+                sample_rows.append([para(method), str(sid), str(metrics.get("level", "")), f"{metrics.get('ktc_score', 0):.4f}"])
+        story.append(Paragraph("04 COMPACT STATISTICS", h2_style))
+        story.append(Paragraph("Degradation statistics", caption_style))
+        story.append(table_style(Table(stat_rows, repeatRows=1, colWidths=[6.2*cm,1.4*cm,2.2*cm,1.8*cm,1.8*cm,1.8*cm]), 5.7))
+        story.append(Paragraph("Failure analysis - one table, no failure figures", caption_style))
+        story.append(table_style(Table(fail_rows, repeatRows=1, colWidths=[5.2*cm,1.9*cm,1.9*cm,1.6*cm,5.4*cm]), 5.6))
+        story.append(Paragraph("Sample metrics snapshot", caption_style))
+        story.append(table_style(Table(sample_rows[:17], repeatRows=1, colWidths=[6.6*cm,3.7*cm,1.8*cm,2.2*cm]), 5.6))
+
+        doc.build(story, canvasmaker=FivePageCanvas)
+        buf.seek(0)
+        target.download_button("Download PDF Report", data=buf.getvalue(), file_name=f"eit_report_{run_name}.pdf", mime="application/pdf", key="pdf_download_btn", use_container_width=True)
+    except ImportError as e:
+        target.error(f"ReportLab import failed in `{sys.executable}`: {e}")
+    except Exception as e:
+        target.error(f"PDF generation error: {e}")
+
+
 # =========================================================
 # MAIN
 # =========================================================
@@ -2078,7 +2466,7 @@ def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple
 
 
 def main():
-    render_sidebar()
+    pdf_export_slot = render_sidebar()
     dark = st.session_state.get('dark_mode', False)
     inject_theme(dark)
 
@@ -2118,8 +2506,8 @@ def main():
             f'{n_gt_missing} runs scored without ground truth</span>'
         ) if n_gt_missing else ''
         st.markdown(
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;'
-            f'color:var(--tx3);margin:-6px 0 10px;padding:0 2px">'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:12px;'
+            f'color:var(--tx3);margin:-2px 0 10px;padding:0 2px;line-height:1.35">'
             f'Run: <span style="color:var(--grn)">{latest_run.name}</span> &nbsp;·&nbsp; '
             f'{len(scores)} method(s) &nbsp;·&nbsp; '
             f'{sum(len(v) for v in per_run.values()) if per_run else 0} total reconstructions'
@@ -2139,31 +2527,35 @@ def main():
         if not sel_methods:
             sel_methods = list(scores.keys())  # fallback: show all if none checked
         level_range = st.session_state.get('level_range', (1, 7))
+        sel_samples = st.session_state.get('selected_samples', ['A', 'B', 'C'])
 
-        # Filter scores dict to only selected methods
-        scores_f = {k: v for k, v in scores.items() if k in sel_methods}
+        # Apply method, level, and sample filters once so every tab/report agrees.
+        scores_f, per_run_f, mm_f = apply_dashboard_filters(
+            scores, per_run, mm, sel_methods, level_range, sel_samples
+        )
         if not scores_f:
-            scores_f = scores  # safety: never show empty dashboard
+            st.info("No dashboard data matches the selected sidebar filters.")
+            return
 
         # Dataset info — inline KPI row (no expander = no icon issue)
-        n_s = len(per_run.get(list(per_run.keys())[0], {})) if per_run else 0
-        n_t = sum(len(v) for v in per_run.values()) if per_run else 0
+        n_s = len(per_run_f.get(list(per_run_f.keys())[0], {})) if per_run_f else 0
+        n_t = sum(len(v) for v in per_run_f.values()) if per_run_f else 0
         method_list = " &nbsp;·&nbsp; ".join(
-            f'<span style="color:var(--tx)">{m}</span>' for m in scores.keys())
+            f'<span style="color:var(--tx)">{m}</span>' for m in scores_f.keys())
         st.markdown(
-            f'<div style="display:flex;gap:8px;margin-bottom:10px">'
-            f'<div style="flex:1;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:7px 10px">'
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:16px;font-weight:500;color:var(--tx)">{len(scores)}</div>'
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--tx3);text-transform:uppercase;letter-spacing:.1em">Methods</div>'
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--tx2);margin-top:3px">{method_list}</div>'
+            f'<div style="display:flex;gap:10px;margin-bottom:12px;align-items:stretch">'
+            f'<div style="flex:1;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 12px;min-height:72px">'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:19px;font-weight:600;color:var(--tx);line-height:1">{len(scores_f)}</div>'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.08em;margin-top:6px">Methods</div>'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--tx2);margin-top:4px;line-height:1.35">{method_list}</div>'
             f'</div>'
-            f'<div style="flex:0 0 90px;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:7px 10px">'
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:16px;font-weight:500;color:var(--tx)">{n_s}</div>'
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--tx3);text-transform:uppercase;letter-spacing:.1em">Runs / method</div>'
+            f'<div style="flex:0 0 112px;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 12px;min-height:72px">'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:19px;font-weight:600;color:var(--tx);line-height:1">{n_s}</div>'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.08em;margin-top:6px">Runs / method</div>'
             f'</div>'
-            f'<div style="flex:0 0 90px;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:7px 10px">'
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:16px;font-weight:500;color:var(--tx)">{n_t}</div>'
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--tx3);text-transform:uppercase;letter-spacing:.1em">Total recons</div>'
+            f'<div style="flex:0 0 112px;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 12px;min-height:72px">'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:19px;font-weight:600;color:var(--tx);line-height:1">{n_t}</div>'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.08em;margin-top:6px">Total recons</div>'
             f'</div>'
             f'</div>',
             unsafe_allow_html=True)
@@ -2171,7 +2563,7 @@ def main():
         # PDF export — triggered from sidebar button
         if st.session_state.get('_trigger_pdf'):
             st.session_state['_trigger_pdf'] = False
-            _render_pdf_export(scores, per_run, mm, latest_run.name)
+            _render_pdf_export(scores_f, per_run_f, mm_f, latest_run.name, target=pdf_export_slot)
 
         # Tabs
         t1,t2,t3,t4,t5,t6,t7 = st.tabs([
@@ -2180,13 +2572,13 @@ def main():
             "09  FAILURES","03  RECONSTRUCTION",
             "07  HULL ANALYSIS"])
 
-        with t1: view_leaderboard(scores_f, per_run, sel_metrics, mm, level_range)
-        with t2: view_heatmap(scores_f, per_run, mm, level_range)
-        with t3: view_degradation_curve(scores_f, per_run, mm, level_range)
-        with t4: view_radar_chart(scores_f, per_run, sel_metrics)
-        with t5: view_failure_gallery(scores_f, per_run, mm, level_range)
-        with t6: view_comparison(scores, per_run, mm, sel_metrics, level_range)
-        with t7: view_hull_analysis(scores_f, per_run, mm, level_range)
+        with t1: view_leaderboard(scores_f, per_run_f, sel_metrics, mm_f, level_range)
+        with t2: view_heatmap(scores_f, per_run_f, mm_f, level_range)
+        with t3: view_degradation_curve(scores_f, per_run_f, mm_f, level_range)
+        with t4: view_radar_chart(scores_f, per_run_f, sel_metrics)
+        with t5: view_failure_gallery(scores_f, per_run_f, mm_f, level_range)
+        with t6: view_comparison(scores_f, per_run_f, mm_f, sel_metrics, level_range)
+        with t7: view_hull_analysis(scores_f, per_run_f, mm_f, level_range)
 
     except Exception as e:
         st.error(f"Error: {e}")
