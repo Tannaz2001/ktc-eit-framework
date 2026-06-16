@@ -295,10 +295,10 @@ class BatchRunner:
         # ── load sample (plugin is constructed once in __init__) ──────────
         try:
             raw_batch = self.data_plugin.load_sample(level=level, sample=sample)
-        except FileNotFoundError:
+        except FileNotFoundError as exc:
             console.print(
                 f"[yellow]Skipping level={level} sample={sample} — "
-                f"file not found in '{dataset_root}'.[/yellow]"
+                f"file not found in '{dataset_root}': {exc}[/yellow]"
             )
             return None
         except ValueError as exc:

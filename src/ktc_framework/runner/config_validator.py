@@ -43,6 +43,7 @@ _MESH_CANDIDATES: list[str] = [
 ]
 
 _DATASET_ROOT_CANDIDATES: list[str] = [
+    "Codes_Matlab/EvaluationData",
     "Codes_Matlab",
     "EvaluationData",
     "evaluation_datasets",

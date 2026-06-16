@@ -517,7 +517,7 @@ from src.ktc_framework.reporting.data_layer import (
 
 
 @st.cache_data
-def load_data(_cache_key: str = "") -> Tuple[Dict, Dict, Dict]:
+def load_data(cache_key: str = "") -> Tuple[Dict, Dict, Dict]:
     """Load scores + per-run metrics from the latest run folder."""
     scores, per_run = load_run_data(find_latest_run())
     return scores, per_run, create_method_mapping(scores, per_run)
@@ -1164,7 +1164,6 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
     if mm is None:
         mm = {}
     lvl_min, lvl_max = level_range
-    st.markdown('<div class="slbl">01 · LEADERBOARD — BAR + TABLE · SIMPLE COMPARISON + DETAILS</div>', unsafe_allow_html=True)
 
     if lvl_min != 1 or lvl_max != 7:
         st.markdown(
@@ -1297,7 +1296,6 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
 # VIEW 2 — DEGRADATION  (original logic)
 # =========================================================
 def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
-    st.markdown('<div class="slbl">04 · DEGRADATION — LINE + CONFIDENCE BANDS · TREND OVER DIFFICULTY</div>', unsafe_allow_html=True)
     if not per_run:
         st.warning("No per-run metrics available.")
         return
@@ -1395,7 +1393,6 @@ def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple
 # VIEW 3 — COMPARISON  (original logic)
 # =========================================================
 def view_comparison(scores:Dict, per_run:Dict, mm:Dict, sel_metrics:list=None, level_range:tuple=(1,7)):
-    st.markdown('<div class="slbl">03 · RECONSTRUCTION — MEDICAL IMAGES · VISUAL PROOF</div>', unsafe_allow_html=True)
     if not per_run:
         st.warning("No per-run metrics available.")
         return
@@ -1478,7 +1475,6 @@ def view_comparison(scores:Dict, per_run:Dict, mm:Dict, sel_metrics:list=None, l
 # VIEW 4 — FAILURE GALLERY  (original logic)
 # =========================================================
 def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
-    st.markdown('<div class="slbl">09 · FAILURES — TABLE + ANALYSIS · FAILURE BREAKDOWN</div>', unsafe_allow_html=True)
     if not per_run:
         st.warning("No per-run metrics available.")
         return
@@ -1661,7 +1657,6 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
 # VIEW 5 — RADAR CHART  (original logic)
 # =========================================================
 def view_radar_chart(scores:Dict, per_run:Dict, sel_metrics:list=None):
-    st.markdown('<div class="slbl">06 · RADAR — 7-AXIS POLYGON · ALL METRICS COMPARISON</div>', unsafe_allow_html=True)
     if not scores:
         st.warning("No scores available.")
         return
@@ -1758,7 +1753,6 @@ def view_radar_chart(scores:Dict, per_run:Dict, sel_metrics:list=None):
 # VIEW HEATMAP — COLOR GRID (all 42 runs at once)
 # =========================================================
 def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
-    st.markdown('<div class="slbl">02 · HEATMAP — COLOR GRID · ALL RUNS AT ONCE</div>', unsafe_allow_html=True)
     if not per_run:
         st.warning("No per-run metrics available.")
         return
@@ -2274,8 +2268,6 @@ def _render_pdf_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str, target=
 # =========================================================
 def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple = (1, 7)):
     """Convex-hull geometric error analysis — pred vs GT hulls."""
-    st.markdown('<div class="slbl">07 · HULL ANALYSIS — GEOMETRIC ERROR · CONVEX HULL COMPARISON</div>',
-                unsafe_allow_html=True)
 
     pc = st.session_state.get('_pcolors', {})
     sel_methods = list(scores.keys())
@@ -2494,8 +2486,8 @@ def main():
 
     try:
         latest_run = find_latest_run()
-        _cache_key = latest_run.name
-        scores, per_run, mm = load_data(_cache_key)
+        cache_key = latest_run.name
+        scores, per_run, mm = load_data(cache_key)
 
         # Active run label (+ red badge when runs were scored against a
         # missing ground truth — their 0.0 scores are meaningless)
@@ -2567,10 +2559,10 @@ def main():
 
         # Tabs
         t1,t2,t3,t4,t5,t6,t7 = st.tabs([
-            "01  LEADERBOARD","02  HEATMAP",
-            "04  DEGRADATION","06  RADAR",
-            "09  FAILURES","03  RECONSTRUCTION",
-            "07  HULL ANALYSIS"])
+            "LEADERBOARD", "HEATMAP",
+            "DEGRADATION", "RADAR",
+            "FAILURES", "RECONSTRUCTION",
+            "HULL ANALYSIS"])
 
         with t1: view_leaderboard(scores_f, per_run_f, sel_metrics, mm_f, level_range)
         with t2: view_heatmap(scores_f, per_run_f, mm_f, level_range)

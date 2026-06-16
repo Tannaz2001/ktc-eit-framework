@@ -11,7 +11,7 @@
 #   KTC_DATASET_ROOT=/custom/path python run.py --config ...
 
 data_plugin: KTCDataPlugin
-dataset_root: EvaluationData
+dataset_root: Codes_Matlab/EvaluationData
 mesh_path: Codes_Matlab/Mesh_sparse.mat
 
 levels: [1, 2, 3, 4, 5, 6, 7]
