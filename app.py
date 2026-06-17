@@ -859,11 +859,6 @@ def render_sidebar():
     """, unsafe_allow_html=True)
 
     # ── Dark mode toggle ──────────────────────────────────────
-    dark_label = "Light Mode" if st.session_state.dark_mode else "Dark Mode"
-    if st.sidebar.button(dark_label, key="theme_toggle", use_container_width=True):
-        st.session_state.dark_mode = not st.session_state.dark_mode
-        st.rerun()
-
     st.sidebar.markdown("---")
 
     # ── Run Benchmark — one button drives the whole backend ───
@@ -880,8 +875,10 @@ def render_sidebar():
         _n_str = "all"
     st.sidebar.markdown(
         f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#848d97;'
-        f'margin-bottom:7px">Runs configs/ktc_all_methods.yaml ({_n_str} methods). '
-        f'Est. <b style="color:#9a6700">{_eta}</b> — dashboard reloads automatically when done.</div>',
+        f'margin-bottom:7px;line-height:1.45">'
+        f'<div>Config: <span style="color:var(--tx2)">ktc_all_methods.yaml</span></div>'
+        f'<div>{_n_str} methods | est. <b style="color:#9a6700">{_eta}</b></div>'
+        f'<div>Reloads automatically when done.</div></div>',
         unsafe_allow_html=True)
     if st.sidebar.button("Run all methods", use_container_width=True, key="run_full_btn"):
         if launch_benchmark(Path("configs/ktc_all_methods.yaml")):
@@ -961,9 +958,23 @@ def render_sidebar():
     st.sidebar.markdown("## Level Filter")
     if 'level_range' not in st.session_state:
         st.session_state.level_range = (1, 7)
-    lvl_vals = st.sidebar.slider(
-        "Difficulty levels:", 1, 7, st.session_state.level_range, key="sb_level_range")
-    st.session_state.level_range = lvl_vals
+    cur_min, cur_max = st.session_state.level_range
+    c_min, c_max = st.sidebar.columns(2)
+    with c_min:
+        lvl_min = st.selectbox(
+            "From", list(range(1, 8)), index=max(0, min(6, int(cur_min) - 1)),
+            key="sb_level_min")
+    with c_max:
+        lvl_max = st.selectbox(
+            "To", list(range(1, 8)), index=max(0, min(6, int(cur_max) - 1)),
+            key="sb_level_max")
+    if lvl_min > lvl_max:
+        lvl_min, lvl_max = lvl_max, lvl_min
+    st.session_state.level_range = (lvl_min, lvl_max)
+    st.sidebar.markdown(
+        f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;'
+        f'color:var(--tx3);margin-top:-4px">Showing levels {lvl_min}-{lvl_max}</div>',
+        unsafe_allow_html=True)
 
     st.sidebar.markdown("---")
 
@@ -983,17 +994,15 @@ def render_sidebar():
     st.sidebar.markdown("---")
 
     # Data files — checked inside the ACTIVE run folder, not the project root
-    st.sidebar.markdown("## Data Files")
     active_run = find_latest_run()
-    for lbl in ["scores.json", "per_run_metrics.json"]:
-        ok = (active_run / lbl).exists()
-        color = "#1a7f37" if ok else "#cf222e"
-        icon  = "OK" if ok else "ERR"
-        st.sidebar.markdown(
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:{color};margin:4px 0">{icon}  {lbl}</div>',
-            unsafe_allow_html=True)
-
-    st.sidebar.markdown("---")
+    required_files = ["scores.json", "per_run_metrics.json"]
+    missing_files = [lbl for lbl in required_files if not (active_run / lbl).exists()]
+    data_color = "#cf222e" if missing_files else "var(--tx3)"
+    data_status = "Missing: " + ", ".join(missing_files) if missing_files else "Data files: OK"
+    st.sidebar.markdown(
+        f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;'
+        f'color:{data_color};margin:6px 0 8px;line-height:1.35">{data_status}</div>',
+        unsafe_allow_html=True)
 
     # ── Add / Register external methods ──────────────────────
     st.sidebar.markdown("## Add Method")
@@ -1064,9 +1073,9 @@ def render_sidebar():
                 st.rerun()
     else:
         st.sidebar.markdown(
-            '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
-            'color:var(--tx3);margin:5px 0">No plugins registered yet.<br>'
-            'Upload a .py file or click Scan.</div>',
+            '<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;'
+            'color:var(--tx3);margin:3px 0 5px;line-height:1.35">'
+            'No plugins yet. Upload .py or scan.</div>',
             unsafe_allow_html=True)
 
     # ── 3. Upload new plugin ─────────────────────────────────
