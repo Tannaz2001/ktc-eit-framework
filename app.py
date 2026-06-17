@@ -2307,6 +2307,16 @@ def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple
 
 
 def main():
+    # Populate the available method list from the latest run BEFORE the sidebar
+    # renders, so the methods section shows immediately instead of stalling on
+    # "Loading methods..." on the first paint. (The sidebar reads this; the
+    # main body refreshes it again after load_data below.)
+    try:
+        _pre_scores, _ = load_run_data(find_latest_run())
+        st.session_state['_available_methods'] = list(_pre_scores.keys())
+    except Exception:
+        st.session_state.setdefault('_available_methods', [])
+
     pdf_export_slot = render_sidebar()
     dark = st.session_state.get('dark_mode', False)
     inject_theme(dark)
