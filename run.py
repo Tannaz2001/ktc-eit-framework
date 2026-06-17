@@ -15,6 +15,7 @@ from pathlib import Path
 
 from src.ktc_framework.runner.config_validator import load_config, ConfigError
 from src.ktc_framework.runner.experiment_runner import BatchRunner
+from example_usage import project_to_dashboard
 
 
 def main() -> None:
@@ -35,6 +36,9 @@ def main() -> None:
         print(f"[ERROR] {e}")
         raise SystemExit(1)
 
+    output_dir = Path(config["output_dir"])
+    runner = BatchRunner(config=config, output_dir=output_dir)
+
     print(f"[OK] Config loaded: {args.config}")
     print(f"     Data:    {config['dataset_root']}")
     print(f"     Mesh:    {config['mesh_path']}")
@@ -44,14 +48,13 @@ def main() -> None:
     print(f"     Output:  {config['output_dir']}")
     print()
 
-    output_dir = Path(config["output_dir"])
-    runner = BatchRunner(config=config, output_dir=output_dir)
-
     print("[...] Running experiment...")
     results = runner.run()
+    dashboard_run = project_to_dashboard(output_dir)
 
     print(f"[OK] Done. {len(results)} runs completed.")
     print(f"     Results saved to: {output_dir / 'scores.json'}")
+    print(f"     Dashboard run:    {dashboard_run}")
 
 
 if __name__ == "__main__":
