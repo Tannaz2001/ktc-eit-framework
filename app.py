@@ -416,12 +416,16 @@ section[data-testid="stSidebar"] [data-testid^="stColumn"] [data-testid="stButto
   justify-content:center!important;
 }
 section[data-testid="stSidebar"] [data-testid^="stColumn"] button[kind="secondary"]{
-  width:30px!important;
-  min-width:30px!important;
+  width:100%!important;
+  min-width:0!important;
   height:30px!important;
   min-height:30px!important;
-  padding:0!important;
+  padding:0 4px!important;
   line-height:1!important;
+  font-size:10px!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
 }
 
 [data-testid="stCheckbox"] label{font-size:12px!important;}
@@ -510,7 +514,10 @@ section[data-testid="stSidebar"] [data-baseweb="select"] *{
   font-family:'JetBrains Mono',monospace!important;
   font-size:12px!important;line-height:1.35!important;
   padding-top:7px!important;padding-bottom:7px!important;
+  color:var(--tx)!important;opacity:1!important;
 }
+[data-baseweb="popover"] [role="option"] *,
+[data-baseweb="menu"] li *{color:var(--tx)!important;opacity:1!important;}
 .stSlider,.stSelectbox,.stMultiSelect{margin-bottom:8px!important;}
 .stCheckbox{margin-bottom:2px!important;}
 </style>
@@ -1235,7 +1242,7 @@ def render_sidebar():
                 f'<span style="font-size:10px;color:var(--tx3)">{fname}</span></div>',
                 unsafe_allow_html=True)
             ca, cb, cc = st.sidebar.columns([2, 1, 1])
-            if ca.button("Register", key=f"reg_{nm}",
+            if ca.button("Run", key=f"reg_{nm}",
                          help=f"Run benchmark for {nm} only → configs/runtime_{nm}.yaml"):
                 if launch_benchmark(write_runtime_config(nm)):
                     st.rerun()
