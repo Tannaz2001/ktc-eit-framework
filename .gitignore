@@ -5,6 +5,9 @@ EvaluationData/
 Codes_Matlab/Output/
 *.asv
 
+# Machine-local config overrides (never commit these)
+configs/local_*.yaml
+
 # Generated outputs
 outputs/
 outputs_smoke/

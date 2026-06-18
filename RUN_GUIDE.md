@@ -63,26 +63,58 @@ ktc-eit-framework/
 
 ### (Optional) Set up CompetitionCNN (ABC1 Submission)
 
-If integrating competition submissions:
+The CNN runs as a separate subprocess and requires the ABC1 repo placed
+**next to** (not inside) the framework root:
 
-```bash
-# Create external_methods directory
-mkdir external_methods
-
-# Clone or copy ABC1 submission to:
-external_methods/abc1/
-├── solver.py
-├── main_python.py
-├── Mesh_sparse.mat
-└── TrainingData/
-    └── ref.mat
+```
+Desktop/
+├── KTC_WORK_HIS/          ← framework (this repo)
+└── KTC2023-ABC1/
+    └── KTC2023_Python_A01+/
+        ├── main_python.py
+        ├── MiscCodes/
+        │   └── solver.py  ← needs the bug fix below
+        └── ...
 ```
 
-Set environment variable (optional — auto-detected if not set):
+**Required bug fix in `solver.py`** — without this the CNN predicts no
+conductive inclusions and scores flat `+0.0000` across all levels.
+
+Open `KTC2023-ABC1/KTC2023_Python_A01+/MiscCodes/solver.py` and find
+the `otsu_segmentation` function (~line 199). Change two lines:
+
+```python
+# BEFORE (broken — both non-background classes get the same label)
+case 0:
+    deltareco_pixgrid_segmented[ind1] = 2
+    deltareco_pixgrid_segmented[ind2] = 2   # ← wrong, should be 2
+case 2:
+    deltareco_pixgrid_segmented[ind0] = 1
+    deltareco_pixgrid_segmented[ind1] = 1   # ← wrong, should be 2
+
+# AFTER (fixed — resistive=1, conductive=2 correctly assigned)
+case 0:
+    deltareco_pixgrid_segmented[ind1] = 1   # ← changed: 2 → 1
+    deltareco_pixgrid_segmented[ind2] = 2
+case 2:
+    deltareco_pixgrid_segmented[ind0] = 1
+    deltareco_pixgrid_segmented[ind1] = 2   # ← changed: 1 → 2
+```
+
+**TensorFlow** is required to run the CNN (~500 MB, CPU-only on Windows):
 ```bash
-export ABC1_SUBMISSION_PATH=/path/to/abc1
-# or on Windows:
-set ABC1_SUBMISSION_PATH=C:\path\to\abc1
+pip install tensorflow
+```
+If TF is not installed, the framework will print a clear warning at startup
+and skip the CNN — all other methods still run normally.
+
+If your ABC1 repo is not in the default location, set the env var:
+```bash
+# Windows PowerShell
+$env:ABC1_SUBMISSION_PATH = "C:\path\to\KTC2023_Python_A01+"
+
+# Windows CMD
+set ABC1_SUBMISSION_PATH=C:\path\to\KTC2023_Python_A01+
 ```
 
 ---
@@ -110,7 +142,31 @@ pytest tests/ -v
 
 ## 4️⃣ CONFIGURE BENCHMARK
 
-Edit `configs/ktc_all_methods.yaml`:
+### If your data is not at the default path
+
+The shared config assumes `EvaluationData/` is in the project root. If your
+data is somewhere else, create a **machine-local config** (never committed):
+
+```bash
+# copy the shared config and rename it
+cp configs/ktc_all_methods.yaml configs/local_ktc_all_methods.yaml
+```
+
+Then edit `configs/local_ktc_all_methods.yaml` and set your actual paths:
+```yaml
+dataset_root: C:/Users/yourname/data/EvaluationData
+mesh_path:    C:/Users/yourname/data/Codes_Matlab/Mesh_sparse.mat
+```
+
+Run with your local config:
+```bash
+python run.py --config configs/local_ktc_all_methods.yaml
+```
+
+Files matching `configs/local_*.yaml` are git-ignored — your paths will never
+accidentally get committed and break someone else's setup.
+
+### Edit `configs/ktc_all_methods.yaml`
 
 **Full benchmark (all 7 levels, all samples):**
 ```yaml
@@ -297,17 +353,30 @@ ls -la EvaluationData/GroundTruths/
 # If missing, benchmark will still run but GT will be all zeros (mock mode)
 ```
 
-### Issue: "CompetitionCNN failed: TensorFlow not found"
-**Solution (optional — skip if not using CompetitionCNN):**
+### Issue: "[CompetitionCNN] TensorFlow not found" printed at startup
+This is a warning, not a crash. The benchmark still runs — CNN just returns
+zeros and is excluded from meaningful analysis.
+
+**To fix (optional):**
 ```bash
-# Install Python 3.12 with TensorFlow
-python3.12 -m pip install tensorflow
-
-# Set env var
-export ABC1_PYTHON=python3.12
-
-# Or auto-detection will find it
+pip install tensorflow          # adds TF to your current venv
 ```
+Or point to a Python that already has TF:
+```bash
+# Windows PowerShell
+$env:ABC1_PYTHON = "C:\Python312\python.exe"
+```
+If you don't need the CNN, comment it out in your config:
+```yaml
+methods:
+  - BackProjection
+  - GaussNewton
+  # - CompetitionCNN    ← comment out to skip
+```
+
+### Issue: CompetitionCNN runs but shows `+0.0000` degradation slope
+The `otsu_segmentation` bug in ABC1's `solver.py` is causing this.
+Apply the two-line fix described in the **Set up CompetitionCNN** section above.
 
 ### Issue: "Streamlit ModuleNotFoundError"
 **Solution:**
