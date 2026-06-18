@@ -588,10 +588,18 @@ from src.ktc_framework.reporting.data_layer import (
 )
 
 
+# Methods hidden from the dashboard UI only (still run/scored/saved in the
+# backend). ReferenceFEM and RegularizedFEMReconstruction are exact aliases of
+# LinearDifferenceReconstruction, so showing them duplicates the same result.
+HIDDEN_METHODS = {"ReferenceFEM", "RegularizedFEMReconstruction"}
+
+
 @st.cache_data
 def load_data(cache_key: str = "") -> Tuple[Dict, Dict, Dict]:
     """Load scores + per-run metrics from the latest run folder."""
     scores, per_run = load_run_data(find_latest_run())
+    scores = {k: v for k, v in scores.items() if k not in HIDDEN_METHODS}
+    per_run = {k: v for k, v in per_run.items() if k not in HIDDEN_METHODS}
     return scores, per_run, create_method_mapping(scores, per_run)
 
 
@@ -929,7 +937,7 @@ def discover_available_methods() -> List[str]:
     methods: List[str] = []
 
     def add(name: str):
-        if name and name not in methods:
+        if name and name not in methods and name not in HIDDEN_METHODS:
             methods.append(name)
 
     try:
