@@ -12,7 +12,7 @@ from ktc_framework.methods.mock_method_plugin import MockMethodPlugin
 from ktc_framework.methods.backprojection import BackProjection
 from ktc_framework.methods.gauss_newton import GaussNewton
 from ktc_framework.methods.level_set_plugin import LevelSetPlugin
-from ktc_framework.methods.hull_plugin import HullPlugin
+from ktc_framework.plugins.hull_plugin import HullAnalyzer
 from ktc_framework.methods.segment import segment
 
 @pytest.mark.parametrize("plugin_class", [
@@ -47,9 +47,12 @@ def test_hull_plugin():
     seg = np.zeros((256, 256), dtype=np.uint8)
     seg[50:80, 50:80] = 1
     seg[100:130, 100:130] = 2
-    result = HullPlugin.analyze(seg)
-    assert result.prediction_shape == (256, 256)
-    assert result.resistive_center is not None
-    assert result.conductive_center is not None
-    assert result.resistive_area is not None and result.resistive_area > 0
-    assert result.conductive_area is not None and result.conductive_area > 0
+    analyzer = HullAnalyzer()
+    res_hull = analyzer.extract(seg, class_id=1)
+    con_hull = analyzer.extract(seg, class_id=2)
+    assert not res_hull.empty
+    assert not con_hull.empty
+    assert res_hull.centroid is not None
+    assert con_hull.centroid is not None
+    assert res_hull.area_px > 0
+    assert con_hull.area_px > 0
