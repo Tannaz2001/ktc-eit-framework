@@ -42,9 +42,13 @@ desktop.ini
 .coverage
 htmlcov/
 
-# Large model weights + copied competition code (subprocess runs from source repo)
-*.h5
+# Large model weights outside abc1 (abc1/ultimate_cnn1.h5 is only 13 MB — committed)
 src/ktc_framework/models/
+
+# Generated output folders inside abc1
+external_methods/abc1/Outputs/
+external_methods/abc1/test_output/
+external_methods/abc1/MiscCodes/__pycache__/
 
 # Claude Code
 .claude/
