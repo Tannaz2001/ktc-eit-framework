@@ -1,7 +1,7 @@
 """One-shot script: compute hull analysis for all existing mat_predictions.
 
 Reads the current per_run_metrics.json, loads each .mat reconstruction,
-runs HullPlugin.analyze + compare_hulls against ground truth, and writes
+runs HullAnalyzer to extract + compare hulls against ground truth, and writes
 the enriched per_run_metrics.json back. Safe to re-run (idempotent).
 
 Usage:
@@ -12,7 +12,7 @@ import json
 import numpy as np
 import scipy.io
 from pathlib import Path
-from src.ktc_framework.methods.hull_plugin import HullPlugin
+from src.ktc_framework.plugins.hull_plugin import HullAnalyzer, compute_hull_record
 from src.ktc_framework.reporting.data_layer import find_latest_run
 
 SAMPLE_TO_NUM = {"A": "1", "B": "2", "C": "3"}
@@ -49,6 +49,7 @@ def main():
 
     mat_root = Path("outputs") / "mat_predictions"
     dataset_root = "EvaluationData"
+    analyzer = HullAnalyzer()
     updated = 0
 
     for method, entries in per_run.items():
@@ -75,28 +76,9 @@ def main():
                 continue
 
             gt = load_gt(dataset_root, level, sample)
-            gt_ok = gt is not None and np.any(gt)
 
             try:
-                pred_hull = HullPlugin.analyze(pred)
-                hull_data = {
-                    "hull_res_center_y":  pred_hull.resistive_center[0] if pred_hull.resistive_center else None,
-                    "hull_res_center_x":  pred_hull.resistive_center[1] if pred_hull.resistive_center else None,
-                    "hull_res_area":      pred_hull.resistive_area,
-                    "hull_res_perimeter": pred_hull.resistive_perimeter,
-                    "hull_res_pixels":    pred_hull.num_pixels_resistive,
-                    "hull_con_center_y":  pred_hull.conductive_center[0] if pred_hull.conductive_center else None,
-                    "hull_con_center_x":  pred_hull.conductive_center[1] if pred_hull.conductive_center else None,
-                    "hull_con_area":      pred_hull.conductive_area,
-                    "hull_con_perimeter": pred_hull.conductive_perimeter,
-                    "hull_con_pixels":    pred_hull.num_pixels_conductive,
-                }
-                if gt_ok:
-                    gt_hull = HullPlugin.analyze(gt)
-                    errors = HullPlugin.compare_hulls(pred_hull, gt_hull)
-                    hull_data.update({f"hull_{k}": v for k, v in errors.items()})
-
-                entry["hull"] = hull_data
+                entry["hull"] = compute_hull_record(pred, gt, analyzer)
                 updated += 1
             except Exception as e:
                 print(f"  Hull failed {method}/{key}: {e}")

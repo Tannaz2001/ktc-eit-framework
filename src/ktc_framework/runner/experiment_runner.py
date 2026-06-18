@@ -37,7 +37,7 @@ from src.ktc_framework.visualization.plot_results import (
     plot_leaderboard,
     plot_error_overlay,
 )
-from src.ktc_framework.plugins.hull_plugin import HullAnalyzer
+from src.ktc_framework.plugins.hull_plugin import HullAnalyzer, compute_hull_record
 from src.ktc_framework.metrics.qualitative_metrics import (
     compute_qualitative_sample,
     aggregate_qualitative,
@@ -92,6 +92,10 @@ class BatchRunner:
         self.mesh = self._load_mesh(config.get("mesh_path", ""))
         self.ref_voltages = self._load_reference(config.get("dataset_root", ""))
         self.data_plugin = self._load_data_plugin()
+
+        # Single hull analyzer reused for per-sample hull records and the
+        # method-level qualitative aggregation in _compute_qualitative_metrics.
+        self.hull_analyzer = HullAnalyzer()
 
     # ------------------------------------------------------------------
     # Resource loaders
@@ -403,6 +407,19 @@ class BatchRunner:
             save_path=overlay_path,
         )
 
+        # ── per-sample hull record (consumed by the dashboard Hull tab) ──
+        # Computed live here so the standalone compute_hull_data.py backfill
+        # is unnecessary for fresh runs. Shares one helper with that script
+        # so the JSON shape can never drift. Failure is non-fatal.
+        try:
+            hull_record = compute_hull_record(reconstruction, gt, self.hull_analyzer)
+        except Exception as exc:
+            console.print(
+                f"[yellow]Hull record failed for method={method} "
+                f"level={level} sample={sample}: {exc}[/yellow]"
+            )
+            hull_record = {}
+
         # ── qualitative metrics (stored for later aggregation by method) ──
         # Store prediction and GT for hull analysis aggregation
         # Internal arrays (_pred, _gt) are stripped before JSON serialization
@@ -421,6 +438,7 @@ class BatchRunner:
             "png_path":        str(png_path),
             "mat_path":        str(mat_path),
             "overlay_path":    str(overlay_path),
+            "hull":            hull_record,
             # internal arrays — stripped before JSON serialisation
             # used for hull analysis aggregation in _save()
             "_gt":   gt,
@@ -534,7 +552,7 @@ class BatchRunner:
 
         Wrapped in try/except — pipeline continues even if hull analysis fails.
         """
-        hull_analyzer = HullAnalyzer()
+        hull_analyzer = self.hull_analyzer
 
         methods = {r["method"] for r in results}
 

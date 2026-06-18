@@ -234,3 +234,63 @@ class HullAnalyzer:
             "detected": detected,
             "detection_reason": reason,
         }
+
+
+def compute_hull_record(
+    pred: np.ndarray,
+    gt: np.ndarray | None,
+    analyzer: HullAnalyzer | None = None,
+) -> dict:
+    """Build the per-sample hull dict consumed by the dashboard.
+
+    This is the single source of truth for the per-run ``hull`` field used by
+    ``view_hull_analysis`` in the dashboard. Both the experiment runner (live,
+    during a benchmark) and the standalone ``compute_hull_data.py`` backfill
+    script call this so their output can never drift.
+
+    Args:
+        pred: (256, 256) uint8 predicted segmentation, labels {0, 1, 2}
+        gt: (256, 256) uint8 ground-truth segmentation, or None if unavailable
+        analyzer: optional shared HullAnalyzer instance (one is created if omitted)
+
+    Returns:
+        dict with the exact keys the dashboard reads. Error fields are 0.0 when
+        ground truth is missing or a class is absent in GT.
+    """
+    analyzer = analyzer or HullAnalyzer()
+
+    pred_res = analyzer.extract(pred, class_id=1)
+    pred_con = analyzer.extract(pred, class_id=2)
+
+    record = {
+        "hull_resistive_center_error": 0.0,
+        "hull_resistive_area_error": 0.0,
+        "hull_resistive_perimeter_error": 0.0,
+        "hull_conductive_center_error": 0.0,
+        "hull_conductive_area_error": 0.0,
+        "hull_conductive_perimeter_error": 0.0,
+        "hull_res_area": pred_res.area_px,
+        "hull_con_area": pred_con.area_px,
+        "hull_res_pixels": int(np.sum(pred == 1)),
+        "hull_con_pixels": int(np.sum(pred == 2)),
+    }
+
+    if gt is None or not np.any(gt):
+        return record
+
+    gt_res = analyzer.extract(gt, class_id=1)
+    gt_con = analyzer.extract(gt, class_id=2)
+
+    res_cmp = analyzer.compare(pred_res, gt_res)
+    con_cmp = analyzer.compare(pred_con, gt_con)
+
+    record.update({
+        "hull_resistive_center_error": res_cmp.get("centroid_distance_px", 0.0),
+        "hull_resistive_area_error": abs(pred_res.area_px - gt_res.area_px) if not gt_res.empty else 0.0,
+        "hull_resistive_perimeter_error": abs(pred_res.perimeter_px - gt_res.perimeter_px) if not gt_res.empty else 0.0,
+        "hull_conductive_center_error": con_cmp.get("centroid_distance_px", 0.0),
+        "hull_conductive_area_error": abs(pred_con.area_px - gt_con.area_px) if not gt_con.empty else 0.0,
+        "hull_conductive_perimeter_error": abs(pred_con.perimeter_px - gt_con.perimeter_px) if not gt_con.empty else 0.0,
+    })
+
+    return record

@@ -119,9 +119,36 @@ def _find_python_interpreter() -> str:
     )
     return sys.executable
 
-_ABC1_CWD = _find_submission_dir()
-_ABC1_MAIN = str((_ABC1_CWD / "main_python.py")) if _ABC1_CWD else None
+_ABC1_CWD    = _find_submission_dir()
+_ABC1_MAIN   = str((_ABC1_CWD / "main_python.py")) if _ABC1_CWD else None
 _ABC1_PYTHON = _find_python_interpreter()
+_TF_AVAILABLE = _has_tensorflow(_ABC1_PYTHON)
+
+# ── Import-time diagnostics — visible to every teammate on first run ──────
+# These use Rich directly so the warnings appear in the benchmark console
+# even when Python's logging module has no handlers configured.
+def _warn(msg: str) -> None:
+    try:
+        from rich.console import Console as _Console
+        _Console(safe_box=True).print(msg)
+    except ImportError:
+        print(msg)
+
+if _ABC1_CWD is None:
+    _warn(
+        "[bold yellow][CompetitionCNN] ABC1 submission directory not found.[/bold yellow]\n"
+        "   Place [bold]KTC2023-ABC1/KTC2023_Python_A01+[/bold] next to the framework root,\n"
+        "   or set env var:  [bold]ABC1_SUBMISSION_PATH=/path/to/KTC2023_Python_A01+[/bold]\n"
+        "   CNN will return zeros until this is resolved."
+    )
+elif not _TF_AVAILABLE:
+    _warn(
+        "[bold yellow][CompetitionCNN] TensorFlow not found on any Python interpreter.[/bold yellow]\n"
+        "   Install it:      [bold]pip install tensorflow[/bold]\n"
+        "   Or point to a Python that has it:  [bold]ABC1_PYTHON=/path/to/python[/bold]\n"
+        "   CNN will return zeros until TensorFlow is available.\n"
+        "   Other methods (BackProjection, GaussNewton, etc.) are unaffected."
+    )
 
 # Sample-letter to data-file-number mapping (mirrors KTCDataPlugin)
 _SAMPLE_MAP: dict[str, str] = {
@@ -159,11 +186,11 @@ class CompetitionCNN(MethodPlugin):
         tmp_output: Optional[str] = None
 
         if _ABC1_CWD is None or _ABC1_MAIN is None:
-            _logger.error(
-                "CompetitionCNN: submission directory not found. "
-                "Place KTC2023-ABC1/KTC2023_Python_A01+ next to framework root, "
-                "or set environment variable: export ABC1_SUBMISSION_PATH=/path/to/submission"
-            )
+            # Warning already printed at import time — just return zeros silently.
+            return np.zeros((256, 256), dtype=np.uint8)
+
+        if not _TF_AVAILABLE:
+            # Warning already printed at import time — just return zeros silently.
             return np.zeros((256, 256), dtype=np.uint8)
 
         try:
