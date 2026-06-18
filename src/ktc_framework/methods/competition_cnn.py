@@ -39,6 +39,7 @@ def _find_submission_dir() -> Optional[Path]:
     framework_root = Path(__file__).resolve().parents[3]
 
     candidates = [
+        framework_root / "external_methods" / "abc1",             # ← preferred: inside the project
         framework_root.parent / "KTC2023-ABC1" / "KTC2023_Python_A01+",
         framework_root / "KTC2023-ABC1" / "KTC2023_Python_A01+",
         Path(os.environ.get("ABC1_SUBMISSION_PATH", "")),
