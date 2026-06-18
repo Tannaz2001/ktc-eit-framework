@@ -33,11 +33,11 @@ import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Label → hex colour
+# Label → hex colour (matches plot_results.py COLORMAP)
 _COLOURS = {
-    0: "#1f4e79",  # background — dark blue
-    1: "#c00000",  # resistive  — red
-    2: "#375623",  # conductive — green
+    0: "#1a3a5c",  # water      — dark blue
+    1: "#D85A30",  # resistive  — orange-red
+    2: "#1D9E75",  # conductive — teal-green
 }
 
 

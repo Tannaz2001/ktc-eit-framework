@@ -655,8 +655,8 @@ def calculate_composite_score(metrics:Dict[str,float], weights:Dict[str,float]=N
     return round(ktc * 100, 2)
 
 def letter_grade(score:float) -> str:
-    # Same thresholds as src/ktc_framework/metrics/composite_score.py
-    return 'A' if score>=80 else 'B' if score>=60 else 'C' if score>=40 else 'D'
+    # Thresholds match composite_score.py: A=0.6, B=0.3, C=0.1 scaled by 100
+    return 'A' if score>=60 else 'B' if score>=30 else 'C' if score>=10 else 'D'
 
 def all_methods(scores:Dict) -> List[str]:
     return list(scores.keys())+[m for m in st.session_state.get('custom_methods',[]) if m not in scores]
@@ -2090,118 +2090,27 @@ def _render_pdf_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str, target=
         max_pages = 5
         display_methods = sorted(scores.items(), key=lambda item: calculate_composite_score(item[1]), reverse=True)[:10]
         run_dir = Path("outputs") / run_name
-        asset_dir = Path("outputs") / "report_assets"
-        asset_dir.mkdir(parents=True, exist_ok=True)
+        figs_dir = run_dir / "figures"
 
-        def allowed_png(path: Path) -> bool:
-            low = str(path).lower()
-            return path.suffix.lower() == ".png" and not any(x in low for x in ("failure", "error_overlay", "error_overlays", "overlay"))
-
-        def make_chart_path(name: str) -> Path:
-            return asset_dir / f"{run_name}_{name}.png"
-
-        def save_leaderboard_png() -> Path | None:
-            if not display_methods:
-                return None
-            out = make_chart_path("leaderboard")
-            try:
-                names = [m for m, _ in display_methods[:8]][::-1]
-                vals = [calculate_composite_score(scores[m]) for m in names]
-                fig, ax = plt.subplots(figsize=(6.6, 3.25), dpi=150)
-                ax.barh(names, vals, color=[mcol(i) for i in range(len(names))])
-                ax.set_xlim(0, 100); ax.set_title("Leaderboard - Composite Score", fontsize=11, fontweight="bold")
-                ax.grid(axis="x", color="#d0d7de", linewidth=.7); ax.spines[["top", "right"]].set_visible(False)
-                ax.tick_params(axis="both", labelsize=7)
-                for i, v in enumerate(vals): ax.text(v + 1, i, f"{v:.1f}", va="center", fontsize=7)
-                fig.tight_layout(); fig.savefig(out, bbox_inches="tight", facecolor="white"); plt.close(fig)
-                return out
-            except Exception:
-                plt.close("all"); return None
-
-        def save_degradation_png() -> Path | None:
-            rows = []
-            for method, _ in display_methods:
-                ik = mm.get(method)
-                for entry in per_run.get(ik, {}).values() if ik else []:
-                    rows.append((method, int(entry.get("level", 1)), float(entry.get("ktc_score", 0))))
-            if not rows: return None
-            out = make_chart_path("degradation")
-            try:
-                df = pd.DataFrame(rows, columns=["Method", "Level", "KTC"])
-                fig, ax = plt.subplots(figsize=(6.6, 3.25), dpi=150)
-                for i, method in enumerate(df["Method"].unique()[:6]):
-                    s = df[df["Method"] == method].groupby("Level")["KTC"].mean().sort_index()
-                    ax.plot(s.index, s.values, marker="o", linewidth=1.5, markersize=3.2, color=mcol(i), label=method.replace("Reconstruction", "Recon"))
-                ax.set_title("Degradation - KTC by Difficulty", fontsize=11, fontweight="bold")
-                ax.set_xlabel("Level", fontsize=8); ax.set_ylabel("Mean KTC", fontsize=8)
-                ax.grid(color="#d0d7de", linewidth=.7); ax.legend(fontsize=5.8, frameon=False, loc="best")
-                ax.tick_params(labelsize=7); ax.spines[["top", "right"]].set_visible(False)
-                fig.tight_layout(); fig.savefig(out, bbox_inches="tight", facecolor="white"); plt.close(fig)
-                return out
-            except Exception:
-                plt.close("all"); return None
-
-        def save_radar_png() -> Path | None:
-            keys = sorted({k for metrics in scores.values() for k in metrics.keys()})
-            chosen = [k for k in ("KTC score", "ktc_score") if k in keys] or keys[:4]
-            if not chosen: return None
-            out = make_chart_path("radar")
-            try:
-                fig = plt.figure(figsize=(6.2, 3.75), dpi=150); ax = fig.add_subplot(111, polar=True)
-                labels = [k.replace("_", " ").title() for k in chosen]
-                angles = np.linspace(0, 2*np.pi, len(labels), endpoint=False).tolist(); angles += angles[:1]
-                for i, (method, metrics) in enumerate(display_methods[:6]):
-                    vals = [max(0.0, min(1.0, float(metrics.get(k, 0)))) for k in chosen]; vals += vals[:1]
-                    ax.plot(angles, vals, color=mcol(i), linewidth=1.4, label=method.replace("Reconstruction", "Recon"))
-                    ax.fill(angles, vals, color=mcol(i), alpha=.08)
-                ax.set_xticks(angles[:-1]); ax.set_xticklabels(labels, fontsize=7); ax.set_ylim(0, 1); ax.set_yticklabels([])
-                ax.grid(color="#d0d7de", linewidth=.7); ax.set_title("Radar Performance", fontsize=11, fontweight="bold", pad=10)
-                ax.legend(loc="upper right", bbox_to_anchor=(1.33, 1.08), fontsize=5.8, frameon=False)
-                fig.tight_layout(); fig.savefig(out, bbox_inches="tight", facecolor="white"); plt.close(fig)
-                return out
-            except Exception:
-                plt.close("all"); return None
-
-        def save_hull_png() -> Path | None:
-            rows = []
-            for method, _ in display_methods:
-                ik = mm.get(method)
-                for entry in per_run.get(ik, {}).values() if ik else []:
-                    hull = entry.get("hull", {})
-                    center, area = hull.get("hull_resistive_center_error"), hull.get("hull_resistive_area_error")
-                    if center is not None or area is not None: rows.append((method, center, area))
-            if not rows: return None
-            out = make_chart_path("hull")
-            try:
-                df = pd.DataFrame(rows, columns=["Method", "Center", "Area"])
-                fig, axes = plt.subplots(1, 2, figsize=(7.0, 3.25), dpi=150)
-                for ax, title, col, ylabel in [(axes[0], "Center Error", "Center", "px"), (axes[1], "Area Error", "Area", "px^2")]:
-                    s = df.dropna(subset=[col]).groupby("Method")[col].mean().sort_values().head(6)
-                    ax.bar(s.index, s.values, color=[mcol(i) for i in range(len(s))])
-                    ax.set_title(title, fontsize=9, fontweight="bold"); ax.set_ylabel(ylabel, fontsize=7)
-                    ax.grid(axis="y", color="#d0d7de", linewidth=.7); ax.spines[["top", "right"]].set_visible(False)
-                    ax.tick_params(axis="x", labelrotation=35, labelsize=5.4); ax.tick_params(axis="y", labelsize=6.4)
-                fig.suptitle("Hull Analysis - Resistive Region", fontsize=11, fontweight="bold")
-                fig.tight_layout(); fig.savefig(out, bbox_inches="tight", facecolor="white"); plt.close(fig)
-                return out
-            except Exception:
-                plt.close("all"); return None
+        # Use pre-generated figures from the benchmark run — no matplotlib at export time.
+        _CHART_NAMES = {
+            "leaderboard":       "Leaderboard",
+            "degradation_curve": "KTC Score vs Difficulty",
+            "metrics_heatmap":   "Metrics Heatmap",
+            "runtime_comparison":"Runtime Comparison",
+            "failure_gallery":   "Failure Gallery",
+        }
 
         def collect_recon_pngs() -> List[Path]:
-            roots = [run_dir / "reconstructions", Path("outputs") / "reconstructions", Path("outputs") / "figures", Path("outputs") / "images"]
-            chosen, seen = [], set()
-            for method, _ in display_methods:
-                internal = mm.get(method, method)
-                patterns = [f"{internal}.png", f"{method}.png", f"{method}_level*_sample*.png", f"{internal}_level*_sample*.png"]
-                for root in roots:
-                    if not root.exists(): continue
-                    matches = []
-                    for pattern in patterns: matches.extend(root.rglob(pattern))
-                    matches = [p for p in sorted(matches) if allowed_png(p) and p.resolve() not in seen]
-                    if matches:
-                        chosen.append(matches[0]); seen.add(matches[0].resolve()); break
-                if len(chosen) >= 4: return chosen
-            return chosen
+            """Return up to 4 per-run panel PNGs from the figures directory."""
+            if not figs_dir.exists():
+                return []
+            skip = set(_CHART_NAMES.keys())
+            panels = sorted(
+                p for p in figs_dir.glob("*.png")
+                if not any(p.stem.startswith(s) for s in skip)
+            )
+            return panels[:4]
 
         buf = io.BytesIO()
         doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=1.2*cm, rightMargin=1.2*cm, topMargin=1.1*cm, bottomMargin=1.1*cm)
@@ -2260,8 +2169,10 @@ def _render_pdf_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str, target=
 
         story.append(Paragraph("02 VISUAL SUMMARY", h2_style))
         chart_grid = Table([
-            [frame("Leaderboard Figure", save_leaderboard_png()), frame("Radar Chart", save_radar_png())],
-            [frame("Degradation Chart", save_degradation_png()), frame("Hull Analysis Figures", save_hull_png())],
+            [frame("Leaderboard", figs_dir / "leaderboard.png"),
+             frame("Metrics Heatmap", figs_dir / "metrics_heatmap.png")],
+            [frame("KTC Score vs Difficulty", figs_dir / "degradation_curve.png"),
+             frame("Runtime Comparison", figs_dir / "runtime_comparison.png")],
         ], colWidths=[8.35*cm, 8.35*cm])
         chart_grid.setStyle(TableStyle([("VALIGN",(0,0),(-1,-1),"TOP"),("LEFTPADDING",(0,0),(-1,-1),2),("RIGHTPADDING",(0,0),(-1,-1),2),("BOTTOMPADDING",(0,0),(-1,-1),4)]))
         story.append(chart_grid)
@@ -2334,7 +2245,7 @@ def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple
                 "Method": method,
                 "Level": lv,
                 "Sample": entry.get("sample", "?"),
-                "KTC": entry.get("ktc_score", 0.0),
+                "KTC": entry.get("ktc_score", entry.get("metrics", {}).get("ktc_score", 0.0)),
                 "Res Center Err": hull.get("hull_resistive_center_error"),
                 "Res Area Err": hull.get("hull_resistive_area_error"),
                 "Res Perim Err": hull.get("hull_resistive_perimeter_error"),

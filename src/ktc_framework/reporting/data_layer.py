@@ -114,6 +114,7 @@ def load_run_data(run_dir: str | Path) -> tuple[dict, dict]:
                         "level": row["level"],
                         "sample": row["sample"],
                         "gt_missing": row.get("gt_missing", False),
+                        "hull": row.get("hull", {}),
                     }
 
     # Defence in depth: every view assumes scores values are numbers —
