@@ -6,6 +6,7 @@ Data:   all original logic preserved unchanged
 
 import streamlit as st
 import json
+import re
 import subprocess
 import sys
 import numpy as np
@@ -285,6 +286,24 @@ p,.stMarkdown p{font-size:11px!important;color:var(--tx2)!important;line-height:
 /* ── live badge ── */
 .sb-live{display:inline-flex;align-items:center;gap:5px;font-size:10px;color:var(--grn);background:var(--grn-bg);border:1px solid var(--grn-bd);padding:3px 10px;border-radius:20px;margin-top:7px;}
 .ldot{width:6px;height:6px;background:var(--grn);border-radius:50%;}
+.method-refresh-status{
+  width:100%;
+  min-height:30px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin:6px 0 2px;
+  padding:6px 8px;
+  border:1px solid var(--grn-bd);
+  border-radius:6px;
+  background:var(--grn-bg);
+  color:var(--grn);
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;
+  font-weight:600;
+  line-height:1.25;
+  text-align:center;
+}
 
 /* ── tier bar ── */
 .tier-bar-wrap{height:3px;background:var(--bd);border-radius:2px;margin-top:3px;}
@@ -336,9 +355,12 @@ p,.stMarkdown p{font-size:11px!important;color:var(--tx2)!important;line-height:
 .eit-dark h1,.eit-dark h2,.eit-dark h3{color:var(--tx)!important;}
 
 /* ---- UI layout polish: readable scale, aligned controls, less top whitespace ---- */
-[data-testid="stHeader"]{background:transparent!important;height:0!important;min-height:0!important;}
+[data-testid="stHeader"]{background:transparent!important;height:0!important;min-height:0!important;display:none!important;}
 [data-testid="stToolbar"],[data-testid="stDecoration"],[data-testid="stStatusWidget"]{display:none!important;}
-.main,.main .block-container{padding:4px 20px 42px!important;}
+[data-testid="stAppViewContainer"]{padding-top:0!important;}
+[data-testid="stAppViewContainer"]>.main{padding-top:0!important;}
+.main,.main .block-container{padding:0 20px 42px!important;}
+.main .block-container>div:first-child{margin-top:0!important;padding-top:0!important;}
 
 section[data-testid="stSidebar"]>div:first-child{padding:12px 12px!important;}
 section[data-testid="stSidebar"] h1,
@@ -357,6 +379,40 @@ section[data-testid="stSidebar"] button,
 section[data-testid="stSidebar"] button{padding-left:0!important;padding-right:0!important;}
 section[data-testid="stSidebar"] [data-testid^="stColumn"] button[kind="secondary"]{
   font-size:12px!important;min-height:30px!important;padding:5px 0!important;
+}
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]{
+  align-items:center!important;
+  gap:6px!important;
+}
+section[data-testid="stSidebar"] [data-testid="stCheckbox"]{
+  min-height:32px!important;
+  display:flex!important;
+  align-items:center!important;
+}
+section[data-testid="stSidebar"] [data-testid="stCheckbox"] label{
+  display:flex!important;
+  align-items:center!important;
+  gap:7px!important;
+}
+section[data-testid="stSidebar"] [data-testid="stCheckbox"] p{
+  font-size:12px!important;
+  line-height:1.25!important;
+  color:var(--tx2)!important;
+  margin:0!important;
+  white-space:normal!important;
+}
+section[data-testid="stSidebar"] [data-testid^="stColumn"] [data-testid="stButton"]{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
+section[data-testid="stSidebar"] [data-testid^="stColumn"] button[kind="secondary"]{
+  width:30px!important;
+  min-width:30px!important;
+  height:30px!important;
+  min-height:30px!important;
+  padding:0!important;
+  line-height:1!important;
 }
 
 [data-testid="stCheckbox"] label{font-size:12px!important;}
@@ -596,6 +652,14 @@ def letter_grade(score:float) -> str:
 def all_methods(scores:Dict) -> List[str]:
     return list(scores.keys())+[m for m in st.session_state.get('custom_methods',[]) if m not in scores]
 
+def method_display_name(method_name: str) -> str:
+    """Format internal method IDs for compact, readable sidebar labels."""
+    label = re.sub(r"(Reconstruction|Method)$", "", method_name)
+    label = re.sub(r"[_-]+", " ", label)
+    label = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", label)
+    label = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", " ", label)
+    return " ".join(label.split()) or method_name
+
 def mcol(idx:int) -> str:
     return PALETTE[idx % len(PALETTE)]
 
@@ -826,6 +890,61 @@ def append_method_to_config(method_name: str,
     return False
 
 
+def discover_available_methods() -> List[str]:
+    """Collect scored, configured, and registered methods without running benchmarks."""
+    methods: List[str] = []
+
+    def add(name: str):
+        if name and name not in methods:
+            methods.append(name)
+
+    try:
+        scores, _ = load_run_data(find_latest_run())
+        for name in scores.keys():
+            add(name)
+    except Exception:
+        pass
+
+    cfg_path = Path("configs/ktc_all_methods.yaml")
+    if cfg_path.exists():
+        try:
+            import yaml as _yaml
+            cfg = _yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+            for name in cfg.get("methods", []):
+                add(str(name))
+        except Exception:
+            pass
+
+    if 'uploaded_methods' not in st.session_state:
+        st.session_state.uploaded_methods = {}
+    for name in st.session_state.uploaded_methods.keys():
+        add(name)
+
+    ext_dir = Path("external_methods")
+    if ext_dir.exists():
+        try:
+            from src.ktc_framework.registry import (
+                list_methods as _list_methods,
+                load_external_methods as _load_ext,
+            )
+            before = set(_list_methods())
+            py_files = list(ext_dir.glob("*.py"))
+            if py_files:
+                _load_ext([str(ext_dir)])
+                discovered = sorted(set(_list_methods()) - before)
+                for name in discovered:
+                    fname = next(
+                        (f.name for f in py_files if name.lower() in f.stem.lower()),
+                        py_files[0].name,
+                    )
+                    st.session_state.uploaded_methods.setdefault(name, fname)
+                    add(name)
+        except Exception:
+            pass
+
+    return methods
+
+
 # =========================================================
 # SIDEBAR
 # =========================================================
@@ -851,7 +970,7 @@ def render_sidebar():
 
     st.sidebar.markdown(f"""
     <div style="border-bottom:1px solid var(--bd);padding-bottom:13px;margin-bottom:13px">
-      <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;color:var(--tx);letter-spacing:.06em">EIT BENCH</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--tx);letter-spacing:.06em">EIT BENCH</div>
       <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tx3);margin-top:3px;letter-spacing:.08em">RECONSTRUCTION ANALYSIS</div>
       <div class="sb-live"><div class="ldot"></div>LIVE</div>
       {_live_sub}
@@ -883,6 +1002,24 @@ def render_sidebar():
     if st.sidebar.button("Run all methods", use_container_width=True, key="run_full_btn"):
         if launch_benchmark(Path("configs/ktc_all_methods.yaml")):
             st.rerun()
+
+    if st.sidebar.button("Refresh methods", use_container_width=True, key="refresh_methods_btn"):
+        st.cache_data.clear()
+        refreshed_methods = discover_available_methods()
+        st.session_state['_available_methods'] = refreshed_methods
+        current_selection = st.session_state.get('selected_methods', refreshed_methods.copy())
+        st.session_state.selected_methods = [m for m in current_selection if m in refreshed_methods]
+        if not st.session_state.selected_methods:
+            st.session_state.selected_methods = refreshed_methods.copy()
+        st.session_state['_method_refresh_msg'] = f"{len(refreshed_methods)} method(s) available"
+        st.rerun()
+
+    refresh_msg = st.session_state.pop('_method_refresh_msg', None)
+    if refresh_msg:
+        st.sidebar.markdown(
+            f'<div class="method-refresh-status">{refresh_msg}</div>',
+            unsafe_allow_html=True,
+        )
     render_benchmark_status()
 
     st.sidebar.markdown("---")
@@ -933,13 +1070,11 @@ def render_sidebar():
 
     if available_methods:
         for m in available_methods:
-            # Abbreviate for display so long names don't truncate
-            short = m.replace("Reconstruction","Recon").replace("Difference","Diff").replace("Projection","Proj")
-            c_chk, c_run = st.sidebar.columns([4, 1])
+            display_name = method_display_name(m)
+            c_chk, c_run = st.sidebar.columns([5, 0.9])
             with c_chk:
                 checked = m in st.session_state.selected_methods
-                new_val = st.checkbox(short, value=checked, key=f"method_{m}",
-                                      help=m)  # full name in tooltip
+                new_val = st.checkbox(display_name, value=checked, key=f"method_{m}")
                 if new_val and m not in st.session_state.selected_methods:
                     st.session_state.selected_methods.append(m)
                 elif not new_val and m in st.session_state.selected_methods:
@@ -1431,9 +1566,15 @@ def view_comparison(scores:Dict, per_run:Dict, mm:Dict, sel_metrics:list=None, l
     lvl = c3.selectbox("Level:", levels_avail, index=0)
     samps = sorted({e['sample'] for e in entries.values() if int(e['level']) == lvl})
     sid = c4.selectbox("Sample:", samps) if samps else None
+
+    m1i = mm.get(m1)
+    m2i = mm.get(m2)
+    if m1 == m2 or (m1i is not None and m1i == m2i):
+        st.error("Same method cannot be compared. Please choose two different methods.")
+        return
+
     run_key = f"L{lvl}_{sid}"
 
-    m1i = mm.get(m1); m2i = mm.get(m2)
     p1  = m1 in st.session_state.get('custom_methods', [])
     p2  = m2 in st.session_state.get('custom_methods', [])
     if p1: st.info(f"{m1} is a custom method — connect its backend to see metrics.")
@@ -2321,8 +2462,7 @@ def main():
     # "Loading methods..." on the first paint. (The sidebar reads this; the
     # main body refreshes it again after load_data below.)
     try:
-        _pre_scores, _ = load_run_data(find_latest_run())
-        st.session_state['_available_methods'] = list(_pre_scores.keys())
+        st.session_state['_available_methods'] = discover_available_methods()
     except Exception:
         st.session_state.setdefault('_available_methods', [])
 
@@ -2379,7 +2519,7 @@ def main():
             return
 
         # Store available methods so sidebar checkboxes can render them
-        st.session_state['_available_methods'] = list(scores.keys())
+        st.session_state['_available_methods'] = discover_available_methods()
 
         # Selected metrics + methods + level range from sidebar
         sel_metrics = st.session_state.get('selected_metrics', ['KTC Score'])
