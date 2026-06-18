@@ -15,7 +15,7 @@ from src.ktc_framework.visualization import save_panel
 path = save_panel(
     gt=batch.ground_truth,
     pred=reconstruction,
-    method="BackProjectionPlugin",
+    method="BackProjection",
     level=1,
     sample="A",
     output_dir=Path("outputs/images"),
