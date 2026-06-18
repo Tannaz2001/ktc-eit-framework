@@ -12,8 +12,19 @@ from typing import Any
 def generate_html_report(
     results: list[dict[str, Any]],
     output_dir: Path,
+    qualitative_data: dict[str, dict] | None = None,
 ) -> Path:
-    """Generate outputs/report.html from experiment results."""
+    """Generate outputs/report.html from experiment results.
+
+    Parameters
+    ----------
+    results : list[dict]
+        Per-run results with metrics
+    output_dir : Path
+        Directory to save report.html
+    qualitative_data : dict, optional
+        Qualitative metrics per method from _qualitative_summary
+    """
     output_dir  = Path(output_dir)
     figures_dir = output_dir / "figures"
 
@@ -59,6 +70,50 @@ def generate_html_report(
             <td>{row['avg_runtime']} ms</td>
             <td>{row['runs']}</td>
         </tr>"""
+
+    # -- qualitative detection summary -------------------------------------------
+    qual_html = ""
+    qual_summaries = ""
+    if qualitative_data:
+        for method, qual_data in sorted(qualitative_data.items()):
+            res_pct = qual_data.get("resistive_detected_pct", 0.0)
+            con_pct = qual_data.get("conductive_detected_pct", 0.0)
+            res_iou = qual_data.get("avg_resistive_hull_iou", 0.0)
+            con_iou = qual_data.get("avg_conductive_hull_iou", 0.0)
+            fp_count = qual_data.get("false_positive_count", 0)
+
+            # Color coding: green ≥90%, blue ≥70%, amber ≥50%, red <50%
+            def pct_color(pct):
+                if pct >= 90:
+                    return "#1D9E75"  # green
+                elif pct >= 70:
+                    return "#4A90E2"  # blue
+                elif pct >= 50:
+                    return "#F5A623"  # amber
+                else:
+                    return "#D85A30"  # red
+
+            res_color = pct_color(res_pct)
+            con_color = pct_color(con_pct)
+
+            qual_html += f"""
+        <tr>
+            <td><strong>{html.escape(method)}</strong></td>
+            <td style="color:{res_color};font-weight:bold">{res_pct:.1f}%</td>
+            <td style="color:{con_color};font-weight:bold">{con_pct:.1f}%</td>
+            <td>{fp_count}</td>
+            <td>{res_iou:.3f}</td>
+            <td>{con_iou:.3f}</td>
+        </tr>"""
+
+            # Natural language summary
+            res_str = qual_data.get("resistive_detected_str", "0/0")
+            con_str = qual_data.get("conductive_detected_str", "0/0")
+            qual_summaries += f"""
+    <p><strong>{html.escape(method)}</strong>: Resistive regions detected in {res_str} ({res_pct:.1f}%),
+       conductive regions in {con_str} ({con_pct:.1f}%).
+       Avg hull IoU: {res_iou:.3f} (R), {con_iou:.3f} (C).
+       False positives: {fp_count}.</p>"""
 
     # -- per-run detail rows -------------------------------------------------
     detail_rows = ""
@@ -133,6 +188,18 @@ def generate_html_report(
       <th>Avg Runtime</th><th>Runs</th></tr>
   {lb_html}
 </table>
+
+<h2>Qualitative Detection Summary</h2>
+<table>
+  <tr><th>Method</th><th>Resistive Detected</th><th>Conductive Detected</th>
+      <th>False Positives</th><th>Avg Hull IoU (R)</th><th>Avg Hull IoU (C)</th></tr>
+  {qual_html if qual_html else "<tr><td colspan='6' style='text-align:center;color:#999'>No qualitative data available</td></tr>"}
+</table>
+
+<h3>Detection Summaries</h3>
+<div style="background:white;border-radius:8px;padding:16px;box-shadow:0 2px 4px rgba(0,0,0,0.1);line-height:1.6">
+  {qual_summaries if qual_summaries else "<p><em>No qualitative summaries available.</em></p>"}
+</div>
 
 <h2>Per-Run Results</h2>
 <table>

@@ -55,6 +55,7 @@ section[data-testid="stSidebar"] button[data-testid="stBaseButton-headerNoPaddin
   --grn:#1a7f37; --grn-bg:#dafbe1; --grn-bd:#a7f3c0;
   --c1:#2da44e; --c2:#8250df; --c3:#0969da; --c4:#bf8700; --c5:#cf222e;
   --amb:#9a6700; --red:#cf222e;
+  --warn-bg:#fff8c5; --warn-bd:#f0d847;
   --inp-bg:#ffffff; --inp-bd:#d0d7de; --inp-tx:#1f2328;
   --chk-bg:#ffffff;
 }
@@ -66,6 +67,7 @@ section[data-testid="stSidebar"] button[data-testid="stBaseButton-headerNoPaddin
   --grn:#3fb950; --grn-bg:#0d2119; --grn-bd:#1a4e2a;
   --c1:#3fb950; --c2:#bc8cff; --c3:#58a6ff; --c4:#d29922; --c5:#f85149;
   --amb:#d29922; --red:#f85149;
+  --warn-bg:#2a1f00; --warn-bd:#5a4200;
   --inp-bg:#21262d; --inp-bd:#30363d; --inp-tx:#e6edf3;
   --chk-bg:#21262d;
 }
@@ -284,7 +286,12 @@ p,.stMarkdown p{font-size:11px!important;color:var(--tx2)!important;line-height:
 
 /* ── live badge ── */
 .sb-live{display:inline-flex;align-items:center;gap:5px;font-size:10px;color:var(--grn);background:var(--grn-bg);border:1px solid var(--grn-bd);padding:3px 10px;border-radius:20px;margin-top:7px;}
-.ldot{width:6px;height:6px;background:var(--grn);border-radius:50%;}
+@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(1.6)}}
+.ldot{width:6px;height:6px;background:var(--grn);border-radius:50%;animation:pulse-dot 2s ease-in-out infinite;}
+
+/* ── animated shimmer on running benchmark progress bar ── */
+@keyframes bench-shimmer{0%{background-position:200% center}100%{background-position:-200% center}}
+.bench-bar-active{background:linear-gradient(90deg,#2da44e,#0969da,#2da44e);background-size:200% auto;animation:bench-shimmer 2s linear infinite;height:8px;border-radius:4px;}
 
 /* ── tier bar ── */
 .tier-bar-wrap{height:3px;background:var(--bd);border-radius:2px;margin-top:3px;}
@@ -763,7 +770,7 @@ def render_bench_progress() -> None:
                      len(cfg.get("levels",  [])) *
                      len(cfg.get("samples", [])))
         except Exception:
-            total = 105  # 5 methods × 7 levels × 3 samples
+            total = 126  # 6 methods × 7 levels × 3 samples
 
     pct      = min(completed / total, 1.0) if total > 0 else 0.0
     pct_px   = f"{pct * 100:.1f}%"
@@ -786,8 +793,7 @@ def render_bench_progress() -> None:
         f'<span style="color:var(--grn)">{pct*100:.0f}%</span></div>'
         f'</div>'
         f'<div style="background:var(--bd);border-radius:4px;height:8px;overflow:hidden;margin-bottom:8px">'
-        f'<div style="background:linear-gradient(90deg,#2da44e,#0969da);height:8px;'
-        f'border-radius:4px;width:{pct_px};transition:width .4s ease"></div>'
+        f'<div class="bench-bar-active" style="width:{pct_px};transition:width .4s ease"></div>'
         f'</div>'
         f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--tx3)">'
         f'Progress updates automatically every 2s &nbsp;·&nbsp; '
@@ -832,7 +838,7 @@ def append_method_to_config(method_name: str,
 def render_sidebar():
     # ── Brand ────────────────────────────────────────────────
     if 'dark_mode' not in st.session_state:
-        st.session_state.dark_mode = False
+        st.session_state.dark_mode = st.query_params.get('dark', 'false') == 'true'
 
     # Data-age label: read latest.txt mtime to tell user how fresh the dashboard is
     import time as _time
@@ -862,6 +868,7 @@ def render_sidebar():
     dark_label = "Light Mode" if st.session_state.dark_mode else "Dark Mode"
     if st.sidebar.button(dark_label, key="theme_toggle", use_container_width=True):
         st.session_state.dark_mode = not st.session_state.dark_mode
+        st.query_params['dark'] = 'true' if st.session_state.dark_mode else 'false'
         st.rerun()
 
     st.sidebar.markdown("---")
@@ -983,7 +990,7 @@ def render_sidebar():
     st.sidebar.markdown("---")
 
     # Data files — checked inside the ACTIVE run folder, not the project root
-    st.sidebar.markdown("## Data Files")
+    st.sidebar.markdown("## Status")
     active_run = find_latest_run()
     for lbl in ["scores.json", "per_run_metrics.json"]:
         ok = (active_run / lbl).exists()
@@ -991,6 +998,33 @@ def render_sidebar():
         icon  = "OK" if ok else "ERR"
         st.sidebar.markdown(
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:{color};margin:4px 0">{icon}  {lbl}</div>',
+            unsafe_allow_html=True)
+
+    # Environment health — ABC1 submission + eval data
+    import os as _os_sb
+    _app_root = Path(__file__).resolve().parent
+    _abc1_candidates = [
+        _app_root.parent / "KTC2023-ABC1" / "KTC2023_Python_A01+",
+        _app_root / "KTC2023-ABC1" / "KTC2023_Python_A01+",
+    ]
+    _abc1_env = _os_sb.environ.get("ABC1_SUBMISSION_PATH", "")
+    if _abc1_env:
+        _abc1_candidates.insert(0, Path(_abc1_env))
+    _abc1_ok = any((p / "main_python.py").exists() for p in _abc1_candidates)
+    _eval_ok = any([
+        (_app_root / "EvaluationData" / "evaluation_datasets" / "level1" / "data1.mat").exists(),
+        (_app_root / "EvaluationData" / "level1" / "data1.mat").exists(),
+    ])
+    for _lbl, _ok in [("ABC1 submission", _abc1_ok), ("Eval data", _eval_ok)]:
+        _col = "#1a7f37" if _ok else "#cf222e"
+        _icon = "OK" if _ok else "ERR"
+        st.sidebar.markdown(
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:{_col};margin:4px 0">{_icon}  {_lbl}</div>',
+            unsafe_allow_html=True)
+    if not _abc1_ok:
+        st.sidebar.markdown(
+            '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
+            'color:var(--tx3);margin:1px 0 5px 16px">Set $ABC1_SUBMISSION_PATH</div>',
             unsafe_allow_html=True)
 
     st.sidebar.markdown("---")
@@ -1554,7 +1588,7 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
         if any(r['Worst KTC'] < 0 for r in summary_rows):
             st.markdown(
                 '<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;'
-                'color:#9a6700;background:#fff8c5;border:1px solid #f0d847;border-radius:5px;'
+                'color:var(--amb);background:var(--warn-bg);border:1px solid var(--warn-bd);border-radius:5px;'
                 'padding:5px 10px;margin-top:4px">'
                 'KTC < 0 means the reconstruction is <b>worse than the all-water baseline</b> '
                 '(random noise artefacts confuse the SSIM metric). '
@@ -1567,6 +1601,9 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
         rc_df = pd.DataFrame(root_causes)
 
         def _rc_color(grade):
+            dark = st.session_state.get('dark_mode', False)
+            if dark:
+                return 'rgba(207,34,46,0.18)' if grade == 'D' else 'rgba(191,135,0,0.18)'
             return '#ffebe9' if grade == 'D' else '#fff8c5'
 
         rows_html2 = ''
@@ -1575,16 +1612,16 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
             rows_html2 += f'<tr style="background:{bg}">'
             for col in rc_df.columns:
                 rows_html2 += (f'<td style="font-family:\'JetBrains Mono\',monospace;'
-                               f'font-size:9px;padding:5px 8px;border-bottom:1px solid #f6f8fa;'
-                               f'color:#1f2328">{row[col]}</td>')
+                               f'font-size:9px;padding:5px 8px;border-bottom:1px solid var(--bd);'
+                               f'color:var(--tx)">{row[col]}</td>')
             rows_html2 += '</tr>'
         hdrs2 = ''.join(
             f'<th style="font-family:\'JetBrains Mono\',monospace;font-size:8px;'
-            f'text-transform:uppercase;letter-spacing:.1em;color:#848d97;'
-            f'padding:4px 8px;border-bottom:1px solid #d0d7de;background:#f6f8fa">{c}</th>'
+            f'text-transform:uppercase;letter-spacing:.1em;color:var(--tx3);'
+            f'padding:4px 8px;border-bottom:1px solid var(--bd);background:var(--bg)">{c}</th>'
             for c in rc_df.columns)
         st.markdown(
-            f'<div style="border:1px solid #d0d7de;border-radius:7px;overflow:hidden">'
+            f'<div style="border:1px solid var(--bd);border-radius:7px;overflow:hidden">'
             f'<table style="width:100%;border-collapse:collapse">'
             f'<thead><tr>{hdrs2}</tr></thead><tbody>{rows_html2}</tbody></table></div>',
             unsafe_allow_html=True)
