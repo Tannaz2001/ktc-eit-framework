@@ -36,7 +36,11 @@ from src.ktc_framework.visualization.plot_results import (
     plot_leaderboard,
     plot_error_overlay,
 )
-from src.ktc_framework.methods.hull_plugin import HullPlugin
+from src.ktc_framework.plugins.hull_plugin import HullAnalyzer
+from src.ktc_framework.metrics.qualitative_metrics import (
+    compute_qualitative_sample,
+    aggregate_qualitative,
+)
 from src.ktc_framework.reporting.html_report import generate_html_report
 
 # Importing each package runs its __init__.py, which registers all plugins.
@@ -388,28 +392,9 @@ class BatchRunner:
             save_path=overlay_path,
         )
 
-        # ── hull geometry analysis ────────────────────────────────────────
-        hull_data: dict[str, float | None] = {}
-        try:
-            pred_hull = HullPlugin.analyze(reconstruction)
-            gt_hull   = HullPlugin.analyze(gt) if not gt_missing else None
-            hull_data = {
-                "hull_res_center_y":  pred_hull.resistive_center[0] if pred_hull.resistive_center else None,
-                "hull_res_center_x":  pred_hull.resistive_center[1] if pred_hull.resistive_center else None,
-                "hull_res_area":      pred_hull.resistive_area,
-                "hull_res_perimeter": pred_hull.resistive_perimeter,
-                "hull_res_pixels":    pred_hull.num_pixels_resistive,
-                "hull_con_center_y":  pred_hull.conductive_center[0] if pred_hull.conductive_center else None,
-                "hull_con_center_x":  pred_hull.conductive_center[1] if pred_hull.conductive_center else None,
-                "hull_con_area":      pred_hull.conductive_area,
-                "hull_con_perimeter": pred_hull.conductive_perimeter,
-                "hull_con_pixels":    pred_hull.num_pixels_conductive,
-            }
-            if gt_hull is not None:
-                errors = HullPlugin.compare_hulls(pred_hull, gt_hull)
-                hull_data.update({f"hull_{k}": v for k, v in errors.items()})
-        except Exception as exc:
-            console.print(f"[yellow]Hull analysis failed for {method} L{level}/{sample}: {exc}[/yellow]")
+        # ── qualitative metrics (stored for later aggregation by method) ──
+        # Store prediction and GT for hull analysis aggregation
+        # Internal arrays (_pred, _gt) are stripped before JSON serialization
 
         return {
             "method":          method,
@@ -425,8 +410,8 @@ class BatchRunner:
             "png_path":        str(png_path),
             "mat_path":        str(mat_path),
             "overlay_path":    str(overlay_path),
-            "hull":            hull_data,
             # internal arrays — stripped before JSON serialisation
+            # used for hull analysis aggregation in _save()
             "_gt":   gt,
             "_pred": reconstruction,
         }
@@ -465,6 +450,9 @@ class BatchRunner:
         nested_out = self.output_dir / "scores_nested.json"
         with nested_out.open("w", encoding="utf-8") as f:
             json.dump(nested, f, indent=2)
+
+        # Compute qualitative metrics (hull detection) per method
+        self._compute_qualitative_metrics(results, nested)
 
         dashboard_scores: dict[str, dict[str, float]] = {}
         per_run: dict[str, dict[str, Any]] = {}
@@ -508,6 +496,74 @@ class BatchRunner:
 
         with (self.output_dir / "per_run_metrics.json").open("w", encoding="utf-8") as f:
             json.dump(per_run, f, indent=2)
+
+    def _compute_qualitative_metrics(
+        self, results: list[dict[str, Any]], nested: dict[str, Any]
+    ) -> None:
+        """Compute qualitative (hull detection) metrics per method.
+
+        Hull analysis extracts convex hulls from predicted and ground-truth
+        segmentations, compares them via rasterized IoU (threshold=0.3),
+        and counts detection successes across all samples.
+
+        Groups results by method, computes per-sample flags (resistive_detected,
+        conductive_detected, hull_iou, centroid_distance, false_positives),
+        and aggregates across all samples.
+
+        Example output in scores_nested.json:
+            "method_name": {
+                "_qualitative_summary": {
+                    "resistive_detected_str": "19/21",
+                    "resistive_detected_pct": 90.5,
+                    "avg_resistive_hull_iou": 0.723,
+                    ...
+                },
+                "_qualitative_per_sample": [...]
+            }
+
+        Wrapped in try/except — pipeline continues even if hull analysis fails.
+        """
+        hull_analyzer = HullAnalyzer()
+
+        methods = {r["method"] for r in results}
+
+        for method in methods:
+            method_results = [r for r in results if r["method"] == method]
+
+            # Skip if no valid internal arrays
+            if not any(r.get("_pred") is not None and r.get("_gt") is not None for r in method_results):
+                continue
+
+            qual_samples = []
+
+            try:
+                for result in method_results:
+                    pred = result.get("_pred")
+                    gt = result.get("_gt")
+
+                    if pred is None or gt is None:
+                        continue
+
+                    # Compute qualitative flags for this sample
+                    qual = compute_qualitative_sample(pred, gt, hull_analyzer)
+                    qual["sample_id"] = f"L{result['level']}_{result['sample']}"
+                    qual["level"] = result["level"]
+                    qual["sample"] = result["sample"]
+                    qual_samples.append(qual)
+
+                # Aggregate across all samples for this method
+                if qual_samples:
+                    qual_summary = aggregate_qualitative(qual_samples)
+
+                    # Store in nested dict under method
+                    if method in nested:
+                        nested[method]["_qualitative_summary"] = qual_summary
+                        nested[method]["_qualitative_per_sample"] = qual_samples
+
+            except Exception as exc:
+                console.print(
+                    f"[yellow]Qualitative metrics aggregation failed for {method}: {exc}[/yellow]"
+                )
 
     def _print_summary(self, results: list[dict[str, Any]]) -> None:
         """Print a rich table of per-run metrics."""
@@ -593,7 +649,21 @@ class BatchRunner:
             plot_failure_gallery(results, self.output_dir)
             plot_degradation_curve(results, self.output_dir)
             plot_leaderboard(results, self.output_dir)
-            report_path = generate_html_report(results, self.output_dir)
+
+            # Read qualitative metrics from scores_nested.json for HTML report
+            nested_path = self.output_dir / "scores_nested.json"
+            qualitative_data = {}
+            if nested_path.exists():
+                try:
+                    with nested_path.open("r", encoding="utf-8") as f:
+                        nested = json.load(f)
+                        for method in nested:
+                            if "_qualitative_summary" in nested[method]:
+                                qualitative_data[method] = nested[method]["_qualitative_summary"]
+                except Exception as e:
+                    console.print(f"[yellow]Could not load qualitative data: {e}[/yellow]")
+
+            report_path = generate_html_report(results, self.output_dir, qualitative_data)
             console.print(
                 f"\n[green]Figures saved:[/green] {len(saved)} PNGs -> {self.output_dir / 'figures'}"
             )

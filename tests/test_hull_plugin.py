@@ -1,188 +1,280 @@
-"""Unit tests for Hull Plugin geometry analysis."""
+"""Unit tests for Hull Plugin.
+
+Comprehensive test coverage for:
+- Hull extraction (circle, empty, single pixel, two pixels)
+- Hull comparison (perfect, missed, false positive, shifted)
+- Qualitative aggregation
+
+Tests follow specification for HullAnalyzer and HullDescriptor classes.
+"""
+
+from __future__ import annotations
 
 import numpy as np
 import pytest
-from src.ktc_framework.methods.hull_plugin import HullPlugin, HullResult
+from skimage.draw import disk
+
+from src.ktc_framework.plugins.hull_plugin import HullAnalyzer, HullDescriptor
+from src.ktc_framework.metrics.qualitative_metrics import (
+    aggregate_qualitative,
+    compute_qualitative_sample,
+)
 
 
-class TestHullPluginBasic:
-    """Test basic hull computation on simple shapes."""
+class TestHullExtraction:
+    """Test convex hull extraction from segmentations."""
 
-    def test_circle_center_and_area(self):
-        """Test hull on a simple circle."""
-        pred = np.zeros((256, 256), dtype=np.uint8)
-        y, x = np.ogrid[:256, :256]
-        circle = (y - 128) ** 2 + (x - 128) ** 2 <= 30**2
-        pred[circle] = 2
+    @pytest.fixture
+    def hull_analyzer(self):
+        return HullAnalyzer()
 
-        result = HullPlugin.analyze(pred)
+    def test_circle_detection(self, hull_analyzer):
+        """Create filled circle, verify area, centroid, vertex count."""
+        segmentation = np.zeros((256, 256), dtype=np.uint8)
+        rr, cc = disk((128, 128), 40, shape=(256, 256))
+        segmentation[rr, cc] = 1
 
-        # Circle centered at (128, 128)
-        assert result.conductive_center is not None
-        assert abs(result.conductive_center[0] - 128) < 5
-        assert abs(result.conductive_center[1] - 128) < 5
+        hull = hull_analyzer.extract(segmentation, class_id=1)
 
-        # Area should be ~π*30² ≈ 2827
-        assert result.conductive_area is not None
-        assert 2700 < result.conductive_area < 2900
+        assert not hull.empty, "Circle should not be empty"
+        assert hull.vertex_count >= 8, "Circle should have many vertices"
+        assert abs(hull.centroid[0] - 128) < 2, "Centroid row should be ~128"
+        assert abs(hull.centroid[1] - 128) < 2, "Centroid col should be ~128"
 
-        # Resistive should be None
-        assert result.resistive_center is None
+        # Expected area ≈ π * 40² ≈ 5027 (within 5% tolerance)
+        expected_area = np.pi * (40**2)
+        assert abs(hull.area_px - expected_area) / expected_area < 0.05
 
-    def test_degenerate_single_pixel(self):
-        """Test with fewer than 3 pixels (should return None)."""
-        pred = np.zeros((256, 256), dtype=np.uint8)
-        pred[100, 100] = 2
+    def test_empty_region(self, hull_analyzer):
+        """Create all-zero segmentation, verify empty descriptor."""
+        segmentation = np.zeros((256, 256), dtype=np.uint8)
+        hull = hull_analyzer.extract(segmentation, class_id=1)
 
-        result = HullPlugin.analyze(pred)
+        assert hull.empty, "All-zero array should produce empty descriptor"
+        assert hull.area_px == 0
+        assert hull.vertex_count == 0
 
-        assert result.conductive_center is None
-        assert result.conductive_area is None
-        assert result.conductive_perimeter is None
+    def test_single_pixel(self, hull_analyzer):
+        """Single pixel cannot form hull."""
+        segmentation = np.zeros((256, 256), dtype=np.uint8)
+        segmentation[128, 128] = 1
 
-    def test_two_circles(self):
-        """Test with both resistive and conductive regions."""
-        pred = np.zeros((256, 256), dtype=np.uint8)
-        y, x = np.ogrid[:256, :256]
+        hull = hull_analyzer.extract(segmentation, class_id=1)
 
-        # Resistive circle at (100, 100)
-        res_circle = (y - 100) ** 2 + (x - 100) ** 2 <= 25**2
-        pred[res_circle] = 1
+        assert hull.empty, "Single pixel should be empty"
 
-        # Conductive circle at (200, 200)
-        cond_circle = (y - 200) ** 2 + (x - 200) ** 2 <= 30**2
-        pred[cond_circle] = 2
+    def test_two_pixels(self, hull_analyzer):
+        """Two pixels cannot form hull."""
+        segmentation = np.zeros((256, 256), dtype=np.uint8)
+        segmentation[128, 128] = 1
+        segmentation[129, 128] = 1
 
-        result = HullPlugin.analyze(pred)
+        hull = hull_analyzer.extract(segmentation, class_id=1)
 
-        # Check resistive
-        assert result.resistive_center is not None
-        assert abs(result.resistive_center[0] - 100) < 5
-        assert abs(result.resistive_center[1] - 100) < 5
-        assert result.resistive_area is not None
+        assert hull.empty, "Two pixels should be empty"
 
-        # Check conductive
-        assert result.conductive_center is not None
-        assert abs(result.conductive_center[0] - 200) < 5
-        assert abs(result.conductive_center[1] - 200) < 5
-        assert result.conductive_area is not None
+    def test_collinear_pixels(self, hull_analyzer):
+        """Collinear points are degenerate and should be rejected."""
+        segmentation = np.zeros((256, 256), dtype=np.uint8)
+        # Draw a line of pixels
+        segmentation[128, 100:150] = 1
 
+        hull = hull_analyzer.extract(segmentation, class_id=1)
 
-class TestHullPluginValidation:
-    """Test input validation."""
-
-    def test_wrong_shape(self):
-        """Test that wrong shape raises ValueError."""
-        pred = np.zeros((300, 300), dtype=np.uint8)
-        with pytest.raises(ValueError, match="Expected shape"):
-            HullPlugin.analyze(pred)
-
-    def test_wrong_dtype(self):
-        """Test that wrong dtype raises ValueError."""
-        pred = np.zeros((256, 256), dtype=np.float32)
-        with pytest.raises(ValueError, match="Expected dtype"):
-            HullPlugin.analyze(pred)
+        assert hull.empty, "Collinear points should be empty (degenerate hull)"
 
 
-class TestHullPluginComparison:
-    """Test comparison between prediction and ground truth."""
+class TestHullComparison:
+    """Test hull comparison logic."""
 
-    def test_perfect_match(self):
-        """Test comparison when prediction matches ground truth."""
-        pred = np.zeros((256, 256), dtype=np.uint8)
-        y, x = np.ogrid[:256, :256]
-        circle = (y - 128) ** 2 + (x - 128) ** 2 <= 30**2
-        pred[circle] = 2
+    @pytest.fixture
+    def hull_analyzer(self):
+        return HullAnalyzer()
 
-        # Same for ground truth
-        gt = pred.copy()
+    def test_perfect_detection(self, hull_analyzer):
+        """Identical GT and pred circles should have IoU ≈ 1.0."""
+        segmentation = np.zeros((256, 256), dtype=np.uint8)
+        rr, cc = disk((128, 128), 40, shape=(256, 256))
+        segmentation[rr, cc] = 1
 
-        result_pred = HullPlugin.analyze(pred)
-        result_gt = HullPlugin.analyze(gt)
-        errors = HullPlugin.compare_hulls(result_pred, result_gt)
+        gt_hull = hull_analyzer.extract(segmentation, class_id=1)
+        pred_hull = hull_analyzer.extract(segmentation, class_id=1)
 
-        # Errors should be near zero
-        assert errors["conductive_center_error"] is not None
-        assert errors["conductive_center_error"] < 1.0
-        assert errors["conductive_area_error"] is not None
-        assert abs(errors["conductive_area_error"]) < 10.0
+        comparison = hull_analyzer.compare(pred_hull, gt_hull)
 
-    def test_offset_circles(self):
-        """Test comparison with offset circles."""
-        pred = np.zeros((256, 256), dtype=np.uint8)
+        assert comparison["detected"], "Perfect detection should be detected"
+        assert comparison["hull_iou"] > 0.95, f"IoU should be ~1.0, got {comparison['hull_iou']}"
+        assert comparison["centroid_distance_px"] < 1, "Centroid distance should be ~0"
+        assert abs(comparison["area_ratio"] - 1.0) < 0.05
+
+    def test_missed_detection(self, hull_analyzer):
+        """GT has circle, pred is all zeros."""
+        gt_seg = np.zeros((256, 256), dtype=np.uint8)
+        rr, cc = disk((128, 128), 40, shape=(256, 256))
+        gt_seg[rr, cc] = 1
+
+        pred_seg = np.zeros((256, 256), dtype=np.uint8)
+
+        gt_hull = hull_analyzer.extract(gt_seg, class_id=1)
+        pred_hull = hull_analyzer.extract(pred_seg, class_id=1)
+
+        comparison = hull_analyzer.compare(pred_hull, gt_hull)
+
+        assert not comparison["detected"], "Missed detection should not be detected"
+        assert comparison["hull_iou"] == 0.0
+        assert comparison["detection_reason"] == "missed"
+
+    def test_false_positive(self, hull_analyzer):
+        """GT is all zeros, pred has circle."""
+        gt_seg = np.zeros((256, 256), dtype=np.uint8)
+
+        pred_seg = np.zeros((256, 256), dtype=np.uint8)
+        rr, cc = disk((128, 128), 40, shape=(256, 256))
+        pred_seg[rr, cc] = 1
+
+        gt_hull = hull_analyzer.extract(gt_seg, class_id=1)
+        pred_hull = hull_analyzer.extract(pred_seg, class_id=1)
+
+        comparison = hull_analyzer.compare(pred_hull, gt_hull)
+
+        assert not comparison["detected"]
+        assert comparison["detection_reason"] == "false_positive"
+
+    def test_shifted_detection(self, hull_analyzer):
+        """GT circle at (128,128), pred at (148,148) (shifted 20px)."""
+        gt_seg = np.zeros((256, 256), dtype=np.uint8)
+        rr, cc = disk((128, 128), 40, shape=(256, 256))
+        gt_seg[rr, cc] = 1
+
+        pred_seg = np.zeros((256, 256), dtype=np.uint8)
+        rr, cc = disk((148, 148), 40, shape=(256, 256))
+        pred_seg[rr, cc] = 1
+
+        gt_hull = hull_analyzer.extract(gt_seg, class_id=1)
+        pred_hull = hull_analyzer.extract(pred_seg, class_id=1)
+
+        comparison = hull_analyzer.compare(pred_hull, gt_hull)
+
+        # Shifted circles have partial overlap but not full
+        assert 0 < comparison["hull_iou"] < 1.0, "IoU should be partial"
+
+        # Expected centroid distance: sqrt(20² + 20²) ≈ 28.3
+        expected_dist = np.sqrt(20**2 + 20**2)
+        assert (
+            abs(comparison["centroid_distance_px"] - expected_dist) < 5
+        ), f"Centroid dist should be ~{expected_dist}, got {comparison['centroid_distance_px']}"
+
+        # If hull_iou >= 0.3, should be detected
+        if comparison["hull_iou"] >= 0.3:
+            assert comparison["detected"]
+
+
+class TestQualitativeAggregation:
+    """Test qualitative metrics aggregation."""
+
+    def test_aggregate_basic(self):
+        """Create mock sample results and aggregate."""
+        # 5 samples: 3 with resistive_detected=True, 2 with False, 1 with false_positive
+        samples = [
+            {
+                "resistive_in_gt": True,
+                "resistive_detected": True,
+                "resistive_hull_iou": 0.7,
+                "resistive_centroid_dist": 5.0,
+                "conductive_in_gt": False,
+                "conductive_detected": False,
+                "conductive_hull_iou": 0.0,
+                "conductive_centroid_dist": 0.0,
+                "false_positive_resistive": False,
+                "false_positive_conductive": False,
+            },
+            {
+                "resistive_in_gt": True,
+                "resistive_detected": True,
+                "resistive_hull_iou": 0.65,
+                "resistive_centroid_dist": 8.0,
+                "conductive_in_gt": False,
+                "conductive_detected": False,
+                "conductive_hull_iou": 0.0,
+                "conductive_centroid_dist": 0.0,
+                "false_positive_resistive": False,
+                "false_positive_conductive": False,
+            },
+            {
+                "resistive_in_gt": True,
+                "resistive_detected": True,
+                "resistive_hull_iou": 0.72,
+                "resistive_centroid_dist": 4.5,
+                "conductive_in_gt": False,
+                "conductive_detected": False,
+                "conductive_hull_iou": 0.0,
+                "conductive_centroid_dist": 0.0,
+                "false_positive_resistive": False,
+                "false_positive_conductive": False,
+            },
+            {
+                "resistive_in_gt": True,
+                "resistive_detected": False,
+                "resistive_hull_iou": 0.15,
+                "resistive_centroid_dist": 50.0,
+                "conductive_in_gt": False,
+                "conductive_detected": False,
+                "conductive_hull_iou": 0.0,
+                "conductive_centroid_dist": 0.0,
+                "false_positive_resistive": False,
+                "false_positive_conductive": False,
+            },
+            {
+                "resistive_in_gt": True,
+                "resistive_detected": False,
+                "resistive_hull_iou": 0.2,
+                "resistive_centroid_dist": 45.0,
+                "conductive_in_gt": False,
+                "conductive_detected": False,
+                "conductive_hull_iou": 0.0,
+                "conductive_centroid_dist": 0.0,
+                "false_positive_resistive": True,
+                "false_positive_conductive": False,
+            },
+        ]
+
+        agg = aggregate_qualitative(samples)
+
+        assert agg["total_samples"] == 5
+        assert agg["resistive_gt_count"] == 5
+        assert agg["resistive_detected_count"] == 3
+        assert agg["resistive_detected_str"] == "3/5"
+        assert agg["resistive_detected_pct"] == 60.0
+        assert agg["false_positive_count"] == 1
+
+    def test_aggregate_empty(self):
+        """Empty sample list should return empty dict."""
+        agg = aggregate_qualitative([])
+        assert agg == {}
+
+
+class TestEndToEnd:
+    """End-to-end test: create segmentations, compute qualitative metrics."""
+
+    def test_compute_qualitative_sample_basic(self):
+        """Create GT and pred, compute sample qualitative flags."""
+        hull_analyzer = HullAnalyzer()
+
         gt = np.zeros((256, 256), dtype=np.uint8)
-        y, x = np.ogrid[:256, :256]
+        rr, cc = disk((128, 128), 40, shape=(256, 256))
+        gt[rr, cc] = 1
 
-        # Prediction: circle at (128, 128)
-        circle_pred = (y - 128) ** 2 + (x - 128) ** 2 <= 30**2
-        pred[circle_pred] = 2
-
-        # Ground truth: circle at (138, 128) (10 pixels offset)
-        circle_gt = (y - 138) ** 2 + (x - 128) ** 2 <= 30**2
-        gt[circle_gt] = 2
-
-        result_pred = HullPlugin.analyze(pred)
-        result_gt = HullPlugin.analyze(gt)
-        errors = HullPlugin.compare_hulls(result_pred, result_gt)
-
-        # Center error should be ~10 pixels
-        assert errors["conductive_center_error"] is not None
-        assert 8.0 < errors["conductive_center_error"] < 12.0
-
-    def test_missing_region(self):
-        """Test comparison when one region is missing."""
         pred = np.zeros((256, 256), dtype=np.uint8)
-        gt = np.zeros((256, 256), dtype=np.uint8)
-        y, x = np.ogrid[:256, :256]
+        rr, cc = disk((128, 128), 40, shape=(256, 256))
+        pred[rr, cc] = 1
 
-        # Prediction has conductive
-        circle = (y - 128) ** 2 + (x - 128) ** 2 <= 30**2
-        pred[circle] = 2
+        qual = compute_qualitative_sample(pred, gt, hull_analyzer)
 
-        # GT has no conductive
-        result_pred = HullPlugin.analyze(pred)
-        result_gt = HullPlugin.analyze(gt)
-        errors = HullPlugin.compare_hulls(result_pred, result_gt)
-
-        # Errors should be None where GT is missing
-        assert errors["conductive_center_error"] is None
-        assert errors["conductive_area_error"] is None
-
-
-class TestHullPluginMetadata:
-    """Test metadata fields in HullResult."""
-
-    def test_pixel_counts(self):
-        """Test that pixel counts are correct."""
-        pred = np.zeros((256, 256), dtype=np.uint8)
-        y, x = np.ogrid[:256, :256]
-
-        # Add 100 pixels of resistive
-        pred[50:60, 50:60] = 1
-        # Add 200 pixels of conductive
-        pred[100:120, 100:110] = 2
-
-        result = HullPlugin.analyze(pred)
-
-        assert result.num_pixels_resistive == 100
-        assert result.num_pixels_conductive == 200
-        assert result.prediction_shape == (256, 256)
-
-    def test_hull_vertices_shape(self):
-        """Test that hull vertices have correct shape."""
-        pred = np.zeros((256, 256), dtype=np.uint8)
-        y, x = np.ogrid[:256, :256]
-        circle = (y - 128) ** 2 + (x - 128) ** 2 <= 30**2
-        pred[circle] = 2
-
-        result = HullPlugin.analyze(pred)
-
-        # Hull should exist and have (N, 2) shape
-        assert result.conductive_hull is not None
-        assert result.conductive_hull.ndim == 2
-        assert result.conductive_hull.shape[1] == 2
-        # Should have at least 3 vertices
-        assert result.conductive_hull.shape[0] >= 3
+        assert qual["resistive_in_gt"]
+        assert qual["resistive_in_pred"]
+        assert qual["resistive_detected"]
+        assert qual["resistive_hull_iou"] > 0.95
+        assert not qual["false_positive_resistive"]
 
 
 if __name__ == "__main__":

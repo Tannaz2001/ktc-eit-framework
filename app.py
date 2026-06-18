@@ -56,6 +56,7 @@ section[data-testid="stSidebar"] button[data-testid="stBaseButton-headerNoPaddin
   --grn:#1a7f37; --grn-bg:#dafbe1; --grn-bd:#a7f3c0;
   --c1:#2da44e; --c2:#8250df; --c3:#0969da; --c4:#bf8700; --c5:#cf222e;
   --amb:#9a6700; --red:#cf222e;
+  --warn-bg:#fff8c5; --warn-bd:#f0d847;
   --inp-bg:#ffffff; --inp-bd:#d0d7de; --inp-tx:#1f2328;
   --chk-bg:#ffffff;
 }
@@ -67,6 +68,7 @@ section[data-testid="stSidebar"] button[data-testid="stBaseButton-headerNoPaddin
   --grn:#3fb950; --grn-bg:#0d2119; --grn-bd:#1a4e2a;
   --c1:#3fb950; --c2:#bc8cff; --c3:#58a6ff; --c4:#d29922; --c5:#f85149;
   --amb:#d29922; --red:#f85149;
+  --warn-bg:#2a1f00; --warn-bd:#5a4200;
   --inp-bg:#21262d; --inp-bd:#30363d; --inp-tx:#e6edf3;
   --chk-bg:#21262d;
 }
@@ -285,7 +287,14 @@ p,.stMarkdown p{font-size:11px!important;color:var(--tx2)!important;line-height:
 
 /* â”€â”€ live badge â”€â”€ */
 .sb-live{display:inline-flex;align-items:center;gap:5px;font-size:10px;color:var(--grn);background:var(--grn-bg);border:1px solid var(--grn-bd);padding:3px 10px;border-radius:20px;margin-top:7px;}
-.ldot{width:6px;height:6px;background:var(--grn);border-radius:50%;}
+@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(1.6)}}
+.ldot{width:6px;height:6px;background:var(--grn);border-radius:50%;animation:pulse-dot 2s ease-in-out infinite;}
+
+/* ── animated shimmer on running benchmark progress bar ── */
+@keyframes bench-shimmer{0%{background-position:200% center}100%{background-position:-200% center}}
+.bench-bar-active{background:linear-gradient(90deg,#2da44e,#0969da,#2da44e);background-size:200% auto;animation:bench-shimmer 2s linear infinite;height:8px;border-radius:4px;}
+
+/* ── method refresh status ── */
 .method-refresh-status{
   width:100%;
   min-height:30px;
@@ -416,6 +425,40 @@ section[data-testid="stSidebar"] [data-testid^="stColumn"] button[kind="secondar
   min-height:34px!important;
   padding:7px 8px!important;
   line-height:1.15!important;
+}
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]{
+  align-items:center!important;
+  gap:6px!important;
+}
+section[data-testid="stSidebar"] [data-testid="stCheckbox"]{
+  min-height:32px!important;
+  display:flex!important;
+  align-items:center!important;
+}
+section[data-testid="stSidebar"] [data-testid="stCheckbox"] label{
+  display:flex!important;
+  align-items:center!important;
+  gap:7px!important;
+}
+section[data-testid="stSidebar"] [data-testid="stCheckbox"] p{
+  font-size:12px!important;
+  line-height:1.25!important;
+  color:var(--tx2)!important;
+  margin:0!important;
+  white-space:normal!important;
+}
+section[data-testid="stSidebar"] [data-testid^="stColumn"] [data-testid="stButton"]{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
+section[data-testid="stSidebar"] [data-testid^="stColumn"] button[kind="secondary"]{
+  width:30px!important;
+  min-width:30px!important;
+  height:30px!important;
+  min-height:30px!important;
+  padding:0!important;
+  line-height:1!important;
 }
 
 [data-testid="stCheckbox"] label{font-size:12px!important;}
@@ -830,7 +873,7 @@ def render_bench_progress() -> None:
                      len(cfg.get("levels",  [])) *
                      len(cfg.get("samples", [])))
         except Exception:
-            total = 105  # 5 methods Ã— 7 levels Ã— 3 samples
+            total = 126  # 6 methods × 7 levels × 3 samples
 
     pct      = min(completed / total, 1.0) if total > 0 else 0.0
     pct_px   = f"{pct * 100:.1f}%"
@@ -853,8 +896,7 @@ def render_bench_progress() -> None:
         f'<span style="color:var(--grn)">{pct*100:.0f}%</span></div>'
         f'</div>'
         f'<div style="background:var(--bd);border-radius:4px;height:8px;overflow:hidden;margin-bottom:8px">'
-        f'<div style="background:linear-gradient(90deg,#2da44e,#0969da);height:8px;'
-        f'border-radius:4px;width:{pct_px};transition:width .4s ease"></div>'
+        f'<div class="bench-bar-active" style="width:{pct_px};transition:width .4s ease"></div>'
         f'</div>'
         f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--tx3)">'
         f'Progress updates automatically every 2s &nbsp;-&nbsp; '
@@ -901,66 +943,29 @@ def discover_available_methods() -> List[str]:
         if name and name not in methods:
             methods.append(name)
 
-    def decorated_classes(py_files: list[Path]) -> dict[str, str]:
-        found: dict[str, str] = {}
-        try:
-            import ast as _ast
-            for file_path in py_files:
-                tree = _ast.parse(file_path.read_text(encoding="utf-8"))
-                for node in tree.body:
-                    if not isinstance(node, _ast.ClassDef):
-                        continue
-                    decorator_names = set()
-                    for decorator in node.decorator_list:
-                        target = decorator.func if isinstance(decorator, _ast.Call) else decorator
-                        decorator_names.add(getattr(target, "id", None) or getattr(target, "attr", None))
-                    if {"register_method", "register"} & decorator_names:
-                        found[node.name] = file_path.name
-        except Exception:
-            return {}
-        return found
+    try:
+        scores, _ = load_run_data(find_latest_run())
+        for name in scores.keys():
+            add(name)
+    except Exception:
+        pass
 
-    ext_dir = Path("external_methods")
-    py_files = list(ext_dir.glob("*.py")) if ext_dir.exists() else []
-    current_external_names = decorated_classes(py_files)
-    builtin_dir = Path("src/ktc_framework/methods")
-    builtin_names = set(decorated_classes(list(builtin_dir.glob("*.py")))) if builtin_dir.exists() else set()
-
-    available_cfg_methods: list[str] = []
     cfg_path = Path("configs/ktc_all_methods.yaml")
     if cfg_path.exists():
         try:
             import yaml as _yaml
             cfg = _yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
             for name in cfg.get("methods", []):
-                name = str(name)
-                if not builtin_names or name in builtin_names or name in current_external_names:
-                    available_cfg_methods.append(name)
-                    add(name)
+                add(str(name))
         except Exception:
             pass
 
     if 'uploaded_methods' not in st.session_state:
         st.session_state.uploaded_methods = {}
-    st.session_state.uploaded_methods = {
-        name: fname
-        for name, fname in st.session_state.uploaded_methods.items()
-        if (ext_dir / fname).exists()
-    }
-    for name in current_external_names:
-        st.session_state.uploaded_methods.setdefault(name, current_external_names[name])
     for name in st.session_state.uploaded_methods.keys():
         add(name)
 
-    try:
-        scores, _ = load_run_data(find_latest_run())
-        valid_scored_methods = set(available_cfg_methods) | set(current_external_names)
-        for name in scores.keys():
-            if not valid_scored_methods or name in valid_scored_methods:
-                add(name)
-    except Exception:
-        pass
-
+    ext_dir = Path("external_methods")
     if ext_dir.exists():
         try:
             from src.ktc_framework.registry import (
@@ -968,6 +973,7 @@ def discover_available_methods() -> List[str]:
                 load_external_methods as _load_ext,
             )
             before = set(_list_methods())
+            py_files = list(ext_dir.glob("*.py"))
             if py_files:
                 _load_ext([str(ext_dir)])
                 discovered = sorted(set(_list_methods()) - before)
@@ -990,7 +996,7 @@ def discover_available_methods() -> List[str]:
 def render_sidebar():
     # â”€â”€ Brand â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if 'dark_mode' not in st.session_state:
-        st.session_state.dark_mode = False
+        st.session_state.dark_mode = st.query_params.get('dark', 'false') == 'true'
 
     # Data-age label: read latest.txt mtime to tell user how fresh the dashboard is
     import time as _time
@@ -1016,7 +1022,13 @@ def render_sidebar():
     </div>
     """, unsafe_allow_html=True)
 
-    # â”€â”€ Dark mode toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Dark mode toggle ──────────────────────────────────────
+    dark_label = "Light Mode" if st.session_state.dark_mode else "Dark Mode"
+    if st.sidebar.button(dark_label, key="theme_toggle", use_container_width=True):
+        st.session_state.dark_mode = not st.session_state.dark_mode
+        st.query_params['dark'] = 'true' if st.session_state.dark_mode else 'false'
+        st.rerun()
+
     st.sidebar.markdown("---")
 
     st.sidebar.markdown("## Run Benchmark")
@@ -1046,9 +1058,6 @@ def render_sidebar():
         st.session_state['_available_methods'] = refreshed_methods
         current_selection = st.session_state.get('selected_methods', refreshed_methods.copy())
         st.session_state.selected_methods = [m for m in current_selection if m in refreshed_methods]
-        for method_name in refreshed_methods:
-            if method_name not in current_selection:
-                st.session_state.selected_methods.append(method_name)
         if not st.session_state.selected_methods:
             st.session_state.selected_methods = refreshed_methods.copy()
         st.session_state['_method_refresh_msg'] = f"{len(refreshed_methods)} method(s) available"
@@ -1105,12 +1114,19 @@ def render_sidebar():
     if available_methods:
         for m in available_methods:
             display_name = method_display_name(m)
-            checked = m in st.session_state.selected_methods
-            new_val = st.sidebar.checkbox(display_name, value=checked, key=f"method_{m}")
-            if new_val and m not in st.session_state.selected_methods:
-                st.session_state.selected_methods.append(m)
-            elif not new_val and m in st.session_state.selected_methods:
-                st.session_state.selected_methods.remove(m)
+            c_chk, c_run = st.sidebar.columns([5, 0.9])
+            with c_chk:
+                checked = m in st.session_state.selected_methods
+                new_val = st.checkbox(display_name, value=checked, key=f"method_{m}")
+                if new_val and m not in st.session_state.selected_methods:
+                    st.session_state.selected_methods.append(m)
+                elif not new_val and m in st.session_state.selected_methods:
+                    st.session_state.selected_methods.remove(m)
+            with c_run:
+                if st.button("▶", key=f"run_m_{m}",
+                             help=f"Benchmark {m} only\n→ configs/runtime_{m}.yaml"):
+                    if launch_benchmark(write_runtime_config(m)):
+                        st.rerun()
     else:
         st.sidebar.markdown('<div style="font-size:11px;color:var(--tx3)">Loading methods...</div>', unsafe_allow_html=True)
 
@@ -1155,16 +1171,45 @@ def render_sidebar():
 
     st.sidebar.markdown("---")
 
-    # Data files â€” checked inside the ACTIVE run folder, not the project root
+    # Data files — checked inside the ACTIVE run folder, not the project root
+    st.sidebar.markdown("## Status")
     active_run = find_latest_run()
-    required_files = ["scores.json", "per_run_metrics.json"]
-    missing_files = [lbl for lbl in required_files if not (active_run / lbl).exists()]
-    data_color = "#cf222e" if missing_files else "var(--tx3)"
-    data_status = "Missing: " + ", ".join(missing_files) if missing_files else "Data files: OK"
-    st.sidebar.markdown(
-        f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;'
-        f'color:{data_color};margin:6px 0 8px;line-height:1.35">{data_status}</div>',
-        unsafe_allow_html=True)
+    for lbl in ["scores.json", "per_run_metrics.json"]:
+        ok = (active_run / lbl).exists()
+        color = "#1a7f37" if ok else "#cf222e"
+        icon  = "OK" if ok else "ERR"
+        st.sidebar.markdown(
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:{color};margin:4px 0">{icon}  {lbl}</div>',
+            unsafe_allow_html=True)
+
+    # Environment health — ABC1 submission + eval data
+    import os as _os_sb
+    _app_root = Path(__file__).resolve().parent
+    _abc1_candidates = [
+        _app_root.parent / "KTC2023-ABC1" / "KTC2023_Python_A01+",
+        _app_root / "KTC2023-ABC1" / "KTC2023_Python_A01+",
+    ]
+    _abc1_env = _os_sb.environ.get("ABC1_SUBMISSION_PATH", "")
+    if _abc1_env:
+        _abc1_candidates.insert(0, Path(_abc1_env))
+    _abc1_ok = any((p / "main_python.py").exists() for p in _abc1_candidates)
+    _eval_ok = any([
+        (_app_root / "EvaluationData" / "evaluation_datasets" / "level1" / "data1.mat").exists(),
+        (_app_root / "EvaluationData" / "level1" / "data1.mat").exists(),
+    ])
+    for _lbl, _ok in [("ABC1 submission", _abc1_ok), ("Eval data", _eval_ok)]:
+        _col = "#1a7f37" if _ok else "#cf222e"
+        _icon = "OK" if _ok else "ERR"
+        st.sidebar.markdown(
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:{_col};margin:4px 0">{_icon}  {_lbl}</div>',
+            unsafe_allow_html=True)
+    if not _abc1_ok:
+        st.sidebar.markdown(
+            '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
+            'color:var(--tx3);margin:1px 0 5px 16px">Set $ABC1_SUBMISSION_PATH</div>',
+            unsafe_allow_html=True)
+
+    st.sidebar.markdown("---")
 
     # â”€â”€ Add / Register external methods â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     st.sidebar.markdown("## Add Method")
@@ -1777,7 +1822,7 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
         if any(r['Worst KTC'] < 0 for r in summary_rows):
             st.markdown(
                 '<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;'
-                'color:#9a6700;background:#fff8c5;border:1px solid #f0d847;border-radius:5px;'
+                'color:var(--amb);background:var(--warn-bg);border:1px solid var(--warn-bd);border-radius:5px;'
                 'padding:5px 10px;margin-top:4px">'
                 'KTC < 0 means the reconstruction is <b>worse than the all-water baseline</b> '
                 '(random noise artefacts confuse the SSIM metric). '
@@ -1790,6 +1835,9 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
         rc_df = pd.DataFrame(root_causes)
 
         def _rc_color(grade):
+            dark = st.session_state.get('dark_mode', False)
+            if dark:
+                return 'rgba(207,34,46,0.18)' if grade == 'D' else 'rgba(191,135,0,0.18)'
             return '#ffebe9' if grade == 'D' else '#fff8c5'
 
         rows_html2 = ''
@@ -1798,16 +1846,16 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
             rows_html2 += f'<tr style="background:{bg}">'
             for col in rc_df.columns:
                 rows_html2 += (f'<td style="font-family:\'JetBrains Mono\',monospace;'
-                               f'font-size:9px;padding:5px 8px;border-bottom:1px solid #f6f8fa;'
-                               f'color:#1f2328">{row[col]}</td>')
+                               f'font-size:9px;padding:5px 8px;border-bottom:1px solid var(--bd);'
+                               f'color:var(--tx)">{row[col]}</td>')
             rows_html2 += '</tr>'
         hdrs2 = ''.join(
             f'<th style="font-family:\'JetBrains Mono\',monospace;font-size:8px;'
-            f'text-transform:uppercase;letter-spacing:.1em;color:#848d97;'
-            f'padding:4px 8px;border-bottom:1px solid #d0d7de;background:#f6f8fa">{c}</th>'
+            f'text-transform:uppercase;letter-spacing:.1em;color:var(--tx3);'
+            f'padding:4px 8px;border-bottom:1px solid var(--bd);background:var(--bg)">{c}</th>'
             for c in rc_df.columns)
         st.markdown(
-            f'<div style="border:1px solid #d0d7de;border-radius:7px;overflow:hidden">'
+            f'<div style="border:1px solid var(--bd);border-radius:7px;overflow:hidden">'
             f'<table style="width:100%;border-collapse:collapse">'
             f'<thead><tr>{hdrs2}</tr></thead><tbody>{rows_html2}</tbody></table></div>',
             unsafe_allow_html=True)

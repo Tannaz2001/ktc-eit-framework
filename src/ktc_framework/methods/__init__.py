@@ -21,4 +21,5 @@ from src.ktc_framework.methods.reference_fem import (                           
     ReferenceFEM,
 )
 from src.ktc_framework.methods.groundtruth_oracle import GroundTruthOracle        # noqa: F401
+from src.ktc_framework.methods.competition_cnn import CompetitionCNN              # noqa: F401
 # fmt: on

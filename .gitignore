@@ -7,8 +7,10 @@ Codes_Matlab/Output/
 
 # Generated outputs
 outputs/
+outputs_smoke/
 scores.json
 reports/
+configs/runtime_*.yaml
 
 # Python bytecode
 __pycache__/
@@ -36,6 +38,10 @@ desktop.ini
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Large model weights + copied competition code (subprocess runs from source repo)
+*.h5
+src/ktc_framework/models/
 
 # Claude Code
 .claude/
