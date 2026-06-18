@@ -1,5 +1,5 @@
-"""
-app.py — EIT Reconstruction Dashboard
+﻿"""
+app.py â€” EIT Reconstruction Dashboard
 Layout: pixel-exact to approved white mockup
 Data:   all original logic preserved unchanged
 """
@@ -27,13 +27,13 @@ st.set_page_config(
 )
 
 # =========================================================
-# CSS — exact mockup spec
+# CSS â€” exact mockup spec
 # =========================================================
 CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-/* ── hide Streamlit sidebar collapse arrow button (keyboard_double_arrow_left icon) ── */
+/* â”€â”€ hide Streamlit sidebar collapse arrow button (keyboard_double_arrow_left icon) â”€â”€ */
 button[data-testid="collapsedControl"],
 [data-testid="stSidebarCollapseButton"],
 button[kind="header"],
@@ -41,7 +41,7 @@ button[kind="header"],
 .eyeqlp51,
 [data-testid="stBaseButton-headerNoPadding"]{display:none!important;}
 
-/* ── hide Material icon text that leaks through the collapse button ── */
+/* â”€â”€ hide Material icon text that leaks through the collapse button â”€â”€ */
 section[data-testid="stSidebar"] button[data-testid="stBaseButton-headerNoPadding"] p,
 section[data-testid="stSidebar"] button[data-testid="stBaseButton-headerNoPadding"] span,
 [data-testid="stSidebarCollapseButton"] p,
@@ -49,7 +49,7 @@ section[data-testid="stSidebar"] button[data-testid="stBaseButton-headerNoPaddin
   visibility:hidden!important; font-size:0!important; color:transparent!important;
 }
 
-/* ── LIGHT theme tokens ── */
+/* â”€â”€ LIGHT theme tokens â”€â”€ */
 :root{
   --bg:#f6f8fa; --sur:#ffffff; --bd:#d0d7de;
   --tx:#1f2328;  --tx2:#57606a; --tx3:#848d97;
@@ -60,7 +60,7 @@ section[data-testid="stSidebar"] button[data-testid="stBaseButton-headerNoPaddin
   --chk-bg:#ffffff;
 }
 
-/* ── DARK theme tokens — applied when .eit-dark on stApp ── */
+/* â”€â”€ DARK theme tokens â€” applied when .eit-dark on stApp â”€â”€ */
 .eit-dark{
   --bg:#0d1117; --sur:#161b22; --bd:#30363d;
   --tx:#e6edf3;  --tx2:#c9d1d9; --tx3:#8b949e;
@@ -71,7 +71,7 @@ section[data-testid="stSidebar"] button[data-testid="stBaseButton-headerNoPaddin
   --chk-bg:#21262d;
 }
 
-/* ── entire app background + text ── */
+/* â”€â”€ entire app background + text â”€â”€ */
 html,body{background:var(--bg)!important;color:var(--tx)!important;}
 [data-testid="stApp"]{background:var(--bg)!important;color:var(--tx)!important;}
 .main,.main .block-container{
@@ -79,7 +79,7 @@ html,body{background:var(--bg)!important;color:var(--tx)!important;}
   padding:8px 20px 42px!important;max-width:100%!important;
 }
 
-/* ── sidebar — background + all text ── */
+/* â”€â”€ sidebar â€” background + all text â”€â”€ */
 section[data-testid="stSidebar"],
 section[data-testid="stSidebar"]>div{
   background:var(--sur)!important;border-right:1px solid var(--bd)!important;
@@ -102,7 +102,7 @@ section[data-testid="stSidebar"] .stMarkdown p{
 section[data-testid="stSidebar"] label{
   font-size:11px!important;color:var(--tx2)!important;
   letter-spacing:.02em!important;
-  /* NO text-transform — method names like BackProjection must stay readable */
+  /* NO text-transform â€” method names like BackProjection must stay readable */
 }
 section[data-testid="stSidebar"] input[type="text"],
 section[data-testid="stSidebar"] input[type="number"]{
@@ -121,7 +121,7 @@ section[data-testid="stSidebar"] [data-testid="stDownloadButton"] button{
   margin-top:6px!important;background:var(--grn-bg)!important;
   border-color:var(--grn-bd)!important;color:var(--grn)!important;
 }
-/* ── ▶ run-method buttons: compact, sit beside the checkbox ── */
+/* â”€â”€ â–¶ run-method buttons: compact, sit beside the checkbox â”€â”€ */
 section[data-testid="stSidebar"] [data-testid^="stColumn"] button[kind="secondary"]{
   font-size:11px!important;padding:4px 0!important;
   border-color:var(--bd)!important;color:var(--tx3)!important;
@@ -131,7 +131,7 @@ section[data-testid="stSidebar"] [data-testid^="stColumn"] button[kind="secondar
 }
 section[data-testid="stSidebar"] hr{border-color:var(--bd)!important;margin:13px 0!important;}
 
-/* ── file uploader: hide drag-drop UI, keep Browse button ── */
+/* â”€â”€ file uploader: hide drag-drop UI, keep Browse button â”€â”€ */
 [data-testid="stFileUploaderDropzone"]{
   border:1px solid var(--bd)!important;border-radius:6px!important;
   background:transparent!important;padding:2px 4px!important;
@@ -154,21 +154,21 @@ section[data-testid="stSidebar"] hr{border-color:var(--bd)!important;margin:13px
 }
 [data-testid="stFileUploaderDropzone"] button:hover{background:var(--grn-bg)!important;}
 
-/* ── checkboxes ── */
+/* â”€â”€ checkboxes â”€â”€ */
 [data-testid="stCheckbox"] label{color:var(--tx2)!important;font-size:11px!important;}
 [data-testid="stCheckbox"] input + div,
 [data-testid="stCheckbox"] span[data-baseweb="checkbox"]{
   background:var(--chk-bg)!important;border-color:var(--bd)!important;
 }
 
-/* ── slider ── */
+/* â”€â”€ slider â”€â”€ */
 [data-testid="stSlider"] label{color:var(--tx3)!important;font-size:10px!important;}
 [data-testid="stSlider"] [data-baseweb="slider"] div{background:var(--bd)!important;}
 [data-testid="stSlider"] [data-baseweb="slider"] [data-testid="stThumbValue"]{
   color:var(--tx)!important;background:var(--sur)!important;border-color:var(--bd)!important;
 }
 
-/* ── selectbox + multiselect ── */
+/* â”€â”€ selectbox + multiselect â”€â”€ */
 .stSelectbox>div>div,.stMultiSelect>div>div{
   background:var(--sur)!important;border:1px solid var(--bd)!important;
   border-radius:6px!important;font-family:'JetBrains Mono',monospace!important;
@@ -188,7 +188,7 @@ section[data-testid="stSidebar"] hr{border-color:var(--bd)!important;margin:13px
 }
 [data-baseweb="menu"] li:hover{background:var(--bg)!important;}
 
-/* ── tabs ── */
+/* â”€â”€ tabs â”€â”€ */
 .stTabs [data-baseweb="tab-list"]{
   background:var(--sur)!important;border:1px solid var(--bd)!important;
   border-radius:7px!important;padding:4px!important;gap:2px!important;margin-bottom:12px!important;
@@ -205,7 +205,7 @@ section[data-testid="stSidebar"] hr{border-color:var(--bd)!important;margin:13px
 }
 .stTabs [data-baseweb="tab-panel"]{padding-top:0!important;}
 
-/* ── dataframe ── */
+/* â”€â”€ dataframe â”€â”€ */
 [data-testid="stDataFrame"]>div{
   border:1px solid var(--bd)!important;border-radius:7px!important;overflow:hidden!important;
   background:var(--sur)!important;
@@ -223,7 +223,7 @@ section[data-testid="stSidebar"] hr{border-color:var(--bd)!important;margin:13px
 }
 .stDataFrame tbody tr:hover td{background:var(--bg)!important;}
 
-/* ── buttons ── */
+/* â”€â”€ buttons â”€â”€ */
 .stButton>button,.stDownloadButton>button{
   background:transparent!important;color:var(--grn)!important;
   border:1px solid var(--grn-bd)!important;border-radius:6px!important;
@@ -232,7 +232,7 @@ section[data-testid="stSidebar"] hr{border-color:var(--bd)!important;margin:13px
 }
 .stButton>button:hover,.stDownloadButton>button:hover{background:var(--grn-bg)!important;}
 
-/* ── alerts + expander ── */
+/* â”€â”€ alerts + expander â”€â”€ */
 .stAlert{
   background:var(--sur)!important;border:1px solid var(--bd)!important;
   border-radius:7px!important;font-size:11px!important;color:var(--tx)!important;
@@ -246,20 +246,20 @@ section[data-testid="stSidebar"] hr{border-color:var(--bd)!important;margin:13px
   background:var(--sur)!important;border:1px solid var(--bd)!important;border-top:none!important;
 }
 
-/* ── typography ── */
+/* â”€â”€ typography â”€â”€ */
 h1{font-family:'Inter',sans-serif!important;font-size:15px!important;font-weight:500!important;color:var(--tx)!important;margin:0 0 3px!important;}
 h2{font-family:'Inter',sans-serif!important;font-size:15px!important;font-weight:600!important;color:var(--tx)!important;border-bottom:1px solid var(--bd)!important;padding-bottom:5px!important;margin:16px 0 10px!important;}
 h3{font-family:'Inter',sans-serif!important;font-size:13px!important;font-weight:600!important;color:var(--tx2)!important;margin:10px 0 6px!important;}
 p,.stMarkdown p{font-size:11px!important;color:var(--tx2)!important;line-height:1.5!important;}
 .slbl{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.12em;margin-bottom:10px;}
 
-/* ── header ── */
+/* â”€â”€ header â”€â”€ */
 .dash-header{background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:14px 20px 13px;margin:0 0 12px;position:relative;overflow:hidden;}
 .dash-header::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#2da44e,#0969da,#8250df);}
 .dash-title{font-family:'Inter',sans-serif;font-size:15px;font-weight:500;color:var(--tx);line-height:1.2;margin-bottom:4px;}
 .dash-sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx3);}
 
-/* ── KPI cards ── */
+/* â”€â”€ KPI cards â”€â”€ */
 .kpi-row{display:flex;gap:10px;margin-bottom:12px;}
 .kpi{flex:1;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:11px 13px;position:relative;overflow:hidden;}
 .kpi::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--kc,#2da44e);opacity:.8;}
@@ -267,12 +267,12 @@ p,.stMarkdown p{font-size:11px!important;color:var(--tx2)!important;line-height:
 .kpi-l{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.1em;margin-top:5px;}
 .kpi-s{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tx3);margin-top:3px;}
 
-/* ── chips ── */
+/* â”€â”€ chips â”€â”€ */
 .chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;}
 .chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--tx2);background:var(--bg);border:1px solid var(--bd);padding:3px 10px 3px 7px;border-radius:20px;font-family:'JetBrains Mono',monospace;}
 .chip-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
 
-/* ── metric + failure cards ── */
+/* â”€â”€ metric + failure cards â”€â”€ */
 .mcard{background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 13px;margin-bottom:9px;}
 .mcard .mv{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:500;color:var(--tx);line-height:1;margin-bottom:5px;}
 .mcard .ml{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.1em;}
@@ -283,7 +283,7 @@ p,.stMarkdown p{font-size:11px!important;color:var(--tx2)!important;line-height:
 .fbar{height:4px;border-radius:2px;background:var(--bg);overflow:hidden;margin-top:7px;}
 .fbar-f{height:4px;border-radius:2px;}
 
-/* ── live badge ── */
+/* â”€â”€ live badge â”€â”€ */
 .sb-live{display:inline-flex;align-items:center;gap:5px;font-size:10px;color:var(--grn);background:var(--grn-bg);border:1px solid var(--grn-bd);padding:3px 10px;border-radius:20px;margin-top:7px;}
 .ldot{width:6px;height:6px;background:var(--grn);border-radius:50%;}
 .method-refresh-status{
@@ -305,19 +305,22 @@ p,.stMarkdown p{font-size:11px!important;color:var(--tx2)!important;line-height:
   text-align:center;
 }
 
-/* ── tier bar ── */
+/* â”€â”€ tier bar â”€â”€ */
+.plugin-card{background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:7px 8px;margin:7px 0 6px;}
+.plugin-name{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--tx);line-height:1.25;word-break:break-word;}
+.plugin-file{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--tx3);margin-top:3px;line-height:1.25;word-break:break-word;}
 .tier-bar-wrap{height:3px;background:var(--bd);border-radius:2px;margin-top:3px;}
 .tier-bar-fill{height:3px;background:var(--grn);border-radius:2px;}
 
-/* ── columns ── */
+/* â”€â”€ columns â”€â”€ */
 [data-testid="column"]{padding:0 4px!important;}
 
-/* ── scrollbar ── */
+/* â”€â”€ scrollbar â”€â”€ */
 ::-webkit-scrollbar{width:5px;height:5px;}
 ::-webkit-scrollbar-track{background:var(--bg);}
 ::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px;}
 
-/* ── dark mode: stApp class override — covers every element ── */
+/* â”€â”€ dark mode: stApp class override â€” covers every element â”€â”€ */
 .eit-dark [data-testid="stApp"],
 .eit-dark .main,
 .eit-dark .main .block-container,
@@ -378,7 +381,7 @@ section[data-testid="stSidebar"] button,
 }
 section[data-testid="stSidebar"] button{padding-left:0!important;padding-right:0!important;}
 section[data-testid="stSidebar"] [data-testid^="stColumn"] button[kind="secondary"]{
-  font-size:12px!important;min-height:30px!important;padding:5px 0!important;
+  font-size:12px!important;min-height:34px!important;padding:7px 8px!important;
 }
 section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]{
   align-items:center!important;
@@ -407,12 +410,12 @@ section[data-testid="stSidebar"] [data-testid^="stColumn"] [data-testid="stButto
   justify-content:center!important;
 }
 section[data-testid="stSidebar"] [data-testid^="stColumn"] button[kind="secondary"]{
-  width:30px!important;
-  min-width:30px!important;
-  height:30px!important;
-  min-height:30px!important;
-  padding:0!important;
-  line-height:1!important;
+  width:100%!important;
+  min-width:0!important;
+  height:auto!important;
+  min-height:34px!important;
+  padding:7px 8px!important;
+  line-height:1.15!important;
 }
 
 [data-testid="stCheckbox"] label{font-size:12px!important;}
@@ -520,7 +523,7 @@ section[data-testid="stSidebar"] [data-baseweb="select"] *{
         });
       });
       /* 2. Also target any leaf node in the sidebar whose text starts with
-         "keyboard" — that is the raw icon fallback text */
+         "keyboard" â€” that is the raw icon fallback text */
       doc.querySelectorAll('section[data-testid="stSidebar"] *').forEach(function(el){
         if(!el.children.length && /^keyboard/i.test((el.textContent||'').trim())){
           el.style.setProperty('display','none','important');
@@ -561,7 +564,7 @@ def hex_to_rgba(hex_color: str, alpha: float = 0.1) -> str:
     return f"rgba({r},{g},{b},{alpha})"
 
 # =========================================================
-# DATA LOADING — all schema knowledge lives in the framework data layer
+# DATA LOADING â€” all schema knowledge lives in the framework data layer
 # =========================================================
 from src.ktc_framework.reporting.data_layer import (
     find_latest_run,
@@ -639,7 +642,7 @@ def load_comparison_panel(sample_id:str, outputs_dir:str="") -> Image.Image:
     return None
 
 # =========================================================
-# SCORING  (original — untouched)
+# SCORING  (original â€” untouched)
 # =========================================================
 def calculate_composite_score(metrics:Dict[str,float], weights:Dict[str,float]=None) -> float:
     ktc = metrics.get('KTC score', metrics.get('ktc_score', 0))
@@ -697,7 +700,7 @@ def inject_theme(dark: bool):
     st.markdown(f"<script>{js}</script>", unsafe_allow_html=True)
 
 # =========================================================
-# BENCHMARK LAUNCHER — the dashboard drives the backend
+# BENCHMARK LAUNCHER â€” the dashboard drives the backend
 # =========================================================
 BENCH_LOG = Path("outputs/benchmark_log.txt")
 
@@ -710,7 +713,7 @@ def launch_benchmark(config_path: str | Path) -> bool:
     """
     proc = st.session_state.get('bench_proc')
     if proc is not None and proc.poll() is None:
-        st.sidebar.warning("A benchmark is already running — wait for it to finish.")
+        st.sidebar.warning("A benchmark is already running - wait for it to finish.")
         return False
     import os as _os
     BENCH_LOG.parent.mkdir(exist_ok=True)
@@ -763,7 +766,7 @@ def render_benchmark_status() -> None:
             st.rerun()  # latest.txt now points at the new run
         else:
             st.session_state.bench_proc = None
-            st.sidebar.error(f"Benchmark failed (exit {code}) — see log below.")
+            st.sidebar.error(f"Benchmark failed (exit {code}) - see log below.")
     if proc is not None and proc.poll() is None and BENCH_LOG.exists():
         tail = BENCH_LOG.read_text(encoding="utf-8", errors="replace").splitlines()
         tail = [ln for ln in tail if ln.strip()][-8:]
@@ -789,7 +792,7 @@ def render_bench_progress() -> None:
     if proc is None:
         return
     if proc.poll() is not None:
-        # Benchmark just finished — do one final rerun so the dashboard flips
+        # Benchmark just finished â€” do one final rerun so the dashboard flips
         # to the freshly prepared run, then stop auto-refreshing.
         if st.session_state.get('_bench_was_running'):
             st.session_state['_bench_was_running'] = False
@@ -827,13 +830,13 @@ def render_bench_progress() -> None:
                      len(cfg.get("levels",  [])) *
                      len(cfg.get("samples", [])))
         except Exception:
-            total = 105  # 5 methods × 7 levels × 3 samples
+            total = 105  # 5 methods Ã— 7 levels Ã— 3 samples
 
     pct      = min(completed / total, 1.0) if total > 0 else 0.0
     pct_px   = f"{pct * 100:.1f}%"
     cfg_lbl  = st.session_state.get('bench_config', 'ktc_all_methods')
-    cur_info = (f"&nbsp;·&nbsp; {cur_method} &nbsp;L{cur_level}/{cur_sample}"
-                if cur_method else "&nbsp;·&nbsp; initialising…")
+    cur_info = (f"&nbsp;-&nbsp; {cur_method} &nbsp;L{cur_level}/{cur_sample}"
+                if cur_method else "&nbsp;-&nbsp; initialising...")
 
     st.markdown(
         f'<div style="background:var(--sur);border:1px solid var(--bd);border-radius:7px;'
@@ -854,12 +857,12 @@ def render_bench_progress() -> None:
         f'border-radius:4px;width:{pct_px};transition:width .4s ease"></div>'
         f'</div>'
         f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--tx3)">'
-        f'Progress updates automatically every 2s &nbsp;·&nbsp; '
+        f'Progress updates automatically every 2s &nbsp;-&nbsp; '
         f'dashboard reloads when complete</div>'
         f'</div>',
         unsafe_allow_html=True)
 
-    if st.button("↻  Refresh progress", key="main_bench_refresh"):
+    if st.button("Refresh progress", key="main_bench_refresh"):
         st.rerun()
     st.markdown(
         '<hr style="border:none;border-top:1px solid var(--bd);margin:4px 0 14px">',
@@ -898,29 +901,66 @@ def discover_available_methods() -> List[str]:
         if name and name not in methods:
             methods.append(name)
 
-    try:
-        scores, _ = load_run_data(find_latest_run())
-        for name in scores.keys():
-            add(name)
-    except Exception:
-        pass
+    def decorated_classes(py_files: list[Path]) -> dict[str, str]:
+        found: dict[str, str] = {}
+        try:
+            import ast as _ast
+            for file_path in py_files:
+                tree = _ast.parse(file_path.read_text(encoding="utf-8"))
+                for node in tree.body:
+                    if not isinstance(node, _ast.ClassDef):
+                        continue
+                    decorator_names = set()
+                    for decorator in node.decorator_list:
+                        target = decorator.func if isinstance(decorator, _ast.Call) else decorator
+                        decorator_names.add(getattr(target, "id", None) or getattr(target, "attr", None))
+                    if {"register_method", "register"} & decorator_names:
+                        found[node.name] = file_path.name
+        except Exception:
+            return {}
+        return found
 
+    ext_dir = Path("external_methods")
+    py_files = list(ext_dir.glob("*.py")) if ext_dir.exists() else []
+    current_external_names = decorated_classes(py_files)
+    builtin_dir = Path("src/ktc_framework/methods")
+    builtin_names = set(decorated_classes(list(builtin_dir.glob("*.py")))) if builtin_dir.exists() else set()
+
+    available_cfg_methods: list[str] = []
     cfg_path = Path("configs/ktc_all_methods.yaml")
     if cfg_path.exists():
         try:
             import yaml as _yaml
             cfg = _yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
             for name in cfg.get("methods", []):
-                add(str(name))
+                name = str(name)
+                if not builtin_names or name in builtin_names or name in current_external_names:
+                    available_cfg_methods.append(name)
+                    add(name)
         except Exception:
             pass
 
     if 'uploaded_methods' not in st.session_state:
         st.session_state.uploaded_methods = {}
+    st.session_state.uploaded_methods = {
+        name: fname
+        for name, fname in st.session_state.uploaded_methods.items()
+        if (ext_dir / fname).exists()
+    }
+    for name in current_external_names:
+        st.session_state.uploaded_methods.setdefault(name, current_external_names[name])
     for name in st.session_state.uploaded_methods.keys():
         add(name)
 
-    ext_dir = Path("external_methods")
+    try:
+        scores, _ = load_run_data(find_latest_run())
+        valid_scored_methods = set(available_cfg_methods) | set(current_external_names)
+        for name in scores.keys():
+            if not valid_scored_methods or name in valid_scored_methods:
+                add(name)
+    except Exception:
+        pass
+
     if ext_dir.exists():
         try:
             from src.ktc_framework.registry import (
@@ -928,7 +968,6 @@ def discover_available_methods() -> List[str]:
                 load_external_methods as _load_ext,
             )
             before = set(_list_methods())
-            py_files = list(ext_dir.glob("*.py"))
             if py_files:
                 _load_ext([str(ext_dir)])
                 discovered = sorted(set(_list_methods()) - before)
@@ -949,7 +988,7 @@ def discover_available_methods() -> List[str]:
 # SIDEBAR
 # =========================================================
 def render_sidebar():
-    # ── Brand ────────────────────────────────────────────────
+    # â”€â”€ Brand â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if 'dark_mode' not in st.session_state:
         st.session_state.dark_mode = False
 
@@ -977,12 +1016,10 @@ def render_sidebar():
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Dark mode toggle ──────────────────────────────────────
+    # â”€â”€ Dark mode toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     st.sidebar.markdown("---")
 
-    # ── Run Benchmark — one button drives the whole backend ───
     st.sidebar.markdown("## Run Benchmark")
-    # Estimate runtime: read method count from YAML (~4 min per method on real data)
     try:
         import yaml as _yaml
         _cfg_path = Path("configs/ktc_all_methods.yaml")
@@ -1009,6 +1046,9 @@ def render_sidebar():
         st.session_state['_available_methods'] = refreshed_methods
         current_selection = st.session_state.get('selected_methods', refreshed_methods.copy())
         st.session_state.selected_methods = [m for m in current_selection if m in refreshed_methods]
+        for method_name in refreshed_methods:
+            if method_name not in current_selection:
+                st.session_state.selected_methods.append(method_name)
         if not st.session_state.selected_methods:
             st.session_state.selected_methods = refreshed_methods.copy()
         st.session_state['_method_refresh_msg'] = f"{len(refreshed_methods)} method(s) available"
@@ -1024,14 +1064,13 @@ def render_sidebar():
 
     st.sidebar.markdown("---")
 
-    # ── Reset All Filters ─────────────────────────────────────
+    # â”€â”€ Metric Selector â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     ALL_METRICS_SIDEBAR = ['KTC Score']
     if st.sidebar.button("Reset All Filters", key="reset_all_btn", use_container_width=True):
         st.session_state.selected_metrics  = ALL_METRICS_SIDEBAR.copy()
         st.session_state.selected_methods  = st.session_state.get('_available_methods', []).copy()
         st.session_state.level_range       = (1, 7)
         st.session_state.selected_samples  = ['A', 'B', 'C']
-        # clear checkbox widget state so they re-render checked
         for m in ALL_METRICS_SIDEBAR:
             st.session_state[f'metric_{m}'] = True
         for s in ['A','B','C']:
@@ -1042,7 +1081,6 @@ def render_sidebar():
 
     st.sidebar.markdown("---")
 
-    # ── Metric Selector ──────────────────────────────────────
     st.sidebar.markdown("## Metrics")
     ALL_METRICS_SIDEBAR = ['KTC Score']
     if 'selected_metrics' not in st.session_state:
@@ -1058,12 +1096,8 @@ def render_sidebar():
 
     st.sidebar.markdown("---")
 
-    # ── Method Selector ──────────────────────────────────────
+    # â”€â”€ Method Selector â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     st.sidebar.markdown("## Methods")
-    st.sidebar.markdown(
-        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#848d97;'
-        'margin-bottom:8px">Checkbox = show in charts &nbsp;·&nbsp; ▶ = run that method only</div>',
-        unsafe_allow_html=True)
     available_methods = st.session_state.get('_available_methods', [])
     if 'selected_methods' not in st.session_state:
         st.session_state.selected_methods = available_methods.copy()
@@ -1071,25 +1105,18 @@ def render_sidebar():
     if available_methods:
         for m in available_methods:
             display_name = method_display_name(m)
-            c_chk, c_run = st.sidebar.columns([5, 0.9])
-            with c_chk:
-                checked = m in st.session_state.selected_methods
-                new_val = st.checkbox(display_name, value=checked, key=f"method_{m}")
-                if new_val and m not in st.session_state.selected_methods:
-                    st.session_state.selected_methods.append(m)
-                elif not new_val and m in st.session_state.selected_methods:
-                    st.session_state.selected_methods.remove(m)
-            with c_run:
-                if st.button("▶", key=f"run_m_{m}",
-                             help=f"Benchmark {m} only\n→ configs/runtime_{m}.yaml"):
-                    if launch_benchmark(write_runtime_config(m)):
-                        st.rerun()
+            checked = m in st.session_state.selected_methods
+            new_val = st.sidebar.checkbox(display_name, value=checked, key=f"method_{m}")
+            if new_val and m not in st.session_state.selected_methods:
+                st.session_state.selected_methods.append(m)
+            elif not new_val and m in st.session_state.selected_methods:
+                st.session_state.selected_methods.remove(m)
     else:
         st.sidebar.markdown('<div style="font-size:11px;color:var(--tx3)">Loading methods...</div>', unsafe_allow_html=True)
 
     st.sidebar.markdown("---")
 
-    # ── Level Filter ─────────────────────────────────────────
+    # â”€â”€ Level Filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     st.sidebar.markdown("## Level Filter")
     if 'level_range' not in st.session_state:
         st.session_state.level_range = (1, 7)
@@ -1113,7 +1140,7 @@ def render_sidebar():
 
     st.sidebar.markdown("---")
 
-    # ── Sample Filter ─────────────────────────────────────────
+    # â”€â”€ Sample Filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     st.sidebar.markdown("## Samples")
     if 'selected_samples' not in st.session_state:
         st.session_state.selected_samples = ['A','B','C']
@@ -1128,7 +1155,7 @@ def render_sidebar():
 
     st.sidebar.markdown("---")
 
-    # Data files — checked inside the ACTIVE run folder, not the project root
+    # Data files â€” checked inside the ACTIVE run folder, not the project root
     active_run = find_latest_run()
     required_files = ["scores.json", "per_run_metrics.json"]
     missing_files = [lbl for lbl in required_files if not (active_run / lbl).exists()]
@@ -1139,10 +1166,10 @@ def render_sidebar():
         f'color:{data_color};margin:6px 0 8px;line-height:1.35">{data_status}</div>',
         unsafe_allow_html=True)
 
-    # ── Add / Register external methods ──────────────────────
+    # â”€â”€ Add / Register external methods â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     st.sidebar.markdown("## Add Method")
 
-    # ── 1. Scan button — always visible ──────────────────────
+    # â”€â”€ 1. Scan button â€” always visible â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     #    Picks up any .py already in external_methods/ so the user
     #    doesn't have to re-upload files that are already on disk.
     from src.ktc_framework.registry import (
@@ -1151,6 +1178,13 @@ def render_sidebar():
     )
     if 'uploaded_methods' not in st.session_state:
         st.session_state.uploaded_methods = {}
+    if '_method_upload_nonce' not in st.session_state:
+        st.session_state['_method_upload_nonce'] = 0
+    st.session_state.uploaded_methods = {
+        name: fname
+        for name, fname in st.session_state.uploaded_methods.items()
+        if (Path("external_methods") / fname).exists()
+    }
 
     if st.sidebar.button("Scan external_methods/", key="scan_ext_btn",
                          use_container_width=True,
@@ -1176,9 +1210,13 @@ def render_sidebar():
             except Exception as exc:
                 st.sidebar.error(f"Scan failed: {exc}")
         else:
-            st.sidebar.info("external_methods/ is empty — upload a .py file below.")
+            st.sidebar.info("external_methods/ is empty - upload a .py file below.")
 
-    # ── 2. Registered methods — always show with action buttons ─
+    plugin_upload_msg = st.session_state.pop('_plugin_upload_msg', None)
+    if plugin_upload_msg:
+        st.sidebar.success(plugin_upload_msg)
+
+    # â”€â”€ 2. Registered methods â€” always show with action buttons â”€
     if st.session_state.uploaded_methods:
         st.sidebar.markdown(
             '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
@@ -1187,24 +1225,35 @@ def render_sidebar():
             unsafe_allow_html=True)
         for nm, fname in list(st.session_state.uploaded_methods.items()):
             st.sidebar.markdown(
-                f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;'
-                f'color:var(--tx2);padding:3px 0 1px">• {nm}<br>'
-                f'<span style="font-size:10px;color:var(--tx3)">{fname}</span></div>',
+                f'<div class="plugin-card"><div class="plugin-name">{nm}</div>'
+                f'<div class="plugin-file">{fname}</div></div>',
                 unsafe_allow_html=True)
-            ca, cb, cc = st.sidebar.columns([2, 1, 1])
-            if ca.button("Register", key=f"reg_{nm}",
-                         help=f"Run benchmark for {nm} only → configs/runtime_{nm}.yaml"):
-                if launch_benchmark(write_runtime_config(nm)):
-                    st.rerun()
-            if cb.button("+all", key=f"cfg_{nm}",
+            ca, cb = st.sidebar.columns([1, 1])
+            if ca.button("Add", key=f"cfg_{nm}",
                          help="Add to ktc_all_methods.yaml for future full runs"):
                 if append_method_to_config(nm):
                     st.sidebar.success(f"{nm} added to ktc_all_methods.yaml")
                 else:
                     st.sidebar.info("Already in config")
-            if cc.button("x", key=f"rm_up_{nm}", help="Remove plugin file from disk"):
+                if nm not in st.session_state.get('_available_methods', []):
+                    st.session_state.setdefault('_available_methods', []).append(nm)
+                if nm not in st.session_state.get('selected_methods', []):
+                    st.session_state.setdefault('selected_methods', []).append(nm)
+                st.session_state[f'method_{nm}'] = True
+            if cb.button("Del", key=f"rm_up_{nm}", help="Remove plugin file from disk"):
                 (Path("external_methods") / fname).unlink(missing_ok=True)
-                del st.session_state.uploaded_methods[nm]
+                st.session_state.uploaded_methods.pop(nm, None)
+                st.session_state.selected_methods = [
+                    m for m in st.session_state.get('selected_methods', [])
+                    if m != nm
+                ]
+                st.session_state['_available_methods'] = [
+                    m for m in st.session_state.get('_available_methods', [])
+                    if m != nm
+                ]
+                st.session_state.pop('_last_method_upload', None)
+                st.session_state['_method_upload_nonce'] += 1
+                st.cache_data.clear()
                 st.rerun()
     else:
         st.sidebar.markdown(
@@ -1213,14 +1262,18 @@ def render_sidebar():
             'No plugins yet. Upload .py or scan.</div>',
             unsafe_allow_html=True)
 
-    # ── 3. Upload new plugin ─────────────────────────────────
+    # â”€â”€ 3. Upload new plugin â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     st.sidebar.markdown(
         '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
         'color:var(--tx3);margin:8px 0 5px;text-transform:uppercase;'
         'letter-spacing:.1em">Upload new plugin</div>',
         unsafe_allow_html=True)
-    up = st.sidebar.file_uploader("Upload plugin (.py)", type=["py"], key="method_upload",
-                                  label_visibility="collapsed")
+    up = st.sidebar.file_uploader(
+        "Upload plugin (.py)",
+        type=["py"],
+        key=f"method_upload_{st.session_state['_method_upload_nonce']}",
+        label_visibility="collapsed",
+    )
     if up is not None:
         sig = f"{up.name}:{up.size}"
         if st.session_state.get('_last_method_upload') != sig:
@@ -1231,29 +1284,49 @@ def render_sidebar():
             before = set(_list_methods())
             dest.write_bytes(up.getbuffer())
             try:
+                import ast as _ast
+                uploaded_method_names = []
+                tree = _ast.parse(dest.read_text(encoding="utf-8"))
+                for node in tree.body:
+                    if not isinstance(node, _ast.ClassDef):
+                        continue
+                    decorator_names = set()
+                    for decorator in node.decorator_list:
+                        target = decorator.func if isinstance(decorator, _ast.Call) else decorator
+                        decorator_names.add(getattr(target, "id", None) or getattr(target, "attr", None))
+                    if {"register_method", "register"} & decorator_names:
+                        uploaded_method_names.append(node.name)
+
                 _load_ext([str(dest_dir)])
                 new_methods = sorted(set(_list_methods()) - before)
-                if new_methods:
-                    for nm in new_methods:
+                registered_methods = set(_list_methods())
+                loaded_methods = sorted(
+                    set(new_methods) |
+                    {name for name in uploaded_method_names if name in registered_methods}
+                )
+                if loaded_methods:
+                    for nm in loaded_methods:
                         if not callable(getattr(_get_method(nm), "reconstruct", None)):
-                            st.sidebar.warning(f"{nm} has no reconstruct(batch) — will fail at run time.")
+                            st.sidebar.warning(f"{nm} has no reconstruct(batch) - will fail at run time.")
                         st.session_state.uploaded_methods[nm] = dest.name
-                    st.sidebar.success(f"Registered: {', '.join(new_methods)}")
+                    st.session_state['_plugin_upload_msg'] = f"Registered: {', '.join(loaded_methods)}"
+                    st.cache_data.clear()
+                    st.rerun()
                 else:
                     dest.unlink(missing_ok=True)
-                    st.sidebar.warning("No @register_method class found — file removed.")
+                    st.sidebar.warning("No @register_method class found - file removed.")
             except Exception as exc:
                 dest.unlink(missing_ok=True)
                 st.sidebar.error(f"Rejected {dest.name}: {exc}")
 
-    # ── Export ───────────────────────────────────────────────
+    # â”€â”€ Export â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     st.sidebar.markdown("---")
     st.sidebar.markdown("## Export")
     if st.sidebar.button("Export PDF Report", use_container_width=True, key="pdf_sidebar_btn"):
         st.session_state['_trigger_pdf'] = True
     pdf_export_slot = st.sidebar.empty()
 
-    # ── Run selector ──────────────────────────────────────────
+    # â”€â”€ Run selector â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     st.sidebar.markdown("---")
     st.sidebar.markdown("## Run History")
     runs_root = Path("outputs")
@@ -1287,7 +1360,7 @@ def render_sidebar():
                 f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--tx3);margin:5px 0 3px">Preview: {chosen_run}</div>',
                 unsafe_allow_html=True)
             for method, mets in preview.items():
-                ktc = mets.get('KTC score', mets.get('ktc_score', '—'))
+                ktc = mets.get('KTC score', mets.get('ktc_score', 'â€”'))
                 ktc_str = f"{ktc:.4f}" if isinstance(ktc, float) else str(ktc)
                 st.sidebar.markdown(
                     f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--tx2);padding:2px 0">'
@@ -1300,7 +1373,7 @@ def render_sidebar():
     return pdf_export_slot
 
 # =========================================================
-# VIEW 1 — LEADERBOARD  (original logic)
+# VIEW 1 â€” LEADERBOARD  (original logic)
 # =========================================================
 def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=None, level_range:tuple=(1,7)):
     if sel_metrics is None:
@@ -1312,7 +1385,7 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
     if lvl_min != 1 or lvl_max != 7:
         st.markdown(
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--amb);'
-            f'margin-bottom:6px">Filtered: levels {lvl_min}–{lvl_max} &nbsp;·&nbsp; '
+            f'margin-bottom:6px">Filtered: levels {lvl_min}â€“{lvl_max} &nbsp;Â·&nbsp; '
             f'{len(scores)} method(s) selected</div>', unsafe_allow_html=True)
 
     if 'method_colors' not in st.session_state: st.session_state.method_colors = {}
@@ -1338,11 +1411,11 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
     leaderboard_data.sort(key=lambda x: x['Composite Score'], reverse=True)
     df = pd.DataFrame(leaderboard_data)
 
-    # KPI cards — exact mockup spec
+    # KPI cards â€” exact mockup spec
     gc = df['Grade'].value_counts()
     kpis = [
         (f"{df.iloc[0]['Composite Score']:.1f}", "TOP SCORE",  df.iloc[0]['Method'][:22], "--c1"),
-        (f"{df['Composite Score'].mean():.1f}",  "AVG SCORE",  f"σ = {df['Composite Score'].std():.1f}", "--c2"),
+        (f"{df['Composite Score'].mean():.1f}",  "AVG SCORE",  f"Ïƒ = {df['Composite Score'].std():.1f}", "--c2"),
         (str(len(df)),                           "METHODS",    f"{gc.get('A',0)}A  {gc.get('B',0)}B  {gc.get('C',0)}C  {gc.get('D',0)}D", "--c3"),
         (f"{df['KTC Score'].max():.4f}",         "BEST KTC",   "higher is better", "--c4"),
     ]
@@ -1360,7 +1433,7 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
     st.markdown(chips_html, unsafe_allow_html=True)
 
     # Bar chart
-    st.markdown('<div class="slbl">METHOD RANKINGS — KTC SCORE</div>', unsafe_allow_html=True)
+    st.markdown('<div class="slbl">METHOD RANKINGS - KTC SCORE</div>', unsafe_allow_html=True)
     fig = go.Figure()
     all_names = sorted(scores.keys())
     col_map = {n: mcol(i) for i,n in enumerate(all_names)}
@@ -1374,7 +1447,7 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
                            f"KTC: {row['KTC Score']:.4f}<br><extra></extra>")
         ))
     fig.update_layout(
-        xaxis_title="Method", yaxis_title="Score (0–100)", yaxis_range=[0,115],
+        xaxis_title="Method", yaxis_title="Score (0â€“100)", yaxis_range=[0,115],
         showlegend=False, height=380,
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='#f6f8fa',
         font=dict(family="JetBrains Mono,monospace",color="#848d97",size=9),
@@ -1384,7 +1457,7 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # Table — filter columns by selected metrics in real time
+    # Table â€” filter columns by selected metrics in real time
     st.markdown('<div class="slbl">DETAILED METRICS</div>', unsafe_allow_html=True)
 
     # Build full display_df first
@@ -1437,7 +1510,7 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
         unsafe_allow_html=True)
 
 # =========================================================
-# VIEW 2 — DEGRADATION  (original logic)
+# VIEW 2 â€” DEGRADATION  (original logic)
 # =========================================================
 def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
     if not per_run:
@@ -1457,7 +1530,7 @@ def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple
     if lvl_min != 1 or lvl_max != 7:
         st.markdown(
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--amb);margin-bottom:6px">'
-            f'Showing levels {lvl_min}–{lvl_max}</div>', unsafe_allow_html=True)
+            f'Showing levels {lvl_min}â€“{lvl_max}</div>', unsafe_allow_html=True)
 
     pc  = st.session_state.get('_pcolors', {})
     pb  = pc.get('bg',     '#f6f8fa')
@@ -1476,7 +1549,7 @@ def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple
             continue
 
         # x = difficulty level; y = mean KTC over that level's samples;
-        # band = ±1 std across the samples within each level
+        # band = Â±1 std across the samples within each level
         levels   = sorted({int(e['level']) for e in samps.values()})
         by_level = {lv: [e['ktc_score'] for e in samps.values() if int(e['level']) == lv]
                     for lv in levels}
@@ -1505,7 +1578,7 @@ def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple
                       'Min':np.min(ktc),'Max':np.max(ktc),'Range':np.max(ktc)-np.min(ktc)})
 
     fig.update_layout(
-        title=f"KTC Score — Levels {lvl_min}–{lvl_max}",
+        title=f"KTC Score â€” Levels {lvl_min}â€“{lvl_max}",
         xaxis_title="Difficulty Level", yaxis_title="KTC Score (higher = better)",
         height=420, hovermode='x unified',
         paper_bgcolor=pp, plot_bgcolor=pb,
@@ -1528,13 +1601,13 @@ def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;font-weight:600;color:var(--grn);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px">KEY INSIGHTS</div>'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--tx);line-height:1.6">'
             f'- Best average KTC: <b>{best["Method"]}</b> ({best["Mean KTC"]:.4f})<br>'
-            f'- Most variability: <b>{worst["Method"]}</b> (σ = {worst["Std Dev"]:.4f})<br>'
-            f'- Shaded bands = ±1 std deviation. Narrower = more consistent performance.'
+            f'- Most variability: <b>{worst["Method"]}</b> (Ïƒ = {worst["Std Dev"]:.4f})<br>'
+            f'- Shaded bands = Â±1 std deviation. Narrower = more consistent performance.'
             f'</div></div>',
             unsafe_allow_html=True)
 
 # =========================================================
-# VIEW 3 — COMPARISON  (original logic)
+# VIEW 3 â€” COMPARISON  (original logic)
 # =========================================================
 def view_comparison(scores:Dict, per_run:Dict, mm:Dict, sel_metrics:list=None, level_range:tuple=(1,7)):
     if not per_run:
@@ -1545,7 +1618,7 @@ def view_comparison(scores:Dict, per_run:Dict, mm:Dict, sel_metrics:list=None, l
     METRIC_DISPLAY_MAP = {
         'KTC Score':  'ktc_score',
     }
-    # Which internal keys to show — driven by sel_metrics
+    # Which internal keys to show â€” driven by sel_metrics
     if sel_metrics:
         show_keys = [METRIC_DISPLAY_MAP[sm] for sm in sel_metrics if sm in METRIC_DISPLAY_MAP]
     else:
@@ -1567,22 +1640,23 @@ def view_comparison(scores:Dict, per_run:Dict, mm:Dict, sel_metrics:list=None, l
     samps = sorted({e['sample'] for e in entries.values() if int(e['level']) == lvl})
     sid = c4.selectbox("Sample:", samps) if samps else None
 
-    if m1 == m2:
-        st.error("Same methods can't be compared. Please choose two different methods.")
+    m1i = mm.get(m1)
+    m2i = mm.get(m2)
+    if m1 == m2 or (m1i is not None and m1i == m2i):
+        st.error("Same method cannot be compared. Please choose two different methods.")
         return
 
     run_key = f"L{lvl}_{sid}"
 
-    m1i = mm.get(m1); m2i = mm.get(m2)
     p1  = m1 in st.session_state.get('custom_methods', [])
     p2  = m2 in st.session_state.get('custom_methods', [])
-    if p1: st.info(f"{m1} is a custom method — connect its backend to see metrics.")
-    if p2: st.info(f"{m2} is a custom method — connect its backend to see metrics.")
+    if p1: st.info(f"{m1} is a custom method - connect its backend to see metrics.")
+    if p2: st.info(f"{m2} is a custom method - connect its backend to see metrics.")
 
     met1 = per_run.get(m1i or m1, {}).get(run_key, {}) if not p1 else {}
     met2 = per_run.get(m2i or m2, {}).get(run_key, {}) if not p2 else {}
 
-    # Metric comparison table — only show selected metrics
+    # Metric comparison table â€” only show selected metrics
     st.markdown('<div class="slbl">METRIC COMPARISON</div>', unsafe_allow_html=True)
     keys_to_show = [k for k in show_keys if k in met1 or k in met2]
     if not keys_to_show:
@@ -1597,11 +1671,11 @@ def view_comparison(scores:Dict, per_run:Dict, mm:Dict, sel_metrics:list=None, l
             comp_df[col] = comp_df[col].apply(lambda x: f"{x:.4f}")
     st.dataframe(comp_df, use_container_width=True, hide_index=True)
 
-    # Visual comparison — images from backend
+    # Visual comparison â€” images from backend
     st.markdown('<div class="slbl">VISUAL COMPARISON</div>', unsafe_allow_html=True)
     panel = load_comparison_panel(sid)
     if panel:
-        st.markdown(f"All Methods — Sample {sid}")
+        st.markdown(f"All Methods - Sample {sid}")
         st.image(panel, use_container_width=True)
         st.markdown("---")
     imgs = load_images_for_sample(sid, level=lvl)
@@ -1621,7 +1695,7 @@ def view_comparison(scores:Dict, per_run:Dict, mm:Dict, sel_metrics:list=None, l
         st.info("No visualization images found. Run example_usage.py to generate images.")
 
 # =========================================================
-# VIEW 4 — FAILURE GALLERY  (original logic)
+# VIEW 4 â€” FAILURE GALLERY  (original logic)
 # =========================================================
 def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
     if not per_run:
@@ -1633,9 +1707,9 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
     if lvl_min != 1 or lvl_max != 7:
         st.markdown(
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--amb);margin-bottom:6px">'
-            f'Filtered: levels {lvl_min}–{lvl_max}</div>', unsafe_allow_html=True)
+            f'Filtered: levels {lvl_min}â€“{lvl_max}</div>', unsafe_allow_html=True)
 
-    # ── Pass 1: collect all per-run data for KPI counts, root cause, summary ─
+    # â”€â”€ Pass 1: collect all per-run data for KPI counts, root cause, summary â”€
     # KTC score is higher = better: worst runs have the LOWEST scores.
     all_ktc      = []
     grade_counts = {'A':0,'B':0,'C':0,'D':0}
@@ -1675,10 +1749,10 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
                     'KTC': round(ktc, 4), 'Composite': round(comp, 1),
                 })
 
-    # ── KPI overview cards ────────────────────────────────────
+    # â”€â”€ KPI overview cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     total    = len(all_ktc)
     kpi2     = [
-        (str(total),             "TOTAL RUNS",         "all methods × samples", "--c3"),
+        (str(total),             "TOTAL RUNS",         "all methods Ã— samples", "--c3"),
         (str(grade_counts['D']), "D-GRADE FAILED",     "composite < 40",        "--c5"),
         (str(grade_counts['C']), "C-GRADE STRUGGLING", "marginal performance",  "--c4"),
         (str(grade_counts['B']), "B-GRADE STRONG",     "solid performance",     "--c1"),
@@ -1692,7 +1766,7 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
     kpi2_html += '</div>'
     st.markdown(kpi2_html, unsafe_allow_html=True)
 
-    # ── Failure summary table (one row per method) ────────────
+    # â”€â”€ Failure summary table (one row per method) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if summary_rows:
         st.markdown('<div class="slbl">FAILURE SUMMARY</div>', unsafe_allow_html=True)
         fdf = pd.DataFrame(summary_rows)
@@ -1710,9 +1784,9 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
                 'Composite scores below zero are expected for poorly-initialised solvers.</div>',
                 unsafe_allow_html=True)
 
-    # ── Root cause analysis table ─────────────────────────────
+    # â”€â”€ Root cause analysis table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if root_causes:
-        st.markdown('<div class="slbl">ROOT CAUSE ANALYSIS — FAILING RUNS (C + D GRADE)</div>', unsafe_allow_html=True)
+        st.markdown('<div class="slbl">ROOT CAUSE ANALYSIS - FAILING RUNS (C + D GRADE)</div>', unsafe_allow_html=True)
         rc_df = pd.DataFrame(root_causes)
 
         def _rc_color(grade):
@@ -1761,7 +1835,7 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
 
     st.markdown("---")
 
-    # ── Per-method worst-3 cards (lowest KTC = worst, level-filtered) ─
+    # â”€â”€ Per-method worst-3 cards (lowest KTC = worst, level-filtered) â”€
     run_dir = find_latest_run()
     for disp in scores.keys():
         ik = mm.get(disp)
@@ -1784,7 +1858,7 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
                 pct = int(metrics['ktc_score'] / max_ktc * 100)
                 bc  = ['#cf222e', '#bf8700', '#0969da'][idx]
                 st.markdown(f"""<div class="fcard">
-                  <div class="frank">#{idx+1} WORST · SAMPLE {sid}</div>
+                  <div class="frank">#{idx+1} WORST Â· SAMPLE {sid}</div>
                   <div class="fktc">{metrics['ktc_score']:.4f}</div>
                   <div class="flbl">KTC SCORE</div>
                   <div class="fbar"><div class="fbar-f" style="width:{pct}%;background:{bc}"></div></div>
@@ -1803,14 +1877,14 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
         st.markdown("---")
 
 # =========================================================
-# VIEW 5 — RADAR CHART  (original logic)
+# VIEW 5 â€” RADAR CHART  (original logic)
 # =========================================================
 def view_radar_chart(scores:Dict, per_run:Dict, sel_metrics:list=None):
     if not scores:
         st.warning("No scores available.")
         return
 
-    # Map sidebar display names → scores.json key names
+    # Map sidebar display names â†’ scores.json key names
     SIDEBAR_TO_SCORE_KEY = {
         'KTC Score':  ['KTC score','ktc_score'],
     }
@@ -1841,8 +1915,8 @@ def view_radar_chart(scores:Dict, per_run:Dict, sel_metrics:list=None):
     # Radar is only meaningful with 2+ axes. With 1 metric it degrades to dots on a line.
     if len(chosen) == 1:
         st.info(
-            f"Radar chart needs 2+ metrics to draw a polygon — currently only **{chosen[0]}** is available. "
-            "Showing a bar comparison instead. Add more metrics (Dice, IoU…) to unlock the full radar."
+            f"Radar chart needs 2+ metrics to draw a polygon â€” currently only **{chosen[0]}** is available. "
+            "Showing a bar comparison instead. Add more metrics (Dice, IoUâ€¦) to unlock the full radar."
         )
         metric = chosen[0]
         pc2 = st.session_state.get('_pcolors', {})
@@ -1899,7 +1973,7 @@ def view_radar_chart(scores:Dict, per_run:Dict, sel_metrics:list=None):
     st.dataframe(pd.DataFrame(rows).round(4), use_container_width=True, hide_index=True)
 
 # =========================================================
-# VIEW HEATMAP — COLOR GRID (all 42 runs at once)
+# VIEW HEATMAP â€” COLOR GRID (all 42 runs at once)
 # =========================================================
 def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
     if not per_run:
@@ -1916,7 +1990,7 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
     all_sample_ids = sorted(key_order, key=lambda k: key_order[k])
 
     if not all_sample_ids:
-        st.info(f"No samples found for levels {lvl_min}–{lvl_max}.")
+        st.info(f"No samples found for levels {lvl_min}-{lvl_max}.")
         return
 
     method_names = list(scores.keys())
@@ -1929,7 +2003,7 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
     if not metric_opts:
         metric_opts = ['ktc_score']
 
-    # Map sidebar selected_metrics display names → internal keys for default selection
+    # Map sidebar selected_metrics display names â†’ internal keys for default selection
     DISPLAY_TO_INTERNAL = {
         'KTC Score': 'ktc_score',
     }
@@ -1948,7 +2022,7 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
     with mc2:
         st.markdown(
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--tx3);padding-top:28px">'
-            f'Levels {lvl_min}–{lvl_max} · {len(all_sample_ids)} samples · {len(method_names)} methods. '
+            f'Levels {lvl_min}â€“{lvl_max} Â· {len(all_sample_ids)} samples Â· {len(method_names)} methods. '
             f'Higher = greener (better).</div>',
             unsafe_allow_html=True)
 
@@ -1964,14 +2038,14 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
         for sid in all_sample_ids:
             val = per_run.get(ik,{}).get(sid,{}).get(chosen_metric, None) if ik else None
             row.append(val if val is not None else float('nan'))
-            trow.append(f"{val:.4f}" if val is not None else "—")
+            trow.append(f"{val:.4f}" if val is not None else "â€”")
         z.append(row)
         text.append(trow)
         y_labels.append(disp)
 
     colorscale = 'RdYlGn'  # higher = greener; KTC score is higher = better
 
-    # When columns exceed 12 the cell text overlaps — rely on hover tooltips instead
+    # When columns exceed 12 the cell text overlaps â€” rely on hover tooltips instead
     show_cell_text = len(all_sample_ids) <= 12
 
     fig = go.Figure(go.Heatmap(
@@ -2262,16 +2336,16 @@ def _render_pdf_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str, target=
 # MAIN
 # =========================================================
 # =========================================================
-# VIEW 7 — HULL ANALYSIS
+# VIEW 7 â€” HULL ANALYSIS
 # =========================================================
 def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple = (1, 7)):
-    """Convex-hull geometric error analysis — pred vs GT hulls."""
+    """Convex-hull geometric error analysis â€” pred vs GT hulls."""
 
     pc = st.session_state.get('_pcolors', {})
     sel_methods = list(scores.keys())
     lvl_min, lvl_max = level_range
 
-    # ── Collect hull data across all methods ──────────────────
+    # â”€â”€ Collect hull data across all methods â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     hull_rows = []
     for method in sel_methods:
         pr_key = mm.get(method, method)
@@ -2307,8 +2381,8 @@ def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple
     import pandas as _pd
     df = _pd.DataFrame(hull_rows)
 
-    # ── KPI cards — average geometric errors per method ───────
-    st.markdown("### Method Comparison — Average Geometric Errors")
+    # â”€â”€ KPI cards â€” average geometric errors per method â”€â”€â”€â”€â”€â”€â”€
+    st.markdown("### Method Comparison - Average Geometric Errors")
     err_cols = ["Res Center Err", "Res Area Err", "Res Perim Err"]
     summary = df.groupby("Method")[err_cols].mean().round(1)
 
@@ -2318,20 +2392,20 @@ def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple
         c = PALETTE[i % len(PALETTE)]
         center_e = row["Res Center Err"]
         area_e = row["Res Area Err"]
-        center_str = f"{center_e:.1f}px" if pd.notna(center_e) else "—"
-        area_str = f"{area_e:.0f}px²" if pd.notna(area_e) else "—"
+        center_str = f"{center_e:.1f}px" if pd.notna(center_e) else "â€”"
+        area_str = f"{area_e:.0f}pxÂ²" if pd.notna(area_e) else "â€”"
         short = method.replace("Reconstruction", "Recon").replace("Difference", "Diff").replace("Projection", "Proj")
         kpi_html += (
             f'<div class="kpi" style="--kc:{c}">'
             f'<div class="kpi-n">{center_str}</div>'
             f'<div class="kpi-l">Center Error</div>'
-            f'<div class="kpi-s">{short} · Area Err: {area_str}</div></div>'
+            f'<div class="kpi-s">{short} Â· Area Err: {area_str}</div></div>'
         )
     kpi_html += '</div>'
     st.markdown(kpi_html, unsafe_allow_html=True)
 
-    # ── Bar chart: Center error by method ─────────────────────
-    st.markdown("### Resistive Region — Center Error by Method")
+    # â”€â”€ Bar chart: Center error by method â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    st.markdown("### Resistive Region - Center Error by Method")
     avg_center = df.dropna(subset=["Res Center Err"]).groupby("Method")["Res Center Err"].mean().sort_values()
     if not avg_center.empty:
         fig_ce = go.Figure()
@@ -2355,8 +2429,8 @@ def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple
         )
         st.plotly_chart(fig_ce, use_container_width=True)
 
-    # ── Bar chart: Area error by method ───────────────────────
-    st.markdown("### Resistive Region — Hull Area Error by Method")
+    # â”€â”€ Bar chart: Area error by method â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    st.markdown("### Resistive Region - Hull Area Error by Method")
     avg_area = df.dropna(subset=["Res Area Err"]).groupby("Method")["Res Area Err"].mean().sort_values()
     if not avg_area.empty:
         fig_ae = go.Figure()
@@ -2365,12 +2439,12 @@ def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple
         fig_ae.add_trace(go.Bar(
             x=avg_area.index, y=avg_area.values,
             marker_color=colors_a,
-            text=[f"{v:.0f}px²" for v in avg_area.values],
+            text=[f"{v:.0f}pxÂ²" for v in avg_area.values],
             textposition="outside",
             textfont=dict(family="JetBrains Mono", size=11),
         ))
         fig_ae.update_layout(
-            yaxis_title="Area Error (px²)",
+            yaxis_title="Area Error (pxÂ²)",
             height=340,
             margin=dict(l=50, r=20, t=30, b=40),
             plot_bgcolor=pc.get('paper', 'rgba(0,0,0,0)'),
@@ -2380,8 +2454,8 @@ def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple
         )
         st.plotly_chart(fig_ae, use_container_width=True)
 
-    # ── Scatter: KTC score vs Center error ────────────────────
-    st.markdown("### KTC Score vs Center Error — Correlation")
+    # â”€â”€ Scatter: KTC score vs Center error â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    st.markdown("### KTC Score vs Center Error - Correlation")
     scatter_df = df.dropna(subset=["Res Center Err", "KTC"])
     if not scatter_df.empty:
         fig_sc = go.Figure()
@@ -2411,7 +2485,7 @@ def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple
         )
         st.plotly_chart(fig_sc, use_container_width=True)
 
-    # ── Degradation: Center error across difficulty levels ────
+    # â”€â”€ Degradation: Center error across difficulty levels â”€â”€â”€â”€
     st.markdown("### Hull Error Degradation by Level")
     deg_df = df.dropna(subset=["Res Center Err"])
     if not deg_df.empty:
@@ -2444,14 +2518,14 @@ def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple
         )
         st.plotly_chart(fig_deg, use_container_width=True)
 
-    # ── Detailed table ────────────────────────────────────────
+    # â”€â”€ Detailed table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     st.markdown("### Per-Run Hull Metrics")
     display_cols = ["Method", "Level", "Sample", "KTC",
                     "Res Center Err", "Res Area Err", "Res Perim Err",
                     "Res Pixels", "Con Pixels"]
     tbl = df[display_cols].copy()
     for c in ["KTC", "Res Center Err", "Res Area Err", "Res Perim Err"]:
-        tbl[c] = tbl[c].apply(lambda v: f"{v:.2f}" if pd.notna(v) else "—")
+        tbl[c] = tbl[c].apply(lambda v: f"{v:.2f}" if pd.notna(v) else "â€”")
     st.dataframe(tbl, use_container_width=True, hide_index=True)
 
 
@@ -2488,7 +2562,7 @@ def main():
     </div>
     """, unsafe_allow_html=True)
 
-    # Progress banner — visible whenever a benchmark subprocess is running
+    # Progress banner â€” visible whenever a benchmark subprocess is running
     render_bench_progress()
 
     try:
@@ -2497,18 +2571,18 @@ def main():
         scores, per_run, mm = load_data(cache_key)
 
         # Active run label (+ red badge when runs were scored against a
-        # missing ground truth — their 0.0 scores are meaningless)
+        # missing ground truth â€” their 0.0 scores are meaningless)
         n_gt_missing = count_gt_missing(per_run)
         gt_badge = (
-            f' &nbsp;·&nbsp; <span style="background:#ffebe9;border:1px solid #cf222e;'
+            f' &nbsp;-&nbsp; <span style="background:#ffebe9;border:1px solid #cf222e;'
             f'color:#cf222e;border-radius:5px;padding:1px 6px;font-weight:600">'
             f'{n_gt_missing} runs scored without ground truth</span>'
         ) if n_gt_missing else ''
         st.markdown(
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:12px;'
             f'color:var(--tx3);margin:-2px 0 10px;padding:0 2px;line-height:1.35">'
-            f'Run: <span style="color:var(--grn)">{latest_run.name}</span> &nbsp;·&nbsp; '
-            f'{len(scores)} method(s) &nbsp;·&nbsp; '
+            f'Run: <span style="color:var(--grn)">{latest_run.name}</span> &nbsp;-&nbsp; '
+            f'{len(scores)} method(s) &nbsp;-&nbsp; '
             f'{sum(len(v) for v in per_run.values()) if per_run else 0} total reconstructions'
             f'{gt_badge}</div>',
             unsafe_allow_html=True)
@@ -2527,6 +2601,13 @@ def main():
             sel_methods = list(scores.keys())  # fallback: show all if none checked
         level_range = st.session_state.get('level_range', (1, 7))
         sel_samples = st.session_state.get('selected_samples', ['A', 'B', 'C'])
+        methods_without_data = [m for m in sel_methods if m not in scores]
+        if methods_without_data:
+            st.warning(
+                "Registered but not benchmarked yet: "
+                + ", ".join(methods_without_data)
+                + ". Click Add in Add Method, then run all methods."
+            )
 
         # Apply method, level, and sample filters once so every tab/report agrees.
         scores_f, per_run_f, mm_f = apply_dashboard_filters(
@@ -2536,10 +2617,10 @@ def main():
             st.info("No dashboard data matches the selected sidebar filters.")
             return
 
-        # Dataset info — inline KPI row (no expander = no icon issue)
+        # Dataset info â€” inline KPI row (no expander = no icon issue)
         n_s = len(per_run_f.get(list(per_run_f.keys())[0], {})) if per_run_f else 0
         n_t = sum(len(v) for v in per_run_f.values()) if per_run_f else 0
-        method_list = " &nbsp;·&nbsp; ".join(
+        method_list = " &nbsp;-&nbsp; ".join(
             f'<span style="color:var(--tx)">{m}</span>' for m in scores_f.keys())
         st.markdown(
             f'<div style="display:flex;gap:10px;margin-bottom:12px;align-items:stretch">'
@@ -2559,7 +2640,7 @@ def main():
             f'</div>',
             unsafe_allow_html=True)
 
-        # PDF export — triggered from sidebar button
+        # PDF export â€” triggered from sidebar button
         if st.session_state.get('_trigger_pdf'):
             st.session_state['_trigger_pdf'] = False
             _render_pdf_export(scores_f, per_run_f, mm_f, latest_run.name, target=pdf_export_slot)
@@ -2585,3 +2666,4 @@ def main():
 
 # Run the app
 main()
+
