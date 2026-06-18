@@ -1533,7 +1533,7 @@ def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple
 
     lvl_min, lvl_max = level_range
     dm = all_methods(scores)
-    # Default: all methods so GroundTruthOracle is always visible as the reference ceiling
+    # Default: all methods so the full run is visible immediately.
     chosen = st.multiselect("Select methods:", dm,
         default=[m for m in dm if m not in st.session_state.get('custom_methods',[])])
 
