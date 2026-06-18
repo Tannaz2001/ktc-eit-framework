@@ -16,3 +16,6 @@ scikit-image
 rich
 pyyaml
 h5py
+
+# CompetitionCNN subprocess dependencies (install on system Python 3.12, NOT this venv)
+# py -3.12 -m pip install tensorflow opencv-python

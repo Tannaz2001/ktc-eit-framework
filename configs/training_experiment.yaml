@@ -25,6 +25,6 @@ samples: ['1', '2', '3', '4']
 methods:
   - BackProjection
   - GaussNewton
-  - GroundTruthOracle
+  - LinearDifferenceReconstruction
 
 output_dir: outputs/training/
