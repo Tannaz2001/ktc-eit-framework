@@ -21,7 +21,9 @@ methods:
   - LinearDifferenceReconstruction
   - BackProjection
   - GaussNewton
-  - GroundTruthOracle
   
+method_plugin_paths:
+  - external_methods
+include_external_methods: true
 
 output_dir: outputs/

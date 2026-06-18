@@ -22,6 +22,7 @@ from src.ktc_framework.types import DataBatch
 from src.ktc_framework.adapters.method_adapter import MethodAdapter
 from src.ktc_framework.registry import (
     get_method as registry_get,
+    list_methods as registry_list_methods,
     load_external_methods,
     PluginRegistry,
 )
@@ -69,9 +70,19 @@ class BatchRunner:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        method_plugin_paths = self.config.get("method_plugin_paths", [])
+        method_plugin_paths = list(self.config.get("method_plugin_paths", []))
+        default_external_path = Path("external_methods")
+        if default_external_path.is_dir() and str(default_external_path) not in method_plugin_paths:
+            method_plugin_paths.append(str(default_external_path))
         if method_plugin_paths:
+            methods_before = set(registry_list_methods())
             load_external_methods(method_plugin_paths)
+            if self.config.get("include_external_methods", False):
+                configured_methods = list(self.config.get("methods", []))
+                for method_name in registry_list_methods():
+                    if method_name not in methods_before and method_name not in configured_methods:
+                        configured_methods.append(method_name)
+                self.config["methods"] = configured_methods
 
         # Load shared resources once — passed to every DataBatch at run time
         self.mesh = self._load_mesh(config.get("mesh_path", ""))
