@@ -29,6 +29,17 @@ GRADE_COLORS = {
 
 _EIT_CMAP = ListedColormap([COLORMAP[0], COLORMAP[1], COLORMAP[2]])
 
+# Deterministic per-method colors — stable across all charts in one run
+_PALETTE = [
+    "#1D9E75", "#D85A30", "#4A90E2", "#F5A623",
+    "#9B59B6", "#E74C3C", "#16A085", "#E67E22",
+]
+
+
+def _method_color(method: str) -> str:
+    """Hash method name to a palette color — same name always gets same color."""
+    return _PALETTE[sum(ord(c) for c in method) % len(_PALETTE)]
+
 
 # ── Panel plot ─────────────────────────────────────────────────────────────
 
@@ -118,7 +129,7 @@ def plot_failure_gallery(
         ]
         if not method_results:
             continue
-        worst = sorted(method_results, key=lambda r: r.get("composite_score", 0))[:n]
+        worst = sorted(method_results, key=lambda r: r.get("metrics", {}).get("ktc_score", 0.0))[:n]
         worst_per_method[method] = worst
 
     if not worst_per_method:
@@ -134,8 +145,8 @@ def plot_failure_gallery(
     row = 0
     for method, samples in worst_per_method.items():
         for r in samples:
-            score = r.get("composite_score", 0.0)
-            title = f"{method} | L{r['level']} {r['sample']} | Score:{score:.2f}"
+            score = r.get("metrics", {}).get("ktc_score", 0.0)
+            title = f"{method} | L{r['level']} {r['sample']} | KTC:{score:.3f}"
             for ax, img, side in zip(axes[row], [r["_gt"], r["_pred"]], ["GT", "Pred"]):
                 ax.imshow(img, cmap=_EIT_CMAP, vmin=0, vmax=2, interpolation="nearest")
                 ax.set_title(f"{side} — {title}", fontsize=7)
@@ -181,29 +192,38 @@ def plot_error_overlay(
 def plot_degradation_curve(
     results: list[dict[str, Any]],
     output_dir: Path,
-) -> Path:
+) -> Path | None:
     """Plot KTC score vs difficulty level for each method."""
-    methods = list({r["method"] for r in results})
-    colors  = ["#1D9E75", "#D85A30", "#4A90E2", "#F5A623", "#9B59B6"]
+    if not results:
+        return None
+
+    methods = sorted({r["method"] for r in results})
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    for idx, method in enumerate(methods):
+    for method in methods:
         method_results = [r for r in results if r["method"] == method]
         levels = sorted({r["level"] for r in method_results})
         avg_scores = [
-            np.mean([r["metrics"]["ktc_score"] for r in method_results if r["level"] == lv])
+            float(np.mean([
+                r.get("metrics", {}).get("ktc_score", 0.0)
+                for r in method_results if r["level"] == lv
+            ]))
             for lv in levels
         ]
+        slope = (
+            float(np.polyfit(levels, avg_scores, 1)[0])
+            if len(levels) >= 2 else 0.0
+        )
+        label = f"{method} (slope: {slope:+.3f})"
         ax.plot(levels, avg_scores, marker="o", linewidth=2.5, markersize=8,
-                label=method, color=colors[idx % len(colors)])
+                label=label, color=_method_color(method))
 
     ax.set_xlabel("Difficulty Level", fontsize=12, fontweight="bold")
     ax.set_ylabel("KTC Score",        fontsize=12, fontweight="bold")
-    ax.set_title("Performance Degradation Across Difficulty Levels",
-                 fontsize=14, fontweight="bold")
+    ax.set_title("KTC Score vs Difficulty Level", fontsize=14, fontweight="bold")
     ax.grid(True, alpha=0.3, linestyle="--")
-    ax.legend(loc="best", frameon=True, shadow=True)
+    ax.legend(loc="upper right", frameon=True, shadow=True)
     ax.set_xticks(range(1, 8))
     ax.set_xlim(0.5, 7.5)
 
@@ -220,40 +240,50 @@ def plot_degradation_curve(
 def plot_leaderboard(
     results: list[dict[str, Any]],
     output_dir: Path,
-) -> Path:
-    """Horizontal bar chart ranking methods by average composite score."""
-    methods: dict[str, list] = {}
-    for r in results:
-        methods.setdefault(r["method"], []).append(r.get("composite_score", 0))
+) -> Path | None:
+    """Horizontal bar chart ranking methods by mean KTC score."""
+    if not results:
+        return None
 
-    avg = {m: float(np.mean(v)) for m, v in methods.items()}
+    buckets: dict[str, list] = {}
+    for r in results:
+        buckets.setdefault(r["method"], []).append(
+            r.get("metrics", {}).get("ktc_score", 0.0)
+        )
+
+    avg = {m: float(np.mean(v)) for m, v in buckets.items()}
     sorted_methods = sorted(avg.items(), key=lambda x: x[1], reverse=True)
 
     names  = [m for m, _ in sorted_methods]
     scores = [s for _, s in sorted_methods]
-    grades = ["A" if s >= 0.80 else "B" if s >= 0.60 else "C" if s >= 0.40 else "D"
-              for s in scores]
+    grades = [
+        "A" if s >= 0.60 else "B" if s >= 0.30 else "C" if s >= 0.10 else "D"
+        for s in scores
+    ]
     colors = [GRADE_COLORS[g] for g in grades]
 
     fig, ax = plt.subplots(figsize=(10, max(4, len(names) * 0.8)))
     y_pos = np.arange(len(names))
     bars  = ax.barh(y_pos, scores, color=colors, edgecolor="black", linewidth=1.2)
-    ax.set_yticks(y_pos); ax.set_yticklabels(names, fontsize=11)
-    ax.set_xlabel("Composite Score", fontsize=12, fontweight="bold")
-    ax.set_title("Method Leaderboard",  fontsize=14, fontweight="bold")
-    ax.set_xlim(0, 1.0)
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(names, fontsize=11)
+    ax.set_xlabel("KTC Score", fontsize=12, fontweight="bold")
+    ax.set_title("Method Leaderboard", fontsize=14, fontweight="bold")
+    x_min = min(min(scores) - 0.05, -0.05)
+    x_max = max(max(scores) + 0.18, 1.0)
+    ax.set_xlim(x_min, x_max)
     ax.grid(axis="x", alpha=0.3, linestyle="--")
 
     for bar, score, grade in zip(bars, scores, grades):
-        ax.text(bar.get_width() + 0.02, bar.get_y() + bar.get_height() / 2,
+        ax.text(bar.get_width() + 0.01, bar.get_y() + bar.get_height() / 2,
                 f"{score:.3f} ({grade})", ha="left", va="center",
                 fontsize=10, fontweight="bold")
 
     legend_elements = [
-        Patch(facecolor=GRADE_COLORS["A"], edgecolor="black", label="Grade A (>=0.80)"),
-        Patch(facecolor=GRADE_COLORS["B"], edgecolor="black", label="Grade B (>=0.60)"),
-        Patch(facecolor=GRADE_COLORS["C"], edgecolor="black", label="Grade C (>=0.40)"),
-        Patch(facecolor=GRADE_COLORS["D"], edgecolor="black", label="Grade D (<0.40)"),
+        Patch(facecolor=GRADE_COLORS["A"], edgecolor="black", label="Grade A (>=0.60)"),
+        Patch(facecolor=GRADE_COLORS["B"], edgecolor="black", label="Grade B (>=0.30)"),
+        Patch(facecolor=GRADE_COLORS["C"], edgecolor="black", label="Grade C (>=0.10)"),
+        Patch(facecolor=GRADE_COLORS["D"], edgecolor="black", label="Grade D (<0.10)"),
     ]
     ax.legend(handles=legend_elements, loc="lower right", frameon=True)
 
@@ -296,6 +326,106 @@ def plot_confusion_matrix(
     Path(save_path).parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(save_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
+
+
+# ── Metrics summary heatmap ────────────────────────────────────────────────
+
+_METRIC_COLS = ["ktc_score", "dice_resistive", "dice_conductive", "iou_resistive", "iou_conductive"]
+_METRIC_LABELS = ["KTC Score", "Dice Res", "Dice Con", "IoU Res", "IoU Con"]
+
+
+def plot_metrics_heatmap(
+    results: list[dict[str, Any]],
+    output_dir: Path,
+) -> Path | None:
+    """Seaborn heatmap: rows=methods, columns=5 metrics, annotated with 2 dp values."""
+    if not results:
+        return None
+
+    methods = sorted({r["method"] for r in results})
+    matrix = np.array([
+        [
+            float(np.mean([
+                r.get("metrics", {}).get(metric, 0.0)
+                for r in results if r["method"] == method
+            ]))
+            for metric in _METRIC_COLS
+        ]
+        for method in methods
+    ])
+
+    fig, ax = plt.subplots(figsize=(max(8, len(_METRIC_COLS) * 1.8), max(4, len(methods) * 0.9)))
+    sns.heatmap(
+        matrix,
+        annot=True,
+        fmt=".2f",
+        cmap="RdYlGn",
+        vmin=0.0,
+        vmax=1.0,
+        xticklabels=_METRIC_LABELS,
+        yticklabels=methods,
+        linewidths=0.5,
+        linecolor="grey",
+        ax=ax,
+    )
+    ax.set_title("Metrics Summary Matrix", fontsize=14, fontweight="bold")
+    ax.set_xlabel("Metric",  fontsize=11)
+    ax.set_ylabel("Method",  fontsize=11)
+    plt.xticks(rotation=30, ha="right")
+    plt.yticks(rotation=0)
+
+    path = Path(output_dir) / "figures" / "metrics_heatmap.png"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    plt.tight_layout()
+    plt.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+# ── Runtime comparison ─────────────────────────────────────────────────────
+
+def plot_runtime_comparison(
+    results: list[dict[str, Any]],
+    output_dir: Path,
+) -> Path | None:
+    """Horizontal bar chart of mean runtime per method, sorted descending."""
+    if not results:
+        return None
+
+    buckets: dict[str, list] = {}
+    for r in results:
+        buckets.setdefault(r["method"], []).append(r.get("runtime_ms", 0.0))
+
+    avg_rt = {m: float(np.mean(v)) for m, v in buckets.items()}
+    sorted_items = sorted(avg_rt.items(), key=lambda x: x[1], reverse=True)
+
+    names    = [m for m, _ in sorted_items]
+    runtimes = [rt for _, rt in sorted_items]
+
+    fig, ax = plt.subplots(figsize=(10, max(4, len(names) * 0.8)))
+    y_pos = np.arange(len(names))
+    bars  = ax.barh(y_pos, runtimes, color="#4A90E2", edgecolor="black", linewidth=1.2)
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(names, fontsize=11)
+    ax.set_xlabel("Mean runtime (ms)", fontsize=12, fontweight="bold")
+    ax.set_title("Runtime Comparison", fontsize=14, fontweight="bold")
+    ax.set_xlim(0, max(runtimes) * 1.3 if runtimes else 1)
+    ax.grid(axis="x", alpha=0.3, linestyle="--")
+
+    for bar, rt in zip(bars, runtimes):
+        label = f"{rt / 1000:.1f} s" if rt >= 1000 else f"{rt:.0f} ms"
+        ax.text(
+            bar.get_width() + max(runtimes) * 0.02,
+            bar.get_y() + bar.get_height() / 2,
+            label, ha="left", va="center", fontsize=10, fontweight="bold",
+        )
+
+    path = Path(output_dir) / "figures" / "runtime_comparison.png"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    plt.tight_layout()
+    plt.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return path
 
 
 # ── Electrode layout ───────────────────────────────────────────────────────
