@@ -17,6 +17,7 @@ import numpy as np
 
 from src.ktc_framework.adapters.method_registry import register
 from src.ktc_framework.methods.method_plugin import MethodPlugin
+from src.ktc_framework.methods import _opcache
 from src.ktc_framework.types import DataBatch
 
 
@@ -182,6 +183,26 @@ def _ref_key(reference: np.ndarray) -> str:
     return hashlib.md5(arr.tobytes()).hexdigest()
 
 
+def _mesh_fingerprint(mesh) -> str:
+    """Stable hash of the mesh node coordinates, for the on-disk cache key.
+
+    Uses the node array (``.g``) so a different mesh produces a different key
+    (avoids stale-cache reuse if the mesh ever changes). Falls back to a
+    constant token if the array can't be found."""
+    import hashlib
+
+    g = getattr(mesh, "g", None)
+    if g is None and hasattr(mesh, "Mesh"):
+        g = getattr(mesh.Mesh, "g", None)
+    if g is not None:
+        try:
+            arr = np.ascontiguousarray(np.asarray(g, dtype=np.float64))
+            return hashlib.md5(arr.tobytes()).hexdigest()[:16]
+        except Exception:
+            pass
+    return "nomesh"
+
+
 @register
 class LinearDifferenceReconstruction(MethodPlugin):
     """Official KTC linear difference inverse reconstruction.
@@ -276,26 +297,42 @@ class LinearDifferenceReconstruction(MethodPlugin):
             )
             cached_ops = _OPERATOR_CACHE.get(op_key)
             if cached_ops is None:
-                mesh = _convert_mesh(mesh_struct)
-                mesh2 = _convert_mesh(mesh2_struct)
+                # On-disk cache: skip the expensive forward-solve + Jacobian
+                # across processes. Uses a STABLE key (mesh fingerprint instead
+                # of id()) so the same key is produced every run.
+                disk_key = "fem|" + "|".join(str(x) for x in (
+                    _mesh_fingerprint(batch.mesh),
+                    inj.shape[1], mpat.shape[1], int(batch.level),
+                    self.corrlength, self.var_sigma,
+                    self.noise_std1, self.noise_std2, _ref_key(ref),
+                ))
+                disk_val = _opcache.load(disk_key)
+                if disk_val is not None:
+                    mesh, jacobian, inv_gamma_full, prior = disk_val
+                    _OPERATOR_CACHE[op_key] = disk_val
+                else:
+                    mesh = _convert_mesh(mesh_struct)
+                    mesh2 = _convert_mesh(mesh2_struct)
 
-                prior_key = (
-                    id(batch.mesh),
-                    inj.shape[1],
-                    mpat.shape[1],
-                    self.corrlength,
-                    self.var_sigma,
-                )
-                _REFERENCE_CACHE.setdefault(prior_key, (mesh, mesh2, inj.shape, mpat.shape))
-                sigma0, prior = _prior_for_mesh(prior_key)
+                    prior_key = (
+                        id(batch.mesh),
+                        inj.shape[1],
+                        mpat.shape[1],
+                        self.corrlength,
+                        self.var_sigma,
+                    )
+                    _REFERENCE_CACHE.setdefault(prior_key, (mesh, mesh2, inj.shape, mpat.shape))
+                    sigma0, prior = _prior_for_mesh(prior_key)
 
-                solver = KTCFwd.EITFEM(mesh2, inj, mpat, vincl)
-                solver.SetInvGamma(self.noise_std1, self.noise_std2, ref)
-                solver.SolveForward(sigma0.copy(), 1e-6 * np.ones((32, 1)))
-                jacobian = solver.Jacobian(sigma0.copy(), 1e-6 * np.ones((32, 1)))
-                inv_gamma_full = solver.InvGamma_n
+                    solver = KTCFwd.EITFEM(mesh2, inj, mpat, vincl)
+                    solver.SetInvGamma(self.noise_std1, self.noise_std2, ref)
+                    solver.SolveForward(sigma0.copy(), 1e-6 * np.ones((32, 1)))
+                    jacobian = solver.Jacobian(sigma0.copy(), 1e-6 * np.ones((32, 1)))
+                    inv_gamma_full = solver.InvGamma_n
 
-                _OPERATOR_CACHE[op_key] = (mesh, jacobian, inv_gamma_full, prior)
+                    entry = (mesh, jacobian, inv_gamma_full, prior)
+                    _OPERATOR_CACHE[op_key] = entry
+                    _opcache.save(disk_key, entry)
             else:
                 mesh, jacobian, inv_gamma_full, prior = cached_ops
 
