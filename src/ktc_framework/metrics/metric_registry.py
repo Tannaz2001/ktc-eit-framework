@@ -25,3 +25,19 @@ def run_all_metrics(pred, gt) -> dict[str, float]:
 def list_metrics() -> list[str]:
     """Return names of all registered metrics."""
     return sorted(_METRICS.keys())
+
+
+# Register the 5 built-in metrics once at import time.
+from .ktc_score import (  # noqa: E402
+    compute_ktc_score,
+    dice_resistive,
+    dice_conductive,
+    iou_resistive,
+    iou_conductive,
+)
+
+register_metric("ktc_score",       compute_ktc_score)
+register_metric("dice_resistive",  dice_resistive)
+register_metric("dice_conductive", dice_conductive)
+register_metric("iou_resistive",   iou_resistive)
+register_metric("iou_conductive",  iou_conductive)
