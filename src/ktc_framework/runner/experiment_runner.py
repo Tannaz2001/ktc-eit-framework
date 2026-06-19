@@ -26,8 +26,7 @@ from src.ktc_framework.registry import (
     load_external_methods,
     PluginRegistry,
 )
-from src.ktc_framework.metrics.metric_registry import register_metric, run_all_metrics
-from src.ktc_framework.metrics.ktc_score import compute_ktc_score
+from src.ktc_framework.metrics.metric_registry import run_all_metrics
 from src.ktc_framework.metrics.composite_score import composite_score, letter_grade
 from src.ktc_framework.visualization import save_panel
 from src.ktc_framework.visualization.plot_results import (
@@ -42,16 +41,11 @@ from src.ktc_framework.metrics.qualitative_metrics import (
     compute_qualitative_sample,
     aggregate_qualitative,
 )
-from src.ktc_framework.reporting.html_report import generate_html_report
 
 # Importing each package runs its __init__.py, which registers all plugins.
 # To register a new method or data plugin, add it to the relevant __init__.py.
 import src.ktc_framework.methods   # noqa: F401 — registers all reconstruction methods
 import src.ktc_framework.loaders   # noqa: F401 — registers all data plugins
-
-# Register built-in metrics once at module load.
-# KTC score is the only metric (challenge constraint — see constraint.txt).
-register_metric("ktc_score", compute_ktc_score)
 
 console = Console(safe_box=True)  # ASCII box-drawing — safe on Windows cp1252 terminals
 
@@ -602,11 +596,16 @@ class BatchRunner:
             header_style="bold cyan",
             min_width=80,
         )
-        table.add_column("Method",        style="bold", min_width=20)
-        table.add_column("Level",         justify="center", min_width=7)
-        table.add_column("Sample",        justify="center", min_width=8)
-        table.add_column("KTC Score",     justify="right",  min_width=10)
-        table.add_column("Runtime (ms)",  justify="right",  min_width=13)
+        table.add_column("Method",       style="bold", min_width=20)
+        table.add_column("Level",        justify="center", min_width=7)
+        table.add_column("Sample",       justify="center", min_width=8)
+        table.add_column("KTC Score",    justify="right",  min_width=10)
+        table.add_column("Dice R",       justify="right",  min_width=8)
+        table.add_column("Dice C",       justify="right",  min_width=8)
+        table.add_column("IoU R",        justify="right",  min_width=8)
+        table.add_column("IoU C",        justify="right",  min_width=8)
+        table.add_column("Runtime (ms)", justify="right",  min_width=13)
+        table.add_column("Grade",        justify="center", min_width=7)
 
         for r in results:
             m = r["metrics"]
@@ -615,7 +614,12 @@ class BatchRunner:
                 str(r["level"]),
                 r["sample"],
                 f"{m['ktc_score']:.3f}",
+                f"{m.get('dice_resistive', 0.0):.3f}",
+                f"{m.get('dice_conductive', 0.0):.3f}",
+                f"{m.get('iou_resistive', 0.0):.3f}",
+                f"{m.get('iou_conductive', 0.0):.3f}",
                 f"{r['runtime_ms']:.2f}",
+                r.get("grade", "D"),
             )
 
         console.print()
@@ -692,11 +696,9 @@ class BatchRunner:
                 except Exception as e:
                     console.print(f"[yellow]Could not load qualitative data: {e}[/yellow]")
 
-            report_path = generate_html_report(results, self.output_dir, qualitative_data)
             console.print(
                 f"\n[green]Figures saved:[/green] {len(saved)} PNGs -> {self.output_dir / 'figures'}"
             )
-            console.print(f"[green]HTML report:[/green]   {report_path}")
         except Exception as exc:
             console.print(f"[yellow]Visualization skipped: {exc}[/yellow]")
 

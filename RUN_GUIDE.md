@@ -101,9 +101,9 @@ case 2:
     deltareco_pixgrid_segmented[ind1] = 2   # ← changed: 1 → 2
 ```
 
-**TensorFlow** is required to run the CNN (~500 MB, CPU-only on Windows):
+**TensorFlow and OpenCV** are required to run the CNN. Install both on system Python 3.12 (not the venv):
 ```bash
-pip install tensorflow
+py -3.12 -m pip install tensorflow opencv-python
 ```
 If TF is not installed, the framework will print a clear warning at startup
 and skip the CNN — all other methods still run normally.

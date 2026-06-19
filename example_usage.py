@@ -75,6 +75,9 @@ def project_to_dashboard(output_dir: str | Path, runs_root: str | Path = "output
 
     # -- per-run metrics: degradation curve / per-sample views
     per_run_path = output_dir / "per_run_metrics.json"
+    if not per_run_path.exists():
+        print(f"[ERROR] {per_run_path} not found — benchmark may have crashed mid-run.")
+        raise SystemExit(1)
     shutil.copyfile(per_run_path, run_dir / "per_run_metrics.json")
     with per_run_path.open(encoding="utf-8") as f:
         per_run = json.load(f)
@@ -97,7 +100,7 @@ def project_to_dashboard(output_dir: str | Path, runs_root: str | Path = "output
             # app.py's overlay fallback is keyed by sample only — copy a
             # single level (1) per method to avoid cross-level collisions
             overlay = Path(entry.get("overlay_path", ""))
-            if level == 1 and overlay.exists():
+            if int(level) == 1 and overlay.exists():
                 overlay_dir.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(overlay, overlay_dir / f"{method}_sample_{sample}.png")
                 copied += 1
@@ -105,7 +108,7 @@ def project_to_dashboard(output_dir: str | Path, runs_root: str | Path = "output
     print(f"      {copied} images arranged for the dashboard")
 
     # -- pointer LAST: only a fully prepared run becomes "latest"
-    (runs_root / "latest.txt").write_text(str(run_dir))
+    (runs_root / "latest.txt").write_text(str(run_dir.resolve()))
     print(f"      {runs_root / 'latest.txt'} -> {run_dir}")
     return run_dir
 
