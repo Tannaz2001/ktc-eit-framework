@@ -39,6 +39,7 @@ from src.ktc_framework.methods.eit_utils import (
     rasterize,
 )
 from src.ktc_framework.methods.method_plugin import MethodPlugin
+from src.ktc_framework.methods import _opcache
 from src.ktc_framework.types import DataBatch
 
 
@@ -103,6 +104,14 @@ class BackProjection(MethodPlugin):
         if cached is not None:
             return cached
 
+        # On-disk cache: skip the Jacobian build across processes (cache_key is
+        # already stable — no id() — so it is safe as a disk key).
+        disk_key = "bp|" + "|".join(str(x) for x in cache_key)
+        disk_val = _opcache.load(disk_key)
+        if disk_val is not None:
+            _JAC_CACHE[cache_key] = disk_val
+            return disk_val
+
         mesh = self._ensure_mesh()
         vincl = build_vincl(level, injection_patterns)
         J, _inv_gamma, _solver, _Usim = build_ktc_jacobian(
@@ -114,6 +123,7 @@ class BackProjection(MethodPlugin):
         )
         entry = (J, vincl)
         _JAC_CACHE[cache_key] = entry
+        _opcache.save(disk_key, entry)
         return entry
 
     def reconstruct(self, batch: DataBatch) -> np.ndarray:

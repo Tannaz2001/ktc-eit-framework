@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import shutil
@@ -14,6 +15,7 @@ from typing import Optional
 import numpy as np
 
 from src.ktc_framework.adapters.method_registry import register
+from src.ktc_framework.methods import _opcache
 from src.ktc_framework.methods.method_plugin import MethodPlugin
 from src.ktc_framework.types import DataBatch
 
@@ -125,6 +127,25 @@ _ABC1_MAIN   = str((_ABC1_CWD / "main_python.py")) if _ABC1_CWD else None
 _ABC1_PYTHON = _find_python_interpreter()
 _TF_AVAILABLE = _has_tensorflow(_ABC1_PYTHON)
 
+
+def _model_fingerprint() -> str:
+    """Hash of the CNN model weights (.h5), computed once. Included in the
+    output-cache key so a changed/retrained model invalidates the cache."""
+    if _ABC1_CWD is None:
+        return "nomodel"
+    try:
+        h = hashlib.md5()
+        for h5 in sorted(Path(_ABC1_CWD).rglob("*.h5")):
+            h.update(h5.name.encode("utf-8"))
+            h.update(str(h5.stat().st_size).encode("utf-8"))  # cheap content proxy
+            h.update(str(int(h5.stat().st_mtime)).encode("utf-8"))
+        return h.hexdigest()[:16] or "nomodel"
+    except Exception:
+        return "nomodel"
+
+
+_MODEL_FP = _model_fingerprint()
+
 # ── Import-time diagnostics — visible to every teammate on first run ──────
 # These use Rich directly so the warnings appear in the benchmark console
 # even when Python's logging module has no handlers configured.
@@ -230,6 +251,25 @@ class CompetitionCNN(MethodPlugin):
                 return np.zeros((256, 256), dtype=np.uint8)
 
             # ------------------------------------------------------------------
+            # 1b. Output cache. The CNN is deterministic: the same input data
+            # file + the same model weights always yield the same reconstruction,
+            # and the input never changes between runs. So cache the output keyed
+            # by (model fingerprint, data-file content hash, level) and skip the
+            # ~22 s TensorFlow subprocess on repeat runs across processes.
+            # Only successful results are cached (failures fall through to zeros).
+            # ------------------------------------------------------------------
+            cnn_key = None
+            try:
+                with open(data_file, "rb") as _df:
+                    _data_fp = hashlib.md5(_df.read()).hexdigest()
+                cnn_key = f"cnn|{_MODEL_FP}|{_data_fp}|L{int(level)}"
+                _cached = _opcache.load(cnn_key)
+                if _cached is not None:
+                    return _cached
+            except Exception:
+                cnn_key = None  # caching is best-effort; never block the run
+
+            # ------------------------------------------------------------------
             # 2. Build a temporary input directory with just the data .mat file.
             #
             # main_python.py lists *.mat files in input_path and filters out
@@ -320,6 +360,8 @@ class CompetitionCNN(MethodPlugin):
                 return np.zeros((256, 256), dtype=np.uint8)
 
             self.validate_output(reconstruction)
+            if cnn_key is not None:
+                _opcache.save(cnn_key, reconstruction)  # cache only successful output
             return reconstruction
 
         except subprocess.TimeoutExpired:
