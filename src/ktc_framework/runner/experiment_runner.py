@@ -246,6 +246,10 @@ class BatchRunner:
     def run(self) -> list[dict[str, Any]]:
         """Run all method × level × sample combinations and return results."""
         results: list[dict[str, Any]] = []
+        fig_dir = self.output_dir / "figures"
+        if fig_dir.exists():
+            import shutil
+            shutil.rmtree(fig_dir)
 
         levels  = self.config.get("levels",  [])
         samples = self.config.get("samples", [])
