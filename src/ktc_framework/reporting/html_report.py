@@ -360,16 +360,24 @@ def _reconstruction_section(results: list[dict], figures_dir: Path) -> str:
             f"{_metric(worst, 'ktc_score'):.3f}" if worst else "-",
             _esc(f"L{worst.get('level')} {worst.get('sample')}" if worst else "-"),
         ])
-        for item, label in [(best, "Best"), (worst, "Worst")]:
-            if not item:
-                continue
-            stem = f"{method}_level{item.get('level')}_sample{item.get('sample')}.png"
+
+    def sort_key(row: dict) -> tuple[str, int, str]:
+        return (str(row.get("method", "")), int(row.get("level", 1)), str(row.get("sample", "")))
+
+    for item in sorted(results, key=sort_key):
+        method = str(item.get("method", ""))
+        level = int(item.get("level", 1))
+        sample = str(item.get("sample", ""))
+        stem = f"{method}_level{level}_sample{sample}.png"
+        image_path = item.get("image_path")
+        uri = _embed_png(image_path) if image_path else ""
+        if not uri:
             uri = _embed_png(figures_dir / stem)
-            if uri:
-                cards.append(
-                    f'<figure><img src="{uri}" alt="{_esc(stem)}">'
-                    f'<figcaption>{_esc(method)} - {label} L{item.get("level")} {item.get("sample")}</figcaption></figure>'
-                )
+        if uri:
+            cards.append(
+                f'<figure><img src="{uri}" alt="{_esc(stem)}">'
+                f'<figcaption>{_esc(method)} - L{level} {sample} - KTC {_metric(item, "ktc_score"):.3f}</figcaption></figure>'
+            )
     return (
         "<section><h2>Reconstruction Images</h2>"
         + _table(["Method", "Runs", "Best KTC", "Best Sample", "Worst KTC", "Worst Sample"], rows)

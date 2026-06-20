@@ -2593,6 +2593,18 @@ def _render_html_report_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str,
         for display_method in scores.keys():
             ik = mm.get(display_method, display_method)
             for entry in per_run.get(ik, {}).values():
+                level = int(entry.get("level", 1))
+                sample = str(entry.get("sample", ""))
+                dashboard_png = (
+                    run_dir / "reconstructions" / f"level_{level}" /
+                    f"sample_{sample}" / f"{ik}.png"
+                )
+                figure_png = run_dir / "figures" / f"{ik}_level{level}_sample{sample}.png"
+                image_path = ""
+                for candidate in [dashboard_png, figure_png, Path(str(entry.get("png_path", "")))]:
+                    if candidate.exists():
+                        image_path = str(candidate)
+                        break
                 metrics = {
                     key: float(entry.get(key, 0.0))
                     for key in metric_keys
@@ -2600,10 +2612,11 @@ def _render_html_report_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str,
                 }
                 results.append({
                     "method": display_method,
-                    "level": int(entry.get("level", 1)),
-                    "sample": str(entry.get("sample", "")),
+                    "level": level,
+                    "sample": sample,
                     "metrics": metrics,
                     "hull": entry.get("hull") or {},
+                    "image_path": image_path,
                     "runtime_ms": float(entry.get("runtime_ms", 0.0)),
                     "grade": entry.get("grade") or letter_grade(calculate_composite_score(metrics)),
                     "composite_score": entry.get("composite_score", calculate_composite_score(metrics)),

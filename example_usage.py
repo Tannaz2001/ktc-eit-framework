@@ -56,33 +56,41 @@ def run_benchmark(config_path: Path) -> dict:
 def project_to_dashboard(output_dir: str | Path, runs_root: str | Path = "outputs") -> Path:
     """Snapshot BatchRunner output into a run folder app.py can read.
 
-    This is the ONLY code that creates run folders and writes latest.txt —
-    prepare_dashboard.py delegates here.
+    latest.txt is updated only after non-empty scores/per-run files and images
+    have been validated and copied. Empty/crashed runs must never become latest.
     """
     output_dir = Path(output_dir)
     runs_root = Path(runs_root)
-    run_dir = runs_root / f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    run_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"[2/3] Projecting scores to dashboard folder: {run_dir}")
+    print("[2/3] Validating benchmark outputs before dashboard projection")
 
-    # -- scores: per-method averages (the shape app.py's leaderboard reads)
     dashboard_scores = output_dir / "dashboard_scores.json"
     if not dashboard_scores.exists():
-        print(f"[ERROR] {dashboard_scores} not found — did the benchmark run?")
+        print(f"[ERROR] {dashboard_scores} not found - did the benchmark run?")
         raise SystemExit(1)
-    shutil.copyfile(dashboard_scores, run_dir / "scores.json")
+    with dashboard_scores.open(encoding="utf-8") as f:
+        dashboard_data = json.load(f)
 
-    # -- per-run metrics: degradation curve / per-sample views
     per_run_path = output_dir / "per_run_metrics.json"
     if not per_run_path.exists():
-        print(f"[ERROR] {per_run_path} not found — benchmark may have crashed mid-run.")
+        print(f"[ERROR] {per_run_path} not found - benchmark may have crashed mid-run.")
         raise SystemExit(1)
-    shutil.copyfile(per_run_path, run_dir / "per_run_metrics.json")
     with per_run_path.open(encoding="utf-8") as f:
         per_run = json.load(f)
 
-    # -- images: arrange into the layout app.py expects
+    total_runs = sum(len(v) for v in per_run.values()) if isinstance(per_run, dict) else 0
+    if not dashboard_data or not per_run or total_runs == 0:
+        print("[ERROR] Benchmark produced no scored reconstructions.")
+        print("        latest.txt was NOT changed; previous completed dashboard data is preserved.")
+        raise SystemExit(1)
+
+    run_dir = runs_root / f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    print(f"[2/3] Projecting scores to dashboard folder: {run_dir}")
+
+    shutil.copyfile(dashboard_scores, run_dir / "scores.json")
+    shutil.copyfile(per_run_path, run_dir / "per_run_metrics.json")
+
     recon_dir = run_dir / "reconstructions"
     overlay_dir = run_dir / "error_overlays"
     copied = 0
@@ -97,8 +105,6 @@ def project_to_dashboard(output_dir: str | Path, runs_root: str | Path = "output
                 shutil.copyfile(png, dest / f"{method}.png")
                 copied += 1
 
-            # app.py's overlay fallback is keyed by sample only — copy a
-            # single level (1) per method to avoid cross-level collisions
             overlay = Path(entry.get("overlay_path", ""))
             if int(level) == 1 and overlay.exists():
                 overlay_dir.mkdir(parents=True, exist_ok=True)
@@ -107,20 +113,15 @@ def project_to_dashboard(output_dir: str | Path, runs_root: str | Path = "output
 
     print(f"      {copied} images arranged for the dashboard")
 
-    # -- report figures: keep the already-rendered PNGs exactly as produced
-    # by the backend, so HTML export embeds the same visuals instead of
-    # regenerating charts with a different layout.
     src_figures = output_dir / "figures"
     if src_figures.exists():
         dst_figures = run_dir / "figures"
         shutil.copytree(src_figures, dst_figures, dirs_exist_ok=True)
         print(f"      figures copied for reports: {len(list(dst_figures.glob('*.png')))} PNGs")
 
-    # -- pointer LAST: only a fully prepared run becomes "latest"
     (runs_root / "latest.txt").write_text(str(run_dir.resolve()))
     print(f"      {runs_root / 'latest.txt'} -> {run_dir}")
     return run_dir
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(
