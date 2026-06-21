@@ -5,6 +5,7 @@ Data:   all original logic preserved unchanged
 """
 
 import streamlit as st
+import ast
 import json
 import re
 import subprocess
@@ -59,18 +60,6 @@ section[data-testid="stSidebar"] button[data-testid="stBaseButton-headerNoPaddin
   --warn-bg:#fff8c5; --warn-bd:#f0d847;
   --inp-bg:#ffffff; --inp-bd:#d0d7de; --inp-tx:#1f2328;
   --chk-bg:#ffffff;
-}
-
-/* -- DARK theme tokens - applied when .eit-dark on stApp -- */
-.eit-dark{
-  --bg:#0d1117; --sur:#161b22; --bd:#30363d;
-  --tx:#e6edf3;  --tx2:#c9d1d9; --tx3:#8b949e;
-  --grn:#3fb950; --grn-bg:#0d2119; --grn-bd:#1a4e2a;
-  --c1:#3fb950; --c2:#bc8cff; --c3:#58a6ff; --c4:#d29922; --c5:#f85149;
-  --amb:#d29922; --red:#f85149;
-  --warn-bg:#2a1f00; --warn-bd:#5a4200;
-  --inp-bg:#21262d; --inp-bd:#30363d; --inp-tx:#e6edf3;
-  --chk-bg:#21262d;
 }
 
 /* -- entire app background + text -- */
@@ -326,43 +315,6 @@ p,.stMarkdown p{font-size:11px!important;color:var(--tx2)!important;line-height:
 ::-webkit-scrollbar-track{background:var(--bg);}
 ::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px;}
 
-/* -- dark mode: stApp class override - covers every element -- */
-.eit-dark [data-testid="stApp"],
-.eit-dark .main,
-.eit-dark .main .block-container,
-.eit-dark [data-testid="stHeader"],
-.eit-dark [data-testid="stToolbar"],
-.eit-dark [data-testid="stDecoration"],
-.eit-dark [data-testid="stStatusWidget"]{
-  background:var(--bg)!important;color:var(--tx)!important;
-}
-.eit-dark section[data-testid="stSidebar"],
-.eit-dark section[data-testid="stSidebar"]>div{
-  background:var(--sur)!important;border-right-color:var(--bd)!important;
-}
-.eit-dark section[data-testid="stSidebar"] *{color:var(--tx2)!important;}
-.eit-dark .stMarkdown,.eit-dark .stMarkdown *,.eit-dark p{color:var(--tx2)!important;}
-.eit-dark [data-testid="stDataFrame"]>div{background:var(--sur)!important;border-color:var(--bd)!important;}
-.eit-dark .stDataFrame thead th{background:var(--bg)!important;color:var(--tx3)!important;border-color:var(--bd)!important;}
-.eit-dark .stDataFrame tbody td{background:var(--sur)!important;color:var(--tx)!important;}
-.eit-dark .stDataFrame tbody tr:hover td{background:var(--bd)!important;}
-.eit-dark .stTabs [data-baseweb="tab-list"]{background:var(--sur)!important;border-color:var(--bd)!important;}
-.eit-dark .stTabs [data-baseweb="tab"]{color:var(--tx3)!important;background:transparent!important;}
-.eit-dark .stTabs [aria-selected="true"]{background:var(--bg)!important;color:var(--grn)!important;border-color:var(--bd)!important;}
-.eit-dark .dash-header{background:var(--sur)!important;border-color:var(--bd)!important;}
-.eit-dark .stSelectbox>div>div,.eit-dark .stMultiSelect>div>div{background:var(--sur)!important;border-color:var(--bd)!important;color:var(--tx2)!important;}
-.eit-dark [data-baseweb="menu"]{background:var(--sur)!important;border-color:var(--bd)!important;}
-.eit-dark [data-baseweb="menu"] li{background:var(--sur)!important;color:var(--tx2)!important;}
-.eit-dark [data-baseweb="menu"] li:hover{background:var(--bd)!important;}
-.eit-dark .stButton>button{color:var(--grn)!important;border-color:var(--grn-bd)!important;background:transparent!important;}
-.eit-dark .stButton>button:hover{background:var(--grn-bg)!important;}
-.eit-dark .stAlert{background:var(--sur)!important;border-color:var(--bd)!important;color:var(--tx)!important;}
-.eit-dark .streamlit-expanderHeader{background:var(--sur)!important;border-color:var(--bd)!important;color:var(--tx)!important;}
-.eit-dark .streamlit-expanderContent{background:var(--sur)!important;border-color:var(--bd)!important;}
-.eit-dark [data-testid="stCheckbox"] label{color:var(--tx2)!important;}
-.eit-dark input[type="text"],.eit-dark input[type="number"]{background:var(--inp-bg)!important;border-color:var(--inp-bd)!important;color:var(--inp-tx)!important;}
-.eit-dark h1,.eit-dark h2,.eit-dark h3{color:var(--tx)!important;}
-
 /* ---- UI layout polish: readable scale, aligned controls, less top whitespace ---- */
 [data-testid="stHeader"]{background:transparent!important;height:0!important;min-height:0!important;display:none!important;}
 [data-testid="stToolbar"],[data-testid="stDecoration"],[data-testid="stStatusWidget"]{display:none!important;}
@@ -592,6 +544,14 @@ from src.ktc_framework.reporting.data_layer import (
 # backend). ReferenceFEM and RegularizedFEMReconstruction are exact aliases of
 # LinearDifferenceReconstruction, so showing them duplicates the same result.
 HIDDEN_METHODS = {"ReferenceFEM", "RegularizedFEMReconstruction"}
+BUILTIN_METHODS = {
+    "BackProjection",
+    "CompetitionCNN",
+    "GaussNewton",
+    "LinearDifferenceReconstruction",
+    "ReferenceFEM",
+    "RegularizedFEMReconstruction",
+}
 
 METRIC_SPECS = [
     ("KTC Score", "ktc_score"),
@@ -606,9 +566,9 @@ ALL_METRICS_SIDEBAR = [label for label, _ in METRIC_SPECS]
 
 
 @st.cache_data
-def load_data(cache_key: str = "") -> Tuple[Dict, Dict, Dict]:
-    """Load scores + per-run metrics from the latest run folder."""
-    scores, per_run = load_run_data(find_latest_run())
+def load_data(run_dir: str) -> Tuple[Dict, Dict, Dict]:
+    """Load scores + per-run metrics from the selected run folder."""
+    scores, per_run = load_run_data(Path(run_dir))
     scores = {k: v for k, v in scores.items() if k not in HIDDEN_METHODS}
     per_run = {k: v for k, v in per_run.items() if k not in HIDDEN_METHODS}
     return scores, per_run, create_method_mapping(scores, per_run)
@@ -619,6 +579,8 @@ def apply_dashboard_filters(scores: Dict, per_run: Dict, mm: Dict,
                             selected_samples: List[str]) -> Tuple[Dict, Dict, Dict]:
     """Apply sidebar method, level, and sample filters for every tab/report."""
     selected_methods = list(scores.keys()) if selected_methods is None else selected_methods
+    removed_external = set(st.session_state.get('_removed_external_methods', []))
+    selected_methods = [method for method in selected_methods if method not in removed_external]
     selected_samples = selected_samples if selected_samples is not None else ['A', 'B', 'C']
     sample_set = {str(s).strip().lower() for s in selected_samples}
     lvl_min, lvl_max = level_range
@@ -695,7 +657,12 @@ def letter_grade(score:float) -> str:
     return 'A' if score>=60 else 'B' if score>=30 else 'C' if score>=10 else 'D'
 
 def all_methods(scores:Dict) -> List[str]:
-    return list(scores.keys())+[m for m in st.session_state.get('custom_methods',[]) if m not in scores]
+    removed_external = set(st.session_state.get('_removed_external_methods', []))
+    return [
+        m for m in list(scores.keys())
+        + [m for m in st.session_state.get('custom_methods', []) if m not in scores]
+        if m not in removed_external
+    ]
 
 def method_display_name(method_name: str) -> str:
     """Format internal method IDs for compact, readable sidebar labels."""
@@ -759,39 +726,6 @@ def build_leaderboard_figure(scores: Dict, df: pd.DataFrame) -> go.Figure:
     )
     fig.update_yaxes(autorange="reversed")
     return fig
-
-def inject_theme(dark: bool):
-    """Add/remove eit-dark class on the stApp element so CSS vars cascade everywhere."""
-    if dark:
-        js = """
-        (function(){
-          var el=window.parent.document.querySelector('[data-testid="stApp"]');
-          if(el){el.classList.add('eit-dark');}
-          // also target iframes
-          window.parent.document.querySelectorAll('iframe').forEach(function(f){
-            try{
-              var d=f.contentDocument||f.contentWindow.document;
-              var a=d.querySelector('[data-testid="stApp"]')||d.body;
-              if(a){a.classList.add('eit-dark');}
-            }catch(e){}
-          });
-        })();
-        """
-    else:
-        js = """
-        (function(){
-          window.parent.document.querySelectorAll('.eit-dark').forEach(function(el){
-            el.classList.remove('eit-dark');
-          });
-          window.parent.document.querySelectorAll('iframe').forEach(function(f){
-            try{
-              var d=f.contentDocument||f.contentWindow.document;
-              d.querySelectorAll('.eit-dark').forEach(function(el){el.classList.remove('eit-dark');});
-            }catch(e){}
-          });
-        })();
-        """
-    st.markdown(f"<script>{js}</script>", unsafe_allow_html=True)
 
 # =========================================================
 # BENCHMARK LAUNCHER - the dashboard drives the backend
@@ -1045,37 +979,170 @@ def append_method_to_config(method_name: str,
     return False
 
 
+def remove_method_from_config(method_name: str,
+                              config_path: Path = Path("configs/ktc_all_methods.yaml")) -> bool:
+    """Remove a method list entry from ktc_all_methods.yaml if present."""
+    if not config_path.exists():
+        return False
+    lines = config_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    target = f"- {method_name}"
+    kept = [line for line in lines if line.strip() != target]
+    if len(kept) == len(lines):
+        return False
+    config_path.write_text("".join(kept), encoding="utf-8")
+    return True
+
+
+def remove_external_method_state(method_name: str) -> None:
+    """Remove an external method from dashboard session state and widgets."""
+    removed = set(st.session_state.get('_removed_external_methods', []))
+    removed.add(method_name)
+    st.session_state['_removed_external_methods'] = sorted(removed)
+    st.session_state.uploaded_methods.pop(method_name, None)
+    for key in ("_available_methods", "selected_methods", "_known_available_methods", "custom_methods"):
+        values = st.session_state.get(key)
+        if isinstance(values, list):
+            st.session_state[key] = [value for value in values if value != method_name]
+    widget_key = f"method_{method_name}"
+    if widget_key in st.session_state:
+        del st.session_state[widget_key]
+
+
+def reset_method_upload_widget() -> None:
+    """Force Streamlit's file uploader to clear its displayed filename."""
+    st.session_state['_method_upload_nonce'] = st.session_state.get('_method_upload_nonce', 0) + 1
+    st.session_state.pop('_last_method_upload', None)
+
+
+def ensure_method_plugin_registered(plugin_path: Path) -> List[str]:
+    """Add @register_method to classes that look like reconstruction methods."""
+    text = plugin_path.read_text(encoding="utf-8")
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return []
+
+    def has_register_decorator(cls: ast.ClassDef) -> bool:
+        for dec in cls.decorator_list:
+            if isinstance(dec, ast.Name) and dec.id == "register_method":
+                return True
+            if isinstance(dec, ast.Attribute) and dec.attr == "register_method":
+                return True
+        return False
+
+    candidates: list[ast.ClassDef] = []
+    for node in tree.body:
+        if not isinstance(node, ast.ClassDef) or has_register_decorator(node):
+            continue
+        has_reconstruct = any(
+            isinstance(item, ast.FunctionDef) and item.name == "reconstruct"
+            for item in node.body
+        )
+        if has_reconstruct:
+            candidates.append(node)
+
+    if not candidates:
+        return []
+
+    lines = text.splitlines(keepends=True)
+    has_import = "register_method" in text and "src.ktc_framework.registry" in text
+    if not has_import:
+        insert_at = 0
+        if (tree.body and isinstance(tree.body[0], ast.Expr)
+                and isinstance(getattr(tree.body[0], "value", None), ast.Constant)
+                and isinstance(tree.body[0].value.value, str)):
+            insert_at = getattr(tree.body[0], "end_lineno", tree.body[0].lineno)
+        for idx, line in enumerate(lines[insert_at:], start=insert_at):
+            stripped = line.strip()
+            if stripped.startswith(("import ", "from ")) or not stripped:
+                insert_at = idx + 1
+        lines.insert(insert_at, "from src.ktc_framework.registry import register_method\n")
+
+    for cls in sorted(candidates, key=lambda item: item.lineno, reverse=True):
+        line_no = min([d.lineno for d in cls.decorator_list] + [cls.lineno]) - 1
+        indent = lines[line_no][:len(lines[line_no]) - len(lines[line_no].lstrip())]
+        lines.insert(line_no, f"{indent}@register_method\n")
+
+    plugin_path.write_text("".join(lines), encoding="utf-8")
+    return [cls.name for cls in candidates]
+
+
+def plugin_method_candidates(plugin_path: Path) -> List[str]:
+    """Return class names in a plugin that can act as reconstruction methods."""
+    try:
+        tree = ast.parse(plugin_path.read_text(encoding="utf-8"))
+    except SyntaxError:
+        return []
+
+    names: list[str] = []
+    for node in tree.body:
+        if not isinstance(node, ast.ClassDef):
+            continue
+        has_reconstruct = any(
+            isinstance(item, ast.FunctionDef) and item.name == "reconstruct"
+            for item in node.body
+        )
+        has_register = any(
+            (isinstance(dec, ast.Name) and dec.id == "register_method")
+            or (isinstance(dec, ast.Attribute) and dec.attr == "register_method")
+            for dec in node.decorator_list
+        )
+        if has_reconstruct or has_register:
+            names.append(node.name)
+    return names
+
+
 def discover_available_methods() -> List[str]:
     """Collect scored, configured, and registered methods without running benchmarks."""
     methods: List[str] = []
-
-    def add(name: str):
-        if name and name not in methods and name not in HIDDEN_METHODS:
-            methods.append(name)
-
-    try:
-        scores, _ = load_run_data(find_latest_run())
-        for name in scores.keys():
-            add(name)
-    except Exception:
-        pass
+    removed_external = set(st.session_state.get('_removed_external_methods', []))
+    configured_methods: set[str] = set()
+    external_methods_on_disk: dict[str, str] = {}
 
     cfg_path = Path("configs/ktc_all_methods.yaml")
     if cfg_path.exists():
         try:
             import yaml as _yaml
             cfg = _yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
-            for name in cfg.get("methods", []):
-                add(str(name))
+            configured_methods = {str(name) for name in cfg.get("methods", [])}
         except Exception:
-            pass
+            configured_methods = set()
+
+    ext_dir = Path("external_methods")
+    if ext_dir.exists():
+        for file_path in ext_dir.glob("*.py"):
+            for name in plugin_method_candidates(file_path):
+                external_methods_on_disk[name] = file_path.name
+
+    def add(name: str):
+        if (name and name not in methods and name not in HIDDEN_METHODS
+                and name not in removed_external):
+            methods.append(name)
+
+    def is_visible_source(name: str) -> bool:
+        return (
+            name in BUILTIN_METHODS
+            or name in configured_methods
+            or name in external_methods_on_disk
+            or name in st.session_state.get('uploaded_methods', {})
+        )
+
+    try:
+        scores, _ = load_run_data(find_latest_run())
+        for name in scores.keys():
+            if is_visible_source(str(name)):
+                add(str(name))
+    except Exception:
+        pass
+
+    for name in configured_methods:
+        add(str(name))
 
     if 'uploaded_methods' not in st.session_state:
         st.session_state.uploaded_methods = {}
     for name in st.session_state.uploaded_methods.keys():
         add(name)
 
-    ext_dir = Path("external_methods")
     if ext_dir.exists():
         try:
             from src.ktc_framework.registry import (
@@ -1088,10 +1155,8 @@ def discover_available_methods() -> List[str]:
                 _load_ext([str(ext_dir)])
                 discovered = sorted(set(_list_methods()) - before)
                 for name in discovered:
-                    fname = next(
-                        (f.name for f in py_files if name.lower() in f.stem.lower()),
-                        py_files[0].name,
-                    )
+                    fname = external_methods_on_disk.get(name) or next(
+                        (f.name for f in py_files if name.lower() in f.stem.lower()), py_files[0].name)
                     st.session_state.uploaded_methods.setdefault(name, fname)
                     add(name)
         except Exception:
@@ -1105,9 +1170,6 @@ def discover_available_methods() -> List[str]:
 # =========================================================
 def render_sidebar():
     # -- Brand ------------------------------------------------
-    if 'dark_mode' not in st.session_state:
-        st.session_state.dark_mode = st.query_params.get('dark', 'false') == 'true'
-
     # Data-age label: read latest.txt mtime to tell user how fresh the dashboard is
     import time as _time
     _lt = Path("outputs/latest.txt")
@@ -1132,7 +1194,6 @@ def render_sidebar():
     </div>
     """, unsafe_allow_html=True)
 
-    # -- Dark mode toggle --------------------------------------
     # -- Run Benchmark - one button drives the whole backend ---
     st.sidebar.markdown("## Run Benchmark")
     # Estimate runtime: read method count from YAML (~4 min per method on real data)
@@ -1227,7 +1288,12 @@ def render_sidebar():
         '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:#848d97;'
         'margin-bottom:8px">Checkbox = show in charts</div>',
         unsafe_allow_html=True)
-    available_methods = st.session_state.get('_available_methods', [])
+    removed_external = set(st.session_state.get('_removed_external_methods', []))
+    available_methods = [
+        m for m in st.session_state.get('_available_methods', [])
+        if m not in removed_external
+    ]
+    st.session_state['_available_methods'] = available_methods
     if 'selected_methods' not in st.session_state:
         st.session_state.selected_methods = available_methods.copy()
     previous_available = st.session_state.get('_known_available_methods', [])
@@ -1356,18 +1422,39 @@ def render_sidebar():
         if py_files:
             before = set(_list_methods())
             try:
+                auto_fixed = []
+                candidates_by_file = {}
+                for file_path in py_files:
+                    auto_fixed.extend(ensure_method_plugin_registered(file_path))
+                    candidates_by_file[file_path.name] = plugin_method_candidates(file_path)
                 _load_ext([str(ext_dir)])
-                new_methods = sorted(set(_list_methods()) - before)
-                for nm in new_methods:
+                available_after = set(_list_methods())
+                ready_methods = sorted(
+                    {name for names in candidates_by_file.values() for name in names if name in available_after}
+                )
+                new_methods = sorted(available_after - before)
+                for nm in ready_methods:
                     fname = next(
                         (f.name for f in py_files
                          if nm.lower() in f.stem.lower()), py_files[0].name
                     )
                     st.session_state.uploaded_methods[nm] = fname
-                if new_methods:
-                    st.sidebar.success(f"Found: {', '.join(new_methods)}")
+                removed = set(st.session_state.get('_removed_external_methods', []))
+                removed.difference_update(ready_methods)
+                st.session_state['_removed_external_methods'] = sorted(removed)
+                current_available = st.session_state.get('_available_methods', [])
+                for nm in ready_methods:
+                    if nm not in current_available:
+                        current_available.append(nm)
+                st.session_state['_available_methods'] = current_available
+                if ready_methods:
+                    label = "Found" if new_methods else "Already registered"
+                    st.session_state['_method_refresh_msg'] = f"{label}: {', '.join(ready_methods)}"
+                    if auto_fixed:
+                        st.session_state['_method_refresh_msg'] += " (added missing @register_method)"
+                    st.rerun()
                 else:
-                    st.sidebar.info("No new methods found in external_methods/")
+                    st.sidebar.info("No usable method classes found in external_methods/")
             except Exception as exc:
                 st.sidebar.error(f"Scan failed: {exc}")
         else:
@@ -1386,20 +1473,25 @@ def render_sidebar():
                 f'color:var(--tx2);padding:3px 0 1px">- {nm}<br>'
                 f'<span style="font-size:10px;color:var(--tx3)">{fname}</span></div>',
                 unsafe_allow_html=True)
-            ca, cb, cc = st.sidebar.columns([2, 1, 1])
-            if ca.button("Run", key=f"reg_{nm}",
-                         help=f"Run benchmark for {nm} only -> configs/runtime_{nm}.yaml"):
-                if launch_benchmark(write_runtime_config(nm)):
-                    st.rerun()
-            if cb.button("+all", key=f"cfg_{nm}",
-                         help="Add to ktc_all_methods.yaml for future full runs"):
+            ca, cb = st.sidebar.columns(2)
+            if ca.button("Add", key=f"cfg_{nm}",
+                         help="Add to ktc_all_methods.yaml for future benchmark runs"):
                 if append_method_to_config(nm):
                     st.sidebar.success(f"{nm} added to ktc_all_methods.yaml")
                 else:
                     st.sidebar.info("Already in config")
-            if cc.button("x", key=f"rm_up_{nm}", help="Remove plugin file from disk"):
+            if cb.button("Remove", key=f"rm_up_{nm}", help="Remove plugin file from disk"):
+                try:
+                    from src.ktc_framework.registry import unregister_method as _unregister_method
+                    _unregister_method(nm)
+                except Exception:
+                    pass
                 (Path("external_methods") / fname).unlink(missing_ok=True)
-                del st.session_state.uploaded_methods[nm]
+                remove_method_from_config(nm)
+                remove_external_method_state(nm)
+                reset_method_upload_widget()
+                st.cache_data.clear()
+                st.session_state['_method_refresh_msg'] = f"Removed: {nm}"
                 st.rerun()
     else:
         st.sidebar.markdown(
@@ -1414,7 +1506,8 @@ def render_sidebar():
         'color:var(--tx3);margin:8px 0 5px;text-transform:uppercase;'
         'letter-spacing:.1em">Upload new plugin</div>',
         unsafe_allow_html=True)
-    up = st.sidebar.file_uploader("Upload plugin (.py)", type=["py"], key="method_upload",
+    upload_key = f"method_upload_{st.session_state.get('_method_upload_nonce', 0)}"
+    up = st.sidebar.file_uploader("Upload plugin (.py)", type=["py"], key=upload_key,
                                   label_visibility="collapsed")
     if up is not None:
         sig = f"{up.name}:{up.size}"
@@ -1426,17 +1519,39 @@ def render_sidebar():
             before = set(_list_methods())
             dest.write_bytes(up.getbuffer())
             try:
+                auto_fixed = ensure_method_plugin_registered(dest)
+                candidate_names = plugin_method_candidates(dest)
                 _load_ext([str(dest_dir)])
-                new_methods = sorted(set(_list_methods()) - before)
-                if new_methods:
-                    for nm in new_methods:
+                available_after = set(_list_methods())
+                new_methods = sorted(name for name in candidate_names if name not in before and name in available_after)
+                ready_methods = sorted(
+                    nm for nm in candidate_names if nm in available_after
+                )
+                if ready_methods:
+                    for nm in ready_methods:
                         if not callable(getattr(_get_method(nm), "reconstruct", None)):
                             st.sidebar.warning(f"{nm} has no reconstruct(batch) - will fail at run time.")
                         st.session_state.uploaded_methods[nm] = dest.name
-                    st.sidebar.success(f"Registered: {', '.join(new_methods)}")
+                    removed = set(st.session_state.get('_removed_external_methods', []))
+                    removed.difference_update(ready_methods)
+                    st.session_state['_removed_external_methods'] = sorted(removed)
+                    current_available = st.session_state.get('_available_methods', [])
+                    for nm in ready_methods:
+                        if nm not in current_available:
+                            current_available.append(nm)
+                    st.session_state['_available_methods'] = current_available
+                    label = "Registered" if new_methods else "Already registered"
+                    st.session_state['_method_refresh_msg'] = f"{label}: {', '.join(ready_methods)}"
+                    if auto_fixed:
+                        st.session_state['_method_refresh_msg'] += " (added missing @register_method)"
+                    reset_method_upload_widget()
+                    st.rerun()
                 else:
                     dest.unlink(missing_ok=True)
-                    st.sidebar.warning("No @register_method class found - file removed.")
+                    st.sidebar.warning(
+                        "No usable method class found - file removed. "
+                        "Add a class with reconstruct(self, batch), or decorate it with @register_method."
+                    )
             except Exception as exc:
                 dest.unlink(missing_ok=True)
                 st.sidebar.error(f"Rejected {dest.name}: {exc}")
@@ -1452,7 +1567,25 @@ def render_sidebar():
     st.sidebar.markdown("---")
     st.sidebar.markdown("## Run History")
     runs_root = Path("outputs")
-    run_dirs = sorted(runs_root.glob("run_*"), reverse=True) if runs_root.exists() else []
+    def _dashboard_run_has_data(run_dir: Path) -> bool:
+        scores_path = run_dir / "scores.json"
+        per_run_path = run_dir / "per_run_metrics.json"
+        if not scores_path.exists() or not per_run_path.exists():
+            return False
+        try:
+            with scores_path.open(encoding="utf-8") as f:
+                scores_data = json.load(f)
+            with per_run_path.open(encoding="utf-8") as f:
+                per_run_data = json.load(f)
+            total = sum(len(v) for v in per_run_data.values()) if isinstance(per_run_data, dict) else 0
+            return bool(scores_data) and bool(per_run_data) and total > 0
+        except Exception:
+            return False
+
+    run_dirs = [
+        d for d in sorted(runs_root.glob("run_*"), reverse=True)
+        if _dashboard_run_has_data(d)
+    ] if runs_root.exists() else []
 
     if run_dirs:
         run_names = [d.name for d in run_dirs]
@@ -1469,7 +1602,7 @@ def render_sidebar():
 
         if st.sidebar.button("Load selected run", use_container_width=True, key="load_run_btn"):
             selected_path = runs_root / chosen_run
-            (runs_root / "latest.txt").write_text(str(selected_path))
+            (runs_root / "latest.txt").write_text(str(selected_path.resolve()))
             st.cache_data.clear()
             st.rerun()
 
@@ -1578,11 +1711,11 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
 
     pc = st.session_state.get('_pcolors', {})
     row_bg    = pc.get('bg', '#f6f8fa')
-    cell_col  = pc.get('text', '#1f2328') if st.session_state.get('dark_mode') else '#1f2328'
+    cell_col  = '#1f2328'
     hdr_bg    = pc.get('bg', '#f6f8fa')
     hdr_col   = pc.get('text', '#848d97')
-    brd       = '#30363d' if st.session_state.get('dark_mode') else '#d0d7de'
-    sep       = '#30363d' if st.session_state.get('dark_mode') else '#f6f8fa'
+    brd       = '#d0d7de'
+    sep       = '#f6f8fa'
 
     rows_html = ''
     for _, row in filtered_df.iterrows():
@@ -1884,9 +2017,6 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
         rc_df = pd.DataFrame(root_causes)
 
         def _rc_color(grade):
-            dark = st.session_state.get('dark_mode', False)
-            if dark:
-                return 'rgba(207,34,46,0.18)' if grade == 'D' else 'rgba(191,135,0,0.18)'
             return '#ffebe9' if grade == 'D' else '#fff8c5'
 
         rows_html2 = ''
@@ -2886,19 +3016,15 @@ def main():
         st.session_state.setdefault('_available_methods', [])
 
     pdf_export_slot = render_sidebar()
-    dark = st.session_state.get('dark_mode', False)
-    inject_theme(dark)
-
-    # Plot color helpers that respect dark mode
-    plot_bg     = '#161b22' if dark else '#f6f8fa'
-    plot_paper  = 'rgba(22,27,34,0)' if dark else 'rgba(0,0,0,0)'
-    plot_grid   = '#30363d' if dark else '#d0d7de'
-    plot_text   = '#8b949e' if dark else '#848d97'
-    plot_legend = 'rgba(22,27,34,.9)' if dark else 'rgba(255,255,255,.9)'
+    plot_bg     = '#f6f8fa'
+    plot_paper  = 'rgba(0,0,0,0)'
+    plot_grid   = '#d0d7de'
+    plot_text   = '#848d97'
+    plot_legend = 'rgba(255,255,255,.9)'
     st.session_state['_pcolors'] = dict(bg=plot_bg, paper=plot_paper,
                                         grid=plot_grid, text=plot_text, legend=plot_legend)
 
-    header_bg = 'var(--sur)'  # CSS vars handle dark mode automatically now
+    header_bg = 'var(--sur)'
 
     # Header
     st.markdown("""
@@ -2913,8 +3039,12 @@ def main():
 
     try:
         latest_run = find_latest_run()
-        cache_key = latest_run.name
-        scores, per_run, mm = load_data(cache_key)
+        scores, per_run, mm = load_data(str(latest_run.resolve()))
+        removed_external = set(st.session_state.get('_removed_external_methods', []))
+        if removed_external:
+            scores = {k: v for k, v in scores.items() if k not in removed_external}
+            per_run = {k: v for k, v in per_run.items() if k not in removed_external}
+            mm = {k: v for k, v in mm.items() if k not in removed_external and v not in removed_external}
 
         # Active run label (+ red badge when runs were scored against a
         # missing ground truth - their 0.0 scores are meaningless)
