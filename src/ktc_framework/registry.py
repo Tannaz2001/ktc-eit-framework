@@ -76,6 +76,11 @@ def list_methods() -> list[str]:
     return sorted(_METHODS)
 
 
+def unregister_method(name: str) -> None:
+    """Remove a runtime-registered method from the active process registry."""
+    _METHODS.pop(name, None)
+
+
 def load_external_methods(plugin_paths: list[str]) -> None:
     """Import external method plugins from runtime-configured folders.
 

@@ -22,17 +22,35 @@ import pandas as pd
 # Run discovery + loading (used by app.py)
 # ---------------------------------------------------------------------------
 
+def _run_has_data(run_dir: Path) -> bool:
+    """Return True only for run folders with non-empty scores and per-run data."""
+    try:
+        scores_path = run_dir / "scores.json"
+        per_run_path = run_dir / "per_run_metrics.json"
+        if not scores_path.exists() or not per_run_path.exists():
+            return False
+        with scores_path.open(encoding="utf-8") as f:
+            scores = json.load(f)
+        with per_run_path.open(encoding="utf-8") as f:
+            per_run = json.load(f)
+        total_runs = sum(len(v) for v in per_run.values()) if isinstance(per_run, dict) else 0
+        return bool(scores) and bool(per_run) and total_runs > 0
+    except Exception:
+        return False
+
+
 def find_latest_run(runs_root: str | Path = "outputs") -> Path:
     """Return the active run folder: latest.txt pointer, newest run_*, or flat root."""
     runs_root = Path(runs_root)
     pointer = runs_root / "latest.txt"
     if pointer.exists():
         latest = Path(pointer.read_text().strip())
-        if latest.exists():
+        if latest.exists() and _run_has_data(latest):
             return latest
     run_dirs = sorted(runs_root.glob("run_*"), reverse=True)
-    if run_dirs:
-        return run_dirs[0]
+    for run_dir in run_dirs:
+        if _run_has_data(run_dir):
+            return run_dir
     return runs_root
 
 
