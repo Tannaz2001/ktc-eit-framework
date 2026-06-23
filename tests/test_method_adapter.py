@@ -33,7 +33,7 @@ def test_method_adapter_rejects_invalid_shape():
 def test_load_external_methods_registers_real_runtime_method():
     load_external_methods(["external_methods"])
 
-    method_cls = get_method("DampedLeastSquaresReconstruction")
+    method_cls = get_method("LinearDifferenceReconstruction")
 
-    assert method_cls.__name__ == "DampedLeastSquaresReconstruction"
+    assert method_cls.__name__ == "LinearDifferenceReconstruction"
     assert hasattr(method_cls(), "reconstruct")
