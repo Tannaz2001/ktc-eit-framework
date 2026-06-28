@@ -1023,10 +1023,15 @@ def ensure_method_plugin_registered(plugin_path: Path) -> List[str]:
         return []
 
     def has_register_decorator(cls: ast.ClassDef) -> bool:
+        # Recognise both decorator names the framework uses: @register_method
+        # and @register. Without this, a class already decorated with @register
+        # is treated as undecorated, the auto-fixer injects another decorator,
+        # and the rewrite corrupts indentation ("unexpected indent" on upload).
+        _known = {"register_method", "register"}
         for dec in cls.decorator_list:
-            if isinstance(dec, ast.Name) and dec.id == "register_method":
+            if isinstance(dec, ast.Name) and dec.id in _known:
                 return True
-            if isinstance(dec, ast.Attribute) and dec.attr == "register_method":
+            if isinstance(dec, ast.Attribute) and dec.attr in _known:
                 return True
         return False
 
