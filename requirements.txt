@@ -2,6 +2,7 @@
 numpy
 pytest
 scipy
+pyeit
 
 # Streamlit dashboard dependencies
 streamlit>=1.28.0
