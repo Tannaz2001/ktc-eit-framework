@@ -328,26 +328,28 @@ class KTCDataPlugin:
         -------
         np.ndarray
             Shape ``(256, 256)`` uint8, labels ``{0, 1, 2}``.
-            Returns zeros if the file is absent or unreadable.
+
+        Raises
+        ------
+        FileNotFoundError
+            If the GT file does not exist on disk.
+        ValueError
+            If the file is unreadable, missing the expected key, or has the
+            wrong spatial shape.
         """
         if not os.path.exists(path):
-            warnings.warn(
-                f"Ground-truth file not found: {path} — returning zeros(256,256).",
-                RuntimeWarning,
-                stacklevel=3,
+            raise FileNotFoundError(
+                f"Ground-truth file not found: {path}\n"
+                f"  Check that GroundTruths/ is present under dataset_root "
+                f"and that the level/sample numbering matches."
             )
-            return np.zeros((256, 256), dtype=np.uint8)
 
         try:
             mat = _load_mat(path)
         except Exception as exc:
-            warnings.warn(
-                f"Could not load ground truth from {path}: {exc} "
-                f"— returning zeros(256,256).",
-                RuntimeWarning,
-                stacklevel=3,
-            )
-            return np.zeros((256, 256), dtype=np.uint8)
+            raise ValueError(
+                f"Could not load ground truth from {path}: {exc}"
+            ) from exc
 
         # Try common key names for the truth / segmentation array
         truth_array: Optional[np.ndarray] = None
@@ -358,13 +360,10 @@ class KTCDataPlugin:
 
         if truth_array is None:
             visible_keys = [k for k in mat if not k.startswith("_")]
-            warnings.warn(
+            raise ValueError(
                 f"No recognised ground-truth key in {path}. "
-                f"Keys found: {visible_keys} — returning zeros(256,256).",
-                RuntimeWarning,
-                stacklevel=3,
+                f"Keys found: {visible_keys}. Expected one of: truth, Truth, gt, GT, labels, mask."
             )
-            return np.zeros((256, 256), dtype=np.uint8)
 
         gt = np.asarray(truth_array)
 
@@ -374,13 +373,10 @@ class KTCDataPlugin:
 
         # Validate spatial shape
         if gt.shape != (256, 256):
-            warnings.warn(
-                f"Ground-truth shape {gt.shape} != (256, 256) in {path} "
-                f"— returning zeros(256,256).",
-                RuntimeWarning,
-                stacklevel=3,
+            raise ValueError(
+                f"Ground-truth shape {gt.shape} != (256, 256) in {path}. "
+                f"Ensure the GT file matches the KTC dataset format."
             )
-            return np.zeros((256, 256), dtype=np.uint8)
 
         return gt.astype(np.uint8)
 

@@ -23,7 +23,6 @@ methods:
   - LinearDifferenceReconstruction
   - BackProjection
   - GaussNewton
-  - CompetitionCNN
 
 method_plugin_paths:
   - external_methods

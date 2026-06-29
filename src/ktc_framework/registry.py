@@ -87,6 +87,9 @@ def load_external_methods(plugin_paths: list[str]) -> None:
     Each imported file is expected to register one or more reconstruction
     methods using ``@register_method``. Importing the file is enough for the
     decorator to run.
+
+    Also discovers method bundles (subdirectories with ``method.yaml``) and
+    auto-generates subprocess wrapper classes for them.
     """
     for plugin_path in plugin_paths:
         path = Path(plugin_path).expanduser()
@@ -108,6 +111,57 @@ def load_external_methods(plugin_paths: list[str]) -> None:
 
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
+
+    try:
+        load_bundle_methods(plugin_paths)
+    except Exception as e:
+        import warnings
+        warnings.warn(f"Bundle discovery failed: {e}", RuntimeWarning, stacklevel=2)
+
+
+def load_bundle_methods(plugin_paths: list[str]) -> None:
+    """Discover method.yaml bundles in plugin directories and register them."""
+    try:
+        from src.ktc_framework.methods.manifest_loader import load_manifest, ManifestError
+        from src.ktc_framework.methods.subprocess_wrapper import create_wrapper_class
+    except ImportError as e:
+        import warnings
+        warnings.warn(f"Could not import bundle system: {e}", RuntimeWarning, stacklevel=2)
+        return
+
+    for plugin_path in plugin_paths:
+        path = Path(plugin_path).expanduser()
+        if not path.is_dir():
+            continue
+
+        try:
+            for bundle_dir in sorted(path.iterdir()):
+                if not bundle_dir.is_dir() or bundle_dir.name.startswith("_"):
+                    continue
+                manifest_path = bundle_dir / "method.yaml"
+                if not manifest_path.exists():
+                    continue
+                try:
+                    manifest = load_manifest(manifest_path)
+                except ManifestError as exc:
+                    import warnings
+                    warnings.warn(f"Skipping bundle {bundle_dir.name}: {exc}", RuntimeWarning, stacklevel=2)
+                    continue
+
+                if manifest.name in _METHODS:
+                    continue
+
+                try:
+                    wrapper_cls = create_wrapper_class(manifest)
+                    register_method(wrapper_cls)
+                except Exception as exc:
+                    import warnings
+                    warnings.warn(f"Failed to create wrapper for {manifest.name}: {exc}", RuntimeWarning, stacklevel=2)
+                    continue
+        except Exception as exc:
+            import warnings
+            warnings.warn(f"Error scanning {plugin_path}: {exc}", RuntimeWarning, stacklevel=2)
+            continue
 
 
 # ---------------------------------------------------------------------------
