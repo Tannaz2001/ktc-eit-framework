@@ -11,6 +11,7 @@ project root and run. Override with KTC_DATASET_ROOT env var if needed.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 from pathlib import Path
 
 from src.ktc_framework.runner.config_validator import load_config, ConfigError
@@ -36,7 +37,9 @@ def main() -> None:
         print(f"[ERROR] {e}")
         raise SystemExit(1)
 
-    output_dir = Path(config["output_dir"])
+    runs_root = Path(config["output_dir"])
+    run_dir = runs_root / f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    output_dir = run_dir
     runner = BatchRunner(config=config, output_dir=output_dir)
 
     print(f"[OK] Config loaded: {args.config}")

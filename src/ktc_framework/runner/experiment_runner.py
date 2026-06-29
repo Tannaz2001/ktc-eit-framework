@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import time
+import traceback
 import warnings
 from types import SimpleNamespace
 from pathlib import Path
@@ -70,6 +71,13 @@ class BatchRunner:
         self.config = config
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.failures: list[dict[str, Any]] = []
+
+        # Expose dataset_root so subprocess wrapper classes (_find_data_file)
+        # can locate evaluation .mat files without hardcoded paths.
+        dataset_root = self.config.get("dataset_root", "")
+        if dataset_root:
+            os.environ["KTC_DATASET_ROOT"] = str(dataset_root)
 
         method_plugin_paths = list(self.config.get("method_plugin_paths", []))
         default_external_path = Path("external_methods")
@@ -167,21 +175,25 @@ class BatchRunner:
     def _load_data_plugin(self):
         """Resolve and instantiate the configured data plugin once.
 
-        Falls back to MockDataPlugin if the configured name is not registered,
-        matching the previous per-run behaviour.
+        Raises
+        ------
+        ConfigError
+            If the plugin name is not registered — fail loud, no silent fallback.
         """
+        from src.ktc_framework.runner.config_validator import ConfigError
+
         plugin_name  = self.config.get("data_plugin", "MockDataPlugin")
         dataset_root = self.config.get("dataset_root", "")
 
         try:
             data_plugin_cls = PluginRegistry.get(plugin_name)
         except KeyError:
-            console.print(
-                f"[yellow]data_plugin '{plugin_name}' not registered — "
-                f"falling back to MockDataPlugin.[/yellow]"
+            available = PluginRegistry.list_plugins()
+            raise ConfigError(
+                f"data_plugin '{plugin_name}' is not registered.\n"
+                f"Available plugins: {available}\n"
+                f"Check spelling in your YAML config."
             )
-            from src.ktc_framework.loaders.mock_data_plugin import MockDataPlugin
-            data_plugin_cls = MockDataPlugin
 
         return data_plugin_cls(dataset_root)
 
@@ -249,10 +261,7 @@ class BatchRunner:
     def run(self) -> list[dict[str, Any]]:
         """Run all method × level × sample combinations and return results."""
         results: list[dict[str, Any]] = []
-        fig_dir = self.output_dir / "figures"
-        if fig_dir.exists():
-            import shutil
-            shutil.rmtree(fig_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
 
         levels  = self.config.get("levels",  [])
         samples = self.config.get("samples", [])
@@ -298,6 +307,15 @@ class BatchRunner:
                 f"\n[bold red]{n_gt_missing} of {len(results)} runs were scored "
                 f"against an all-zero ground truth — their scores are "
                 f"meaningless. Check the dataset layout / GT folder.[/bold red]"
+            )
+
+        if self.failures:
+            failures_path = self.output_dir / "failures.json"
+            with failures_path.open("w", encoding="utf-8") as f:
+                json.dump(self.failures, f, indent=2)
+            console.print(
+                f"\n[bold red]{len(self.failures)} run(s) failed — "
+                f"see {failures_path} for details.[/bold red]"
             )
 
         self._save(results)
@@ -352,12 +370,22 @@ class BatchRunner:
                 f"[yellow]Skipping level={level} sample={sample} — "
                 f"file not found in '{dataset_root}': {exc}[/yellow]"
             )
+            self.failures.append({
+                "method": method, "level": level, "sample": sample,
+                "error_type": "FileNotFoundError", "error_msg": str(exc),
+                "stage": "load_sample",
+            })
             return None
         except ValueError as exc:
             console.print(
                 f"[red]Skipping level={level} sample={sample} — "
                 f"validation error: {exc}[/red]"
             )
+            self.failures.append({
+                "method": method, "level": level, "sample": sample,
+                "error_type": "ValueError", "error_msg": str(exc),
+                "stage": "load_sample",
+            })
             return None
 
         # ── augment batch with shared resources ───────────────────────────
@@ -383,6 +411,12 @@ class BatchRunner:
             method_plugin = MethodAdapter(registry_get(method)())
         except KeyError:
             console.print(f"[red]Method '{method}' not registered — skipping.[/red]")
+            self.failures.append({
+                "method": method, "level": level, "sample": sample,
+                "error_type": "KeyError",
+                "error_msg": f"Method '{method}' not registered in registry.",
+                "stage": "load_method",
+            })
             return None
 
         # ── reconstruct (with automatic result cache) ─────────────────────
@@ -402,10 +436,17 @@ class BatchRunner:
             try:
                 reconstruction = method_plugin.reconstruct(batch)
             except Exception as exc:
+                tb = traceback.format_exc()
                 console.print(
                     f"[red]Reconstruction failed for method={method} "
                     f"level={level} sample={sample}: {exc}[/red]"
                 )
+                self.failures.append({
+                    "method": method, "level": level, "sample": sample,
+                    "error_type": type(exc).__name__, "error_msg": str(exc),
+                    "traceback": tb,
+                    "stage": "reconstruct",
+                })
                 return None
             runtime_ms = (time.perf_counter() - start) * 1000
             if result_key is not None:

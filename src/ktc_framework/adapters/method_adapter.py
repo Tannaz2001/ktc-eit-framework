@@ -34,4 +34,10 @@ class MethodAdapter:
                 f"got {reconstruction.shape}"
             )
 
+        if np.any(np.isnan(reconstruction)):
+            raise ValueError(f"{self.name} returned reconstruction containing NaN values")
+
+        if np.any(np.isinf(reconstruction)):
+            raise ValueError(f"{self.name} returned reconstruction containing Inf values")
+
         return reconstruction.astype(np.uint8, copy=False)

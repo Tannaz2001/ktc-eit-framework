@@ -54,6 +54,35 @@ def find_latest_run(runs_root: str | Path = "outputs") -> Path:
     return runs_root
 
 
+def load_merged_run_data(runs_root: str | Path = "outputs") -> tuple[dict, dict]:
+    """Merge scores from every completed run directory, newest data per method wins.
+
+    This lets a single-method run (e.g. after uploading a new plugin) slot into
+    the existing leaderboard without re-running all methods.
+    """
+    runs_root = Path(runs_root)
+    merged_scores: dict = {}
+    merged_per_run: dict = {}
+
+    # Newest run first so the first occurrence per method is the most recent.
+    run_dirs = sorted(runs_root.glob("run_*"), reverse=True)
+    for run_dir in run_dirs:
+        if not _run_has_data(run_dir):
+            continue
+        scores, per_run = load_run_data(run_dir)
+        for method, metrics in scores.items():
+            if method not in merged_scores:
+                merged_scores[method] = metrics
+                if method in per_run:
+                    merged_per_run[method] = per_run[method]
+
+    # Fall back to flat outputs/ layout (pre-run_* era).
+    if not merged_scores and _run_has_data(runs_root):
+        merged_scores, merged_per_run = load_run_data(runs_root)
+
+    return merged_scores, merged_per_run
+
+
 def load_run_data(run_dir: str | Path) -> tuple[dict, dict]:
     """Load (scores, per_run) from a run folder, with flat-outputs fallbacks.
 
