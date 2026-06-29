@@ -472,6 +472,71 @@ section[data-testid="stSidebar"] [data-baseweb="select"] *{
 [data-baseweb="menu"] li *{color:var(--tx)!important;opacity:1!important;}
 .stSlider,.stSelectbox,.stMultiSelect{margin-bottom:8px!important;}
 .stCheckbox{margin-bottom:2px!important;}
+
+/* -- responsive page spacing: keep sidebar/main padding tight without changing sidebar width -- */
+[data-testid="stAppViewContainer"] > .main,
+[data-testid="stAppViewContainer"] > div:has(.main){
+  padding-left:0!important;
+}
+.main .block-container,
+[data-testid="stAppViewContainer"] .main .block-container{
+  padding:0 clamp(6px,.8vw,10px) 42px!important;
+  max-width:100%!important;
+}
+section[data-testid="stSidebar"]>div:first-child{
+  padding-left:8px!important;
+  padding-right:8px!important;
+}
+.dash-header,
+.kpi-row,
+.chips,
+.dataset-summary-row,
+.stTabs [data-baseweb="tab-list"]{
+  max-width:100%!important;
+}
+.kpi-row,
+.dataset-summary-row{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  gap:10px!important;
+}
+.kpi{
+  flex:1 1 190px!important;
+  min-width:0!important;
+}
+.dataset-summary-card{
+  flex:1 1 150px!important;
+  min-width:0!important;
+}
+.dataset-summary-card:first-child{
+  flex-basis:320px!important;
+}
+.chip,
+.kpi-s,
+.dataset-summary-card div{
+  overflow-wrap:anywhere!important;
+}
+@media (max-width: 900px){
+  .main .block-container,
+  [data-testid="stAppViewContainer"] .main .block-container{
+    padding:0 8px 34px!important;
+  }
+  .dash-header{padding:12px 14px!important;}
+  .kpi{flex-basis:calc(50% - 10px)!important;}
+  .dataset-summary-card,
+  .dataset-summary-card:first-child{flex-basis:100%!important;}
+}
+@media (max-width: 560px){
+  .main .block-container,
+  [data-testid="stAppViewContainer"] .main .block-container{
+    padding:0 6px 28px!important;
+  }
+  .kpi{flex-basis:100%!important;}
+  .stTabs [data-baseweb="tab"]{
+    flex:1 1 130px!important;
+    justify-content:center!important;
+  }
+}
 </style>
 <script>
 (function(){
@@ -705,6 +770,10 @@ def build_leaderboard_figure(scores: Dict, df: pd.DataFrame) -> go.Figure:
     fig = go.Figure()
     all_names = sorted(scores.keys())
     col_map = {n: mcol(i) for i, n in enumerate(all_names)}
+    min_score = float(df['Composite Score'].min()) if not df.empty else 0.0
+    max_score = float(df['Composite Score'].max()) if not df.empty else 100.0
+    axis_min = min(0.0, np.floor(min_score / 10.0) * 10.0)
+    axis_max = max(100.0, np.ceil(max_score / 10.0) * 10.0) + 15.0
     for _, row in df.iterrows():
         fig.add_trace(go.Bar(
             name=row['Method'], x=[row['Composite Score']], y=[row['Method']],
@@ -716,11 +785,11 @@ def build_leaderboard_figure(scores: Dict, df: pd.DataFrame) -> go.Figure:
                            f"KTC: {row['KTC Score']:.4f}<br><extra></extra>")
         ))
     fig.update_layout(
-        xaxis_title="Score (0-100)", yaxis_title="Method", xaxis_range=[0, 115],
+        xaxis_title="Composite Score", yaxis_title="Method", xaxis_range=[axis_min, axis_max],
         showlegend=False, height=max(320, 54 * len(df)),
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='#f6f8fa',
         font=dict(family="JetBrains Mono,monospace", color="#848d97", size=9),
-        xaxis=dict(gridcolor='#d0d7de', linecolor='#d0d7de', tickfont=dict(size=9)),
+        xaxis=dict(gridcolor='#d0d7de', linecolor='#d0d7de', tickfont=dict(size=9), zeroline=True, zerolinecolor='#8c959f'),
         yaxis=dict(gridcolor='#d0d7de', linecolor='#d0d7de', tickfont=dict(size=9)),
         margin=dict(l=150, r=50, t=20, b=38),
     )
@@ -827,10 +896,12 @@ def write_selected_config(methods: list[str]) -> Path:
 def render_benchmark_status() -> None:
     """Sidebar status for the running/finished benchmark subprocess."""
     proc = st.session_state.get('bench_proc')
+    show_log_tail = False
     if proc is not None:
         code = proc.poll()
         cfg = st.session_state.get('bench_config', '')
         if code is None:
+            show_log_tail = True
             st.sidebar.markdown(
                 f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;'
                 f'color:var(--amb);margin:4px 0">RUNNING | {cfg}</div>',
@@ -847,7 +918,8 @@ def render_benchmark_status() -> None:
                 st.sidebar.info("Benchmark aborted. Showing previous completed data.")
             else:
                 st.sidebar.error(f"Benchmark failed (exit {code}) - see log below.")
-    if proc is not None and proc.poll() is None and BENCH_LOG.exists():
+                show_log_tail = True
+    if show_log_tail and BENCH_LOG.exists():
         tail = BENCH_LOG.read_text(encoding="utf-8", errors="replace").splitlines()
         tail = [ln for ln in tail if ln.strip()][-8:]
         if tail:
@@ -1606,10 +1678,13 @@ def render_sidebar():
             label_visibility="collapsed")
 
         if st.sidebar.button("Load selected run", use_container_width=True, key="load_run_btn"):
-            selected_path = runs_root / chosen_run
-            (runs_root / "latest.txt").write_text(str(selected_path.resolve()))
-            st.cache_data.clear()
-            st.rerun()
+            if chosen_run == current_run:
+                st.sidebar.info("Active run is already loaded.")
+            else:
+                selected_path = runs_root / chosen_run
+                (runs_root / "latest.txt").write_text(str(selected_path.resolve()))
+                st.cache_data.clear()
+                st.rerun()
 
         # Show scores for the selected run (not just active) as preview
         preview_scores_path = runs_root / chosen_run / "scores.json"
@@ -1676,6 +1751,10 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
     fig = go.Figure()
     all_names = sorted(scores.keys())
     col_map = {n: mcol(i) for i, n in enumerate(all_names)}
+    min_score = float(df['Composite Score'].min()) if not df.empty else 0.0
+    max_score = float(df['Composite Score'].max()) if not df.empty else 100.0
+    y_min = min(0.0, np.floor(min_score / 10.0) * 10.0)
+    y_max = max(100.0, np.ceil(max_score / 10.0) * 10.0) + 15.0
     for _, row in df.iterrows():
         fig.add_trace(go.Bar(
             name=row['Method'], x=[row['Method']], y=[row['Composite Score']],
@@ -1686,12 +1765,12 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
                            f"KTC: {row['KTC Score']:.4f}<br><extra></extra>")
         ))
     fig.update_layout(
-        xaxis_title="Method", yaxis_title="Score (0-100)", yaxis_range=[0, 115],
+        xaxis_title="Method", yaxis_title="Composite Score", yaxis_range=[y_min, y_max],
         showlegend=False, height=380,
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='#f6f8fa',
         font=dict(family="JetBrains Mono,monospace", color="#848d97", size=9),
         xaxis=dict(gridcolor='#d0d7de', linecolor='#d0d7de', tickfont=dict(size=9)),
-        yaxis=dict(gridcolor='#d0d7de', linecolor='#d0d7de', tickfont=dict(size=9)),
+        yaxis=dict(gridcolor='#d0d7de', linecolor='#d0d7de', tickfont=dict(size=9), zeroline=True, zerolinecolor='#8c959f'),
         margin=dict(l=0, r=10, t=20, b=30),
     )
     st.plotly_chart(fig, use_container_width=True)
@@ -2015,55 +2094,6 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
                 '(random noise artefacts confuse the SSIM metric). '
                 'Composite scores below zero are expected for poorly-initialised solvers.</div>',
                 unsafe_allow_html=True)
-
-    # -- Root cause analysis table -----------------------------
-    if root_causes:
-        st.markdown('<div class="slbl">ROOT CAUSE ANALYSIS - FAILING RUNS (C + D GRADE)</div>', unsafe_allow_html=True)
-        rc_df = pd.DataFrame(root_causes)
-
-        def _rc_color(grade):
-            return '#ffebe9' if grade == 'D' else '#fff8c5'
-
-        rows_html2 = ''
-        for _, row in rc_df.iterrows():
-            bg = _rc_color(row['Grade'])
-            rows_html2 += f'<tr style="background:{bg}">'
-            for col in rc_df.columns:
-                rows_html2 += (f'<td style="font-family:\'JetBrains Mono\',monospace;'
-                               f'font-size:9px;padding:5px 8px;border-bottom:1px solid var(--bd);'
-                               f'color:var(--tx)">{row[col]}</td>')
-            rows_html2 += '</tr>'
-        hdrs2 = ''.join(
-            f'<th style="font-family:\'JetBrains Mono\',monospace;font-size:8px;'
-            f'text-transform:uppercase;letter-spacing:.1em;color:var(--tx3);'
-            f'padding:4px 8px;border-bottom:1px solid var(--bd);background:var(--bg)">{c}</th>'
-            for c in rc_df.columns)
-        st.markdown(
-            f'<div style="border:1px solid var(--bd);border-radius:7px;overflow:hidden">'
-            f'<table style="width:100%;border-collapse:collapse">'
-            f'<thead><tr>{hdrs2}</tr></thead><tbody>{rows_html2}</tbody></table></div>',
-            unsafe_allow_html=True)
-
-        # Patterns by level / sample
-        st.markdown('<div class="slbl" style="margin-top:12px">FAILURE PATTERNS BY SAMPLE</div>', unsafe_allow_html=True)
-        level_counts = {}
-        for r in root_causes:
-            key = str(r['Sample'])
-            level_counts[key] = level_counts.get(key, 0) + 1
-        if level_counts:
-            lc_df = pd.DataFrame([{'Sample': k, 'Failures': v}
-                                   for k, v in sorted(level_counts.items())])
-            st.dataframe(lc_df, use_container_width=True, hide_index=True)
-
-        # Patterns by method
-        st.markdown('<div class="slbl" style="margin-top:8px">FAILURE PATTERNS BY METHOD</div>', unsafe_allow_html=True)
-        method_fail = {}
-        for r in root_causes:
-            method_fail[r['Method']] = method_fail.get(r['Method'], 0) + 1
-        if method_fail:
-            mf_df = pd.DataFrame([{'Method': k, 'Failures': v}
-                                   for k, v in sorted(method_fail.items(), key=lambda x: -x[1])])
-            st.dataframe(mf_df, use_container_width=True, hide_index=True)
 
     st.markdown("---")
 
@@ -2999,16 +3029,6 @@ def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple
         )
         st.plotly_chart(fig_deg, use_container_width=True)
 
-    # -- Detailed table ----------------------------------------
-    st.markdown("### Per-Run Hull Metrics")
-    display_cols = ["Method", "Level", "Sample", "KTC",
-                    "Res Center Err", "Res Area Err", "Res Perim Err",
-                    "Res Pixels", "Con Pixels"]
-    tbl = df[display_cols].copy()
-    for c in ["KTC", "Res Center Err", "Res Area Err", "Res Perim Err"]:
-        tbl[c] = tbl[c].apply(lambda v: f"{v:.2f}" if pd.notna(v) else "-")
-    st.dataframe(tbl, use_container_width=True, hide_index=True)
-
 
 def main():
     # Populate the available method list from the latest run BEFORE the sidebar
@@ -3099,17 +3119,17 @@ def main():
         method_list = " &nbsp;|&nbsp; ".join(
             f'<span style="color:var(--tx)">{m}</span>' for m in scores_f.keys())
         st.markdown(
-            f'<div style="display:flex;gap:10px;margin-bottom:12px;align-items:stretch">'
-            f'<div style="flex:1;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 12px;min-height:72px">'
+            f'<div class="dataset-summary-row" style="margin-bottom:12px;align-items:stretch">'
+            f'<div class="dataset-summary-card" style="background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 12px;min-height:72px">'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:19px;font-weight:600;color:var(--tx);line-height:1">{len(scores_f)}</div>'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.08em;margin-top:6px">Methods</div>'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--tx2);margin-top:4px;line-height:1.35">{method_list}</div>'
             f'</div>'
-            f'<div style="flex:0 0 112px;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 12px;min-height:72px">'
+            f'<div class="dataset-summary-card" style="background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 12px;min-height:72px">'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:19px;font-weight:600;color:var(--tx);line-height:1">{n_s}</div>'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.08em;margin-top:6px">Runs / method</div>'
             f'</div>'
-            f'<div style="flex:0 0 112px;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 12px;min-height:72px">'
+            f'<div class="dataset-summary-card" style="background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 12px;min-height:72px">'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:19px;font-weight:600;color:var(--tx);line-height:1">{n_t}</div>'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.08em;margin-top:6px">Total recons</div>'
             f'</div>'
