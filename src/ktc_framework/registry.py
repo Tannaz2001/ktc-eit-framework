@@ -90,6 +90,21 @@ def load_external_methods(plugin_paths: list[str]) -> None:
 
     Also discovers method bundles (subdirectories with ``method.yaml``) and
     auto-generates subprocess wrapper classes for them.
+
+    Two safety measures, both needed because these files come from
+    uploads, not from the framework's own codebase:
+
+    1. Raw CLI-contract scripts (KTC competition submissions shaped like
+       ``main() + argparse + if __name__ == "__main__":``) are skipped
+       entirely rather than imported. They're wrapped as isolated
+       subprocess methods instead (see ``adapters.plugin_detector`` /
+       ``adapters.cli_plugin_wrapper``) — importing one here would run its
+       top-level code (which is often unguarded: heavy ML imports, model
+       loading, etc.) inside this process, which is exactly what the
+       subprocess wrapper exists to avoid.
+    2. Each remaining file's import is individually wrapped in try/except
+       so one incompatible upload (e.g. missing dependency) can't abort
+       discovery for every other file in the folder.
     """
     for plugin_path in plugin_paths:
         path = Path(plugin_path).expanduser()
@@ -103,6 +118,9 @@ def load_external_methods(plugin_paths: list[str]) -> None:
             if file_path.name.startswith("_"):
                 continue
 
+            if _is_cli_contract_script(file_path):
+                continue
+
             module_name = f"ktc_external_method_{file_path.stem}"
             spec = importlib.util.spec_from_file_location(module_name, file_path)
 
@@ -110,13 +128,41 @@ def load_external_methods(plugin_paths: list[str]) -> None:
                 raise ImportError(f"Could not load method plugin: {file_path}")
 
             module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
+            try:
+                spec.loader.exec_module(module)
+            except Exception as exc:
+                import warnings
+                warnings.warn(
+                    f"Skipping method plugin '{file_path.name}': {exc}",
+                    RuntimeWarning, stacklevel=2,
+                )
+                continue
 
     try:
         load_bundle_methods(plugin_paths)
     except Exception as e:
         import warnings
         warnings.warn(f"Bundle discovery failed: {e}", RuntimeWarning, stacklevel=2)
+
+
+def _is_cli_contract_script(file_path: Path) -> bool:
+    """True if *file_path* is a raw KTC CLI-contract script.
+
+    Best-effort: if the classifier itself can't be imported or can't parse
+    the file, this returns False so the caller falls through to the normal
+    (pre-existing) import attempt rather than silently dropping the file.
+    """
+    try:
+        from src.ktc_framework.adapters.plugin_detector import (
+            CONTRACT_CLI, PluginDetectionError, detect_contract,
+        )
+    except ImportError:
+        return False
+
+    try:
+        return detect_contract(file_path) == CONTRACT_CLI
+    except PluginDetectionError:
+        return False
 
 
 def load_bundle_methods(plugin_paths: list[str]) -> None:

@@ -1223,6 +1223,64 @@ def plugin_method_candidates(plugin_path: Path) -> List[str]:
     return names
 
 
+def is_cli_contract_script(plugin_path: Path) -> bool:
+    """True if *plugin_path* is a raw KTC CLI-contract script (main() +
+    argparse + if __name__ == '__main__'), as opposed to an in-process
+    reconstruct(self, batch) plugin. AST-only — never imports the file.
+
+    Returns False (not True) if the classifier can't be reached or the
+    file won't parse, so callers fall through to the existing in-process
+    path and get the normal "no usable method class found" message
+    instead of an opaque failure here.
+    """
+    try:
+        from src.ktc_framework.adapters.plugin_detector import (
+            CONTRACT_CLI, PluginDetectionError, detect_contract,
+        )
+    except ImportError:
+        return False
+
+    try:
+        return detect_contract(plugin_path) == CONTRACT_CLI
+    except PluginDetectionError:
+        return False
+
+
+def register_cli_script(script_path: Path) -> str:
+    """Wrap a raw KTC CLI-contract script as a CLIScriptPlugin and register
+    it under a name derived from the filename.
+
+    Runs as an isolated subprocess — never imported in-process, since these
+    scripts commonly have unguarded heavy top-level imports (see
+    ``registry.load_external_methods`` for why that matters).
+
+    Raw CLI submissions have no author-declared name the way method.yaml
+    bundles do (``manifest.name``) or in-process classes do (the class
+    name) — every KTC entry is conventionally just "main.py". So the name
+    is derived from the uploaded filename's stem, sanitised into a valid
+    identifier, with a numeric suffix appended on collision (e.g. a second
+    upload also named main.py becomes "main_2").
+    """
+    from src.ktc_framework.adapters.cli_plugin_wrapper import create_cli_wrapper_class
+    from src.ktc_framework.registry import list_methods as _list_methods_
+    from src.ktc_framework.registry import register_method as _register_method_
+
+    base_name = re.sub(r"\W+", "_", script_path.stem).strip("_") or "CLIMethod"
+    if not base_name[0].isalpha():
+        base_name = f"CLI_{base_name}"
+
+    existing = set(_list_methods_())
+    name = base_name
+    suffix = 2
+    while name in existing:
+        name = f"{base_name}_{suffix}"
+        suffix += 1
+
+    wrapper_cls = create_cli_wrapper_class(script_path=str(script_path), name=name)
+    _register_method_(wrapper_cls)
+    return name
+
+
 def discover_available_methods() -> List[str]:
     """Collect scored, configured, and registered methods without running benchmarks."""
     methods: List[str] = []
@@ -1642,6 +1700,28 @@ def render_sidebar():
                     )
                     st.session_state.uploaded_methods[nm] = fname
 
+                # ── raw CLI-contract scripts (main() + argparse + __main__) ──
+                # load_external_methods() already skips these when importing
+                # .py files (see registry.py), so they never show up in
+                # candidates_by_file / ready_methods above. Wrap each one not
+                # already registered from a previous scan as a CLIScriptPlugin
+                # instead of silently dropping it.
+                cli_found = []
+                already_registered_files = set(st.session_state.uploaded_methods.values())
+                for file_path in py_files:
+                    if file_path.name in already_registered_files:
+                        continue  # wrapped in a prior scan
+                    if file_path.name in candidates_by_file and candidates_by_file[file_path.name]:
+                        continue  # already handled as an in-process class
+                    if not is_cli_contract_script(file_path):
+                        continue
+                    try:
+                        cli_name = register_cli_script(file_path)
+                        st.session_state.uploaded_methods[cli_name] = file_path.name
+                        cli_found.append(cli_name)
+                    except Exception as exc:
+                        st.sidebar.warning(f"Could not wrap {file_path.name} as a CLI method: {exc}")
+
                 # ── bundle dirs ───────────────────────────────────────────
                 bundle_found = []
                 for bd in bundle_dirs:
@@ -1654,7 +1734,7 @@ def render_sidebar():
                     except Exception as _be:
                         st.sidebar.warning(f"Skipping bundle {bd.name}: {_be}")
 
-                all_found = sorted(set(ready_methods) | set(bundle_found))
+                all_found = sorted(set(ready_methods) | set(bundle_found) | set(cli_found))
                 removed = set(st.session_state.get('_removed_external_methods', []))
                 removed.difference_update(all_found)
                 st.session_state['_removed_external_methods'] = sorted(removed)
@@ -1667,7 +1747,7 @@ def render_sidebar():
                 if all_found:
                     for nm in all_found:
                         append_method_to_config(nm)
-                    label = "Found" if (new_methods or bundle_found) else "Already registered"
+                    label = "Found" if (new_methods or bundle_found or cli_found) else "Already registered"
                     st.session_state['_method_refresh_msg'] = f"{label}: {', '.join(all_found)}"
                     if auto_fixed:
                         st.session_state['_method_refresh_msg'] += " (added missing @register_method)"
@@ -1686,7 +1766,8 @@ def render_sidebar():
     st.sidebar.markdown(
         '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
         'color:var(--tx3);line-height:1.55;margin-bottom:6px">'
-        '<b style="color:var(--tx2)">.py</b> — class with <code>reconstruct(self, batch)</code><br>'
+        '<b style="color:var(--tx2)">.py</b> — class with <code>reconstruct(self, batch)</code>, '
+        'or a raw KTC CLI script (<code>main()</code> + argparse)<br>'
         '<b style="color:var(--tx2)">.zip</b> — ML bundle with <code>method.yaml</code> at root</div>',
         unsafe_allow_html=True)
     upload_key = f"method_upload_{st.session_state.get('_method_upload_nonce', 0)}"
@@ -1734,44 +1815,73 @@ def render_sidebar():
             else:
                 dest = dest_dir / Path(up.name).name
                 dest.write_bytes(up.getbuffer())
-                try:
-                    auto_fixed = ensure_method_plugin_registered(dest)
-                    candidate_names = plugin_method_candidates(dest)
-                    _load_ext([str(dest_dir)])
-                    available_after = set(_list_methods())
-                    new_methods = sorted(name for name in candidate_names if name not in before and name in available_after)
-                    ready_methods = sorted(
-                        nm for nm in candidate_names if nm in available_after
-                    )
-                    if ready_methods:
-                        for nm in ready_methods:
-                            if not callable(getattr(_get_method(nm), "reconstruct", None)):
-                                st.sidebar.warning(f"{nm} has no reconstruct(batch) - will fail at run time.")
-                            st.session_state.uploaded_methods[nm] = dest.name
-                            append_method_to_config(nm)
+
+                # Classify BEFORE any attempt to import/exec the file. A raw
+                # CLI-contract script (main() + argparse + __main__) commonly
+                # has unguarded heavy top-level imports (TensorFlow, model
+                # loading, ...) — it must never be exec'd inside this
+                # process, only run as an isolated subprocess.
+                if is_cli_contract_script(dest):
+                    try:
+                        cli_name = register_cli_script(dest)
+                        st.session_state.uploaded_methods[cli_name] = dest.name
+                        append_method_to_config(cli_name)
                         removed = set(st.session_state.get('_removed_external_methods', []))
-                        removed.difference_update(ready_methods)
+                        removed.discard(cli_name)
                         st.session_state['_removed_external_methods'] = sorted(removed)
                         current_available = st.session_state.get('_available_methods', [])
-                        for nm in ready_methods:
-                            if nm not in current_available:
-                                current_available.append(nm)
+                        if cli_name not in current_available:
+                            current_available.append(cli_name)
                         st.session_state['_available_methods'] = current_available
-                        label = "Registered" if new_methods else "Already registered"
-                        st.session_state['_method_refresh_msg'] = f"{label}: {', '.join(ready_methods)}"
-                        if auto_fixed:
-                            st.session_state['_method_refresh_msg'] += " (added missing @register_method)"
+                        st.session_state['_method_refresh_msg'] = (
+                            f"Registered CLI method: {cli_name} (runs as an isolated subprocess)"
+                        )
                         reset_method_upload_widget()
                         st.rerun()
-                    else:
+                    except Exception as exc:
                         dest.unlink(missing_ok=True)
-                        st.sidebar.warning(
-                            "No usable method class found - file removed. "
-                            "Add a class with reconstruct(self, batch), or decorate it with @register_method."
+                        st.sidebar.error(f"Rejected {dest.name}: {exc}")
+                else:
+                    try:
+                        auto_fixed = ensure_method_plugin_registered(dest)
+                        candidate_names = plugin_method_candidates(dest)
+                        _load_ext([str(dest_dir)])
+                        available_after = set(_list_methods())
+                        new_methods = sorted(name for name in candidate_names if name not in before and name in available_after)
+                        ready_methods = sorted(
+                            nm for nm in candidate_names if nm in available_after
                         )
-                except Exception as exc:
-                    dest.unlink(missing_ok=True)
-                    st.sidebar.error(f"Rejected {dest.name}: {exc}")
+                        if ready_methods:
+                            for nm in ready_methods:
+                                if not callable(getattr(_get_method(nm), "reconstruct", None)):
+                                    st.sidebar.warning(f"{nm} has no reconstruct(batch) - will fail at run time.")
+                                st.session_state.uploaded_methods[nm] = dest.name
+                                append_method_to_config(nm)
+                            removed = set(st.session_state.get('_removed_external_methods', []))
+                            removed.difference_update(ready_methods)
+                            st.session_state['_removed_external_methods'] = sorted(removed)
+                            current_available = st.session_state.get('_available_methods', [])
+                            for nm in ready_methods:
+                                if nm not in current_available:
+                                    current_available.append(nm)
+                            st.session_state['_available_methods'] = current_available
+                            label = "Registered" if new_methods else "Already registered"
+                            st.session_state['_method_refresh_msg'] = f"{label}: {', '.join(ready_methods)}"
+                            if auto_fixed:
+                                st.session_state['_method_refresh_msg'] += " (added missing @register_method)"
+                            reset_method_upload_widget()
+                            st.rerun()
+                        else:
+                            dest.unlink(missing_ok=True)
+                            st.sidebar.warning(
+                                "No usable method class found - file removed. "
+                                "Add a class with reconstruct(self, batch), decorate it with "
+                                "@register_method, or upload a raw KTC CLI script "
+                                "(main() + argparse + if __name__ == '__main__')."
+                            )
+                    except Exception as exc:
+                        dest.unlink(missing_ok=True)
+                        st.sidebar.error(f"Rejected {dest.name}: {exc}")
 
     # -- Export -----------------------------------------------
     st.sidebar.markdown("---")
