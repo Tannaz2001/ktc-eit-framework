@@ -1704,6 +1704,7 @@ def render_sidebar():
                 try:
                     from src.ktc_framework.methods.manifest_loader import extract_bundle, load_manifest, ManifestError
                     from src.ktc_framework.methods.subprocess_wrapper import create_wrapper_class
+                    from src.ktc_framework.registry import register_method as _register_method
                     bundle_name = Path(up.name).stem
                     bundle_dest = dest_dir / bundle_name
                     tmp_zip = dest_dir / up.name
@@ -1711,7 +1712,7 @@ def render_sidebar():
                     bundle_dir = extract_bundle(tmp_zip, bundle_dest)
                     manifest = load_manifest(bundle_dir / "method.yaml")
                     wrapper_cls = create_wrapper_class(manifest)
-                    register_method(wrapper_cls)
+                    _register_method(wrapper_cls)
                     st.session_state.uploaded_methods[manifest.name] = bundle_dest.name
                     append_method_to_config(manifest.name)
                     st.session_state['_method_refresh_msg'] = f"Registered bundle: {manifest.name}"
