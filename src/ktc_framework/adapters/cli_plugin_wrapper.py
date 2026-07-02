@@ -93,20 +93,75 @@ _SCORING_PATH_ENV = "KTC_SCORING_PATH"
 # exact numpy/scipy versions a given submission was built against).
 _SOLVER_ENV_VAR = "KTC_SOLVER_ENV"
 
+# Env var for the shared FEM mesh file. Kept separate from scoring_path
+# because in this project's actual layout the two live in different
+# directories: KTC*.py helper modules under data/KTCScoring/, but
+# Mesh_sparse.mat under Codes_Matlab/ (see configs/ktc_all_methods.yaml's
+# own `mesh_path: Codes_Matlab/Mesh_sparse.mat`). A single shared root
+# would silently miss one or the other depending on which repo layout a
+# given submission was built against.
+_MESH_PATH_ENV = "KTC_MESH_PATH"
+
 _DEFAULT_SCORING_PATH = "data/KTCScoring"
+_DEFAULT_MESH_PATH = "Codes_Matlab/Mesh_sparse.mat"
 _DEFAULT_TIMEOUT_S = 180
 
-# The standard KTC helper modules + mesh file that competition scripts
-# import/load via bare relative names. Extend this tuple if a submission
-# needs an additional shared file.
-_HELPER_FILENAMES = (
-    "KTCFwd.py",
-    "KTCMeshing.py",
-    "KTCRegularization.py",
-    "KTCScoring.py",
-    "KTCAux.py",
-    "Mesh_sparse.mat",
-)
+
+def create_cli_wrapper_class(
+    script_path: str,
+    name: str,
+    scoring_path: Optional[str] = None,
+    mesh_path: Optional[str] = None,
+    python_exec: Optional[str] = None,
+    timeout: int = _DEFAULT_TIMEOUT_S,
+) -> type:
+    """Build a zero-argument-constructible ``CLIScriptPlugin`` subclass.
+
+    The method registry (``src.ktc_framework.registry``) stores classes and
+    instantiates them with no arguments — ``registry_get(name)()`` — the
+    same way it instantiates every other method. ``CLIScriptPlugin`` itself
+    needs a ``script_path`` at construction time, so this factory closes
+    over the config and returns a subclass whose ``__init__`` takes
+    nothing, following the exact pattern
+    ``subprocess_wrapper.create_wrapper_class`` uses for ``method.yaml``
+    bundles.
+
+    Parameters
+    ----------
+    script_path, scoring_path, mesh_path, python_exec, timeout:
+        Forwarded to ``CLIScriptPlugin.__init__`` — see its docstring.
+    name:
+        The class name (and therefore registry key) the wrapper is
+        registered under. Callers are responsible for choosing something
+        unique, since raw CLI submissions have no author-declared name the
+        way ``method.yaml`` bundles do (see ``app.py``'s
+        ``_register_cli_script`` for the naming/collision logic).
+
+    Returns
+    -------
+    type
+        A ``CLIScriptPlugin`` subclass named *name*, ready to pass to
+        ``register_method``.
+    """
+    _script_path = script_path
+    _scoring_path = scoring_path
+    _mesh_path = mesh_path
+    _python_exec = python_exec
+    _timeout = timeout
+
+    class _CLIWrapper(CLIScriptPlugin):
+        def __init__(self) -> None:
+            super().__init__(
+                script_path=_script_path,
+                scoring_path=_scoring_path,
+                mesh_path=_mesh_path,
+                python_exec=_python_exec,
+                timeout=_timeout,
+            )
+
+    _CLIWrapper.__name__ = name
+    _CLIWrapper.__qualname__ = name
+    return _CLIWrapper
 
 
 class CLIScriptPlugin(MethodPlugin):
@@ -117,9 +172,18 @@ class CLIScriptPlugin(MethodPlugin):
     script_path:
         Absolute or relative path to the uploaded ``main.py``-style script.
     scoring_path:
-        Directory containing the shared KTC helper modules and
-        ``Mesh_sparse.mat``. Defaults to ``$KTC_SCORING_PATH`` if set, else
-        ``'data/KTCScoring'``.
+        Directory containing the shared KTC ``.py`` helper modules
+        (KTCFwd, KTCMeshing, KTCRegularization, KTCScoring, KTCAux,
+        KTCPlotting, ...). Every ``.py`` file found here is copied next to
+        the script if not already present — see ``_copy_missing_helpers``.
+        Defaults to ``$KTC_SCORING_PATH`` if set, else ``'data/KTCScoring'``.
+    mesh_path:
+        Path to the shared ``Mesh_sparse.mat``. Kept as a separate
+        parameter from ``scoring_path`` because the two commonly live in
+        different directories (in this project: ``data/KTCScoring/`` for
+        the helpers, ``Codes_Matlab/Mesh_sparse.mat`` for the mesh).
+        Defaults to ``$KTC_MESH_PATH`` if set, else
+        ``'Codes_Matlab/Mesh_sparse.mat'``.
     python_exec:
         Python interpreter to run the script with. Defaults to
         ``$KTC_SOLVER_ENV`` if set, else ``sys.executable``. Use this when
@@ -133,6 +197,7 @@ class CLIScriptPlugin(MethodPlugin):
         self,
         script_path: str,
         scoring_path: Optional[str] = None,
+        mesh_path: Optional[str] = None,
         python_exec: Optional[str] = None,
         timeout: int = _DEFAULT_TIMEOUT_S,
     ) -> None:
@@ -144,6 +209,9 @@ class CLIScriptPlugin(MethodPlugin):
 
         self.scoring_path = Path(
             scoring_path or os.environ.get(_SCORING_PATH_ENV, _DEFAULT_SCORING_PATH)
+        ).resolve()
+        self.mesh_path = Path(
+            mesh_path or os.environ.get(_MESH_PATH_ENV, _DEFAULT_MESH_PATH)
         ).resolve()
 
         self.python_exec = python_exec or os.environ.get(_SOLVER_ENV_VAR) or sys.executable
@@ -162,7 +230,7 @@ class CLIScriptPlugin(MethodPlugin):
 
             # Best-effort: place the shared helper modules + mesh file next
             # to the script if they aren't already there.
-            _copy_missing_helpers(self.scoring_path, script_dir)
+            _copy_missing_helpers(self.scoring_path, self.mesh_path, script_dir)
 
             tmp_in = tempfile.mkdtemp(prefix="cliplugin_in_")
             tmp_out = tempfile.mkdtemp(prefix="cliplugin_out_")
@@ -319,10 +387,24 @@ class CLIScriptPlugin(MethodPlugin):
 # isolation from the class and the subprocess machinery.
 # ---------------------------------------------------------------------------
 
-def _copy_missing_helpers(scoring_path: Path, script_dir: Path) -> None:
-    """Copy any of ``_HELPER_FILENAMES`` from *scoring_path* into
-    *script_dir* if not already present there. Never overwrites an existing
-    file — an uploaded bundle may ship its own version deliberately.
+def _copy_missing_helpers(scoring_path: Path, mesh_path: Path, script_dir: Path) -> None:
+    """Copy the shared KTC ``.py`` helper modules and the mesh file into
+    *script_dir* if not already present there. Never overwrites an
+    existing file — an uploaded bundle may ship its own version
+    deliberately.
+
+    Helper modules are discovered by globbing ``*.py`` in *scoring_path*
+    rather than a fixed filename list — different submissions import
+    different subsets (e.g. one script needs KTCPlotting, another doesn't),
+    and a hardcoded list silently breaks the next script that needs a file
+    nobody thought to add. Globbing means any new helper module dropped
+    into *scoring_path* is picked up automatically.
+
+    The mesh file is handled separately, via its own *mesh_path*, because
+    in this project's actual layout it does not live next to the ``.py``
+    helpers (helpers are under ``data/KTCScoring/``, the mesh is under
+    ``Codes_Matlab/``) — see the ``mesh_path`` parameter docs on
+    ``CLIScriptPlugin`` for why a single shared root doesn't work.
 
     Why copy instead of relying only on PYTHONPATH
     -----------------------------------------------
@@ -344,21 +426,34 @@ def _copy_missing_helpers(scoring_path: Path, script_dir: Path) -> None:
     if not scoring_path.is_dir():
         _logger.warning(
             "CLIScriptPlugin: scoring_path '%s' does not exist — cannot "
-            "supply KTC helper modules or Mesh_sparse.mat.", scoring_path,
+            "supply KTC helper modules.", scoring_path,
         )
-        return
+    else:
+        for src in scoring_path.glob("*.py"):
+            dst = script_dir / src.name
+            if not dst.exists():
+                try:
+                    shutil.copy2(str(src), str(dst))
+                except OSError as exc:
+                    _logger.warning(
+                        "CLIScriptPlugin: could not copy %s into %s: %s",
+                        src.name, script_dir, exc,
+                    )
 
-    for filename in _HELPER_FILENAMES:
-        src = scoring_path / filename
-        dst = script_dir / filename
-        if src.exists() and not dst.exists():
-            try:
-                shutil.copy2(str(src), str(dst))
-            except OSError as exc:
-                _logger.warning(
-                    "CLIScriptPlugin: could not copy %s into %s: %s",
-                    filename, script_dir, exc,
-                )
+    dst_mesh = script_dir / "Mesh_sparse.mat"
+    if not mesh_path.exists():
+        _logger.warning(
+            "CLIScriptPlugin: mesh_path '%s' does not exist — script will "
+            "likely fail when it loads Mesh_sparse.mat.", mesh_path,
+        )
+    elif not dst_mesh.exists():
+        try:
+            shutil.copy2(str(mesh_path), str(dst_mesh))
+        except OSError as exc:
+            _logger.warning(
+                "CLIScriptPlugin: could not copy Mesh_sparse.mat into %s: %s",
+                script_dir, exc,
+            )
 
 
 def _build_subprocess_env(scoring_path: Path) -> dict:
