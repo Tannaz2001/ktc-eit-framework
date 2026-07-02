@@ -182,12 +182,12 @@ def create_wrapper_class(manifest: MethodManifest) -> type:
             tmp_input = None
             tmp_output = None
             try:
-                tmp_input = tempfile.mkdtemp(prefix=f"{manifest.name}_in_")
+                # Pass the actual data directory — no copy needed since the
+                # KTC dataset is already on disk in the project.
+                input_dir = str(data_file.parent)
                 tmp_output = tempfile.mkdtemp(prefix=f"{manifest.name}_out_")
 
-                shutil.copy2(str(data_file), os.path.join(tmp_input, data_file.name))
-
-                cmd = [python, entry_point, tmp_input, tmp_output, str(level)]
+                cmd = [python, entry_point, input_dir, tmp_output, str(level)]
 
                 _logger.info(
                     "%s: subprocess — level=%d sample=%s",
@@ -261,12 +261,11 @@ def create_wrapper_class(manifest: MethodManifest) -> type:
                 return np.zeros((256, 256), dtype=np.uint8)
 
             finally:
-                for tmp_dir in (tmp_input, tmp_output):
-                    if tmp_dir and os.path.isdir(tmp_dir):
-                        try:
-                            shutil.rmtree(tmp_dir)
-                        except Exception:
-                            pass
+                if tmp_output and os.path.isdir(tmp_output):
+                    try:
+                        shutil.rmtree(tmp_output)
+                    except Exception:
+                        pass
 
     _Wrapper.__name__ = manifest.name
     _Wrapper.__qualname__ = manifest.name
