@@ -53,7 +53,35 @@ def run_benchmark(config_path: Path) -> dict:
     return config
 
 
-def project_to_dashboard(output_dir: str | Path, runs_root: str | Path = "outputs") -> Path:
+def _run_has_dashboard_data(run_dir: Path) -> bool:
+    try:
+        scores_path = run_dir / "scores.json"
+        per_run_path = run_dir / "per_run_metrics.json"
+        if not scores_path.exists() or not per_run_path.exists():
+            return False
+        with scores_path.open(encoding="utf-8") as f:
+            scores = json.load(f)
+        with per_run_path.open(encoding="utf-8") as f:
+            per_run = json.load(f)
+        total_runs = sum(len(v) for v in per_run.values()) if isinstance(per_run, dict) else 0
+        return bool(scores) and bool(per_run) and total_runs > 0
+    except Exception:
+        return False
+
+
+def _current_latest_run(runs_root: Path) -> Path | None:
+    pointer = runs_root / "latest.txt"
+    if not pointer.exists():
+        return None
+    latest = Path(pointer.read_text(encoding="utf-8").strip())
+    return latest if latest.exists() and _run_has_dashboard_data(latest) else None
+
+
+def project_to_dashboard(
+    output_dir: str | Path,
+    runs_root: str | Path = "outputs",
+    merge_with_latest: bool = False,
+) -> Path:
     """Snapshot BatchRunner output into a run folder app.py can read.
 
     latest.txt is updated only after non-empty scores/per-run files and images
@@ -84,12 +112,30 @@ def project_to_dashboard(output_dir: str | Path, runs_root: str | Path = "output
         print("        latest.txt was NOT changed; previous completed dashboard data is preserved.")
         raise SystemExit(1)
 
+    base_run = _current_latest_run(runs_root) if merge_with_latest else None
     run_dir = runs_root / f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     run_dir.mkdir(parents=True, exist_ok=True)
     print(f"[2/3] Projecting scores to dashboard folder: {run_dir}")
 
-    shutil.copyfile(dashboard_scores, run_dir / "scores.json")
-    shutil.copyfile(per_run_path, run_dir / "per_run_metrics.json")
+    if base_run:
+        shutil.copytree(base_run, run_dir, dirs_exist_ok=True)
+        print(f"      merged with previous active run: {base_run}")
+
+        with (base_run / "scores.json").open(encoding="utf-8") as f:
+            base_scores = json.load(f)
+        with (base_run / "per_run_metrics.json").open(encoding="utf-8") as f:
+            base_per_run = json.load(f)
+        if isinstance(base_scores, dict):
+            base_scores.update(dashboard_data)
+            dashboard_data = base_scores
+        if isinstance(base_per_run, dict):
+            base_per_run.update(per_run)
+            per_run = base_per_run
+
+    with (run_dir / "scores.json").open("w", encoding="utf-8") as f:
+        json.dump(dashboard_data, f, indent=2)
+    with (run_dir / "per_run_metrics.json").open("w", encoding="utf-8") as f:
+        json.dump(per_run, f, indent=2)
 
     recon_dir = run_dir / "reconstructions"
     overlay_dir = run_dir / "error_overlays"
@@ -141,7 +187,10 @@ def main() -> None:
     args = parser.parse_args()
 
     config = run_benchmark(args.config)
-    run_dir = project_to_dashboard(config["output_dir"])
+    run_dir = project_to_dashboard(
+        config["output_dir"],
+        merge_with_latest=bool(config.get("merge_with_latest", False)),
+    )
 
     if args.no_app:
         print(f"[3/3] Done. Launch the dashboard with: streamlit run app.py")
