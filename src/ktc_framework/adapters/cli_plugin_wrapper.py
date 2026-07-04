@@ -66,6 +66,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -95,16 +96,71 @@ _SOLVER_ENV_VAR = "KTC_SOLVER_ENV"
 
 # Env var for the shared FEM mesh file. Kept separate from scoring_path
 # because in this project's actual layout the two live in different
-# directories: KTC*.py helper modules under data/KTCScoring/, but
-# Mesh_sparse.mat under Codes_Matlab/ (see configs/ktc_all_methods.yaml's
-# own `mesh_path: Codes_Matlab/Mesh_sparse.mat`). A single shared root
-# would silently miss one or the other depending on which repo layout a
-# given submission was built against.
+# directories, AND there are two *incompatible formats* of Mesh_sparse.mat
+# in this repo:
+#   - Codes_Matlab/Mesh_sparse.mat (and configs/ktc_all_methods.yaml's own
+#     `mesh_path:`) is a nested {Mesh, Mesh2} struct — this framework's own
+#     convention, read by BatchRunner._load_mesh for the built-in methods.
+#   - external_methods/abc1/Mesh_sparse.mat is FLAT (top-level g, H,
+#     elfaces, Element, ...) — the genuine KTC competition format every raw
+#     main.py-style CLI submission expects via a bare
+#     `scipy.io.loadmat('Mesh_sparse.mat')['g']`.
+# Pointing a CLI script at the nested-format file fails with
+# `KeyError: 'g'` (caught by CLIScriptPlugin, degrading to a silent
+# all-zero reconstruction) — so the default here MUST be the flat one.
 _MESH_PATH_ENV = "KTC_MESH_PATH"
 
 _DEFAULT_SCORING_PATH = "data/KTCScoring"
-_DEFAULT_MESH_PATH = "Codes_Matlab/Mesh_sparse.mat"
+_DEFAULT_MESH_PATH = "external_methods/abc1/Mesh_sparse.mat"
 _DEFAULT_TIMEOUT_S = 180
+
+
+def derive_cli_method_name(stem: str, existing: Optional[set] = None) -> str:
+    """Turn a script's filename stem into a valid registry key.
+
+    Raw KTC CLI submissions have no author-declared name the way
+    method.yaml bundles do (``manifest.name``) — every competition entry
+    is conventionally just "main.py" — so the registry key is derived
+    from the uploaded filename instead.
+
+    This is called from two places that must agree on the exact same name
+    for the exact same file:
+
+    1. ``app.py``'s upload handler, at upload time — the returned name is
+       what gets written into the YAML config's ``methods:`` list.
+    2. ``registry.load_cli_scripts``, inside every fresh benchmark
+       subprocess — it re-discovers the same file on disk and must derive
+       the identical name so ``methods: [<name>]`` in the config actually
+       resolves to this wrapper, instead of failing with "not registered".
+
+    Parameters
+    ----------
+    stem:
+        The script's filename without extension (e.g. ``"main"`` for
+        ``main.py``).
+    existing:
+        When given, a numeric suffix is appended on collision (e.g. a
+        second upload also named ``main.py`` becomes ``"main_2"`` —
+        this is what the dashboard upload path wants, since two
+        different files can legitimately need distinct names).
+        When ``None`` (the default), no suffix is added — this is what
+        subprocess-side rediscovery of a single already-on-disk file
+        wants: reproduce the one name that was already assigned, not
+        invent a new one.
+    """
+    base = re.sub(r"\W+", "_", stem).strip("_") or "CLIMethod"
+    if not base[0].isalpha():
+        base = f"CLI_{base}"
+
+    if existing is None:
+        return base
+
+    name = base
+    suffix = 2
+    while name in existing:
+        name = f"{base}_{suffix}"
+        suffix += 1
+    return name
 
 
 def create_cli_wrapper_class(
@@ -348,7 +404,14 @@ class CLIScriptPlugin(MethodPlugin):
         import scipy.io
 
         inj = np.asarray(batch.injection_patterns, dtype=np.float64)
-        uel = np.asarray(batch.voltages, dtype=np.float64)
+        # Column vector, not flat 1-D: scipy.io.savemat serialises a plain
+        # (N,) array as a (1, N) MATLAB row vector, but the KTC scripts
+        # index these with a length-N boolean mask along axis 0
+        # (`deltaU[vincl]`), which requires a (N, 1) column vector —
+        # matching the shape real KTC-provided .mat files use. Without
+        # this reshape the script crashes with "boolean index did not
+        # match indexed array along axis 0; size of axis is 1".
+        uel = np.asarray(batch.voltages, dtype=np.float64).reshape(-1, 1)
 
         mpat = (
             np.asarray(batch.measurement_patterns, dtype=np.float64)
@@ -357,7 +420,7 @@ class CLIScriptPlugin(MethodPlugin):
         )
 
         if batch.reference_voltages is not None:
-            uelref = np.asarray(batch.reference_voltages, dtype=np.float64)
+            uelref = np.asarray(batch.reference_voltages, dtype=np.float64).reshape(-1, 1)
         else:
             # No ref.mat was found by the data loader upstream. Writing
             # zeros lets the script run instead of crashing, but the
@@ -446,7 +509,14 @@ def _copy_missing_helpers(scoring_path: Path, mesh_path: Path, script_dir: Path)
             "CLIScriptPlugin: mesh_path '%s' does not exist — script will "
             "likely fail when it loads Mesh_sparse.mat.", mesh_path,
         )
-    elif not dst_mesh.exists():
+    elif not dst_mesh.exists() or not _has_flat_mesh_keys(dst_mesh):
+        # A file may already sit here in the wrong (nested {Mesh, Mesh2})
+        # format — e.g. copied for an unrelated purpose, or left over from
+        # this project's own convention (see the module-level comment on
+        # _DEFAULT_MESH_PATH). "Never overwrite" is meant to protect a
+        # deliberately-placed compatible file, not preserve a stale
+        # incompatible one that would make every reconstruction silently
+        # degrade to zeros via a caught KeyError.
         try:
             shutil.copy2(str(mesh_path), str(dst_mesh))
         except OSError as exc:
@@ -454,6 +524,24 @@ def _copy_missing_helpers(scoring_path: Path, mesh_path: Path, script_dir: Path)
                 "CLIScriptPlugin: could not copy Mesh_sparse.mat into %s: %s",
                 script_dir, exc,
             )
+
+
+def _has_flat_mesh_keys(mat_path: Path) -> bool:
+    """True if *mat_path* has the flat top-level ``'g'`` key raw KTC CLI
+    scripts read directly (``mat_dict_mesh['g']``), as opposed to this
+    framework's own nested ``{Mesh, Mesh2}`` struct convention.
+
+    Uses ``scipy.io.whosmat`` — reads only variable name/shape metadata,
+    not the full arrays, so checking this on every ``reconstruct()`` call
+    is cheap.
+    """
+    import scipy.io
+
+    try:
+        names = {entry[0] for entry in scipy.io.whosmat(str(mat_path))}
+    except Exception:
+        return False
+    return "g" in names
 
 
 def _build_subprocess_env(scoring_path: Path) -> dict:
