@@ -1257,24 +1257,20 @@ def register_cli_script(script_path: Path) -> str:
     Raw CLI submissions have no author-declared name the way method.yaml
     bundles do (``manifest.name``) or in-process classes do (the class
     name) — every KTC entry is conventionally just "main.py". So the name
-    is derived from the uploaded filename's stem, sanitised into a valid
-    identifier, with a numeric suffix appended on collision (e.g. a second
-    upload also named main.py becomes "main_2").
+    is derived from the uploaded filename's stem via
+    ``derive_cli_method_name`` — the *same* function
+    ``registry.load_cli_scripts`` uses to re-discover this file inside a
+    fresh benchmark subprocess, so the name saved here into the YAML
+    config's ``methods:`` list is guaranteed to resolve to the same
+    wrapper at run time instead of failing with "not registered".
     """
-    from src.ktc_framework.adapters.cli_plugin_wrapper import create_cli_wrapper_class
+    from src.ktc_framework.adapters.cli_plugin_wrapper import (
+        create_cli_wrapper_class, derive_cli_method_name,
+    )
     from src.ktc_framework.registry import list_methods as _list_methods_
     from src.ktc_framework.registry import register_method as _register_method_
 
-    base_name = re.sub(r"\W+", "_", script_path.stem).strip("_") or "CLIMethod"
-    if not base_name[0].isalpha():
-        base_name = f"CLI_{base_name}"
-
-    existing = set(_list_methods_())
-    name = base_name
-    suffix = 2
-    while name in existing:
-        name = f"{base_name}_{suffix}"
-        suffix += 1
+    name = derive_cli_method_name(script_path.stem, existing=set(_list_methods_()))
 
     wrapper_cls = create_cli_wrapper_class(script_path=str(script_path), name=name)
     _register_method_(wrapper_cls)
