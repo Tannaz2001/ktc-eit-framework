@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import inspect
 import json
 import os
 import subprocess
@@ -29,6 +31,7 @@ from src.ktc_framework.registry import (
 )
 from src.ktc_framework.metrics.metric_registry import run_all_metrics
 from src.ktc_framework.metrics.composite_score import composite_score, letter_grade
+from src.ktc_framework.methods import _opcache
 from src.ktc_framework.visualization import save_panel
 from src.ktc_framework.visualization.plot_results import (
     save_figures,
@@ -321,6 +324,38 @@ class BatchRunner:
         self._generate_visuals(results)
         return results
 
+    @staticmethod
+    def _result_cache_key(method: str, batch: DataBatch) -> str | None:
+        """Stable key for the automatic per-result cache.
+
+        Combines the method name, a hash of the method's source code (so editing
+        the method invalidates its cache), and a hash of the input data that
+        determines the reconstruction (voltages, patterns, reference, level).
+        Returns None on any hashing failure, which simply disables caching for
+        that run (results are unaffected — only speed).
+        """
+        try:
+            h = hashlib.md5()
+            h.update(method.encode("utf-8"))
+            # Method source: editing the algorithm changes the key -> recompute.
+            try:
+                h.update(inspect.getsource(registry_get(method)).encode("utf-8"))
+            except Exception:
+                pass
+            # Inputs that determine the output.
+            for arr in (
+                batch.voltages,
+                batch.injection_patterns,
+                getattr(batch, "reference_voltages", None),
+                getattr(batch, "measurement_patterns", None),
+            ):
+                if arr is not None:
+                    h.update(np.ascontiguousarray(np.asarray(arr, dtype=np.float64)).tobytes())
+            h.update(f"L{int(batch.level)}".encode("utf-8"))
+            return f"result|{method}|{h.hexdigest()}"
+        except Exception:
+            return None
+
     def _run_one(
         self, method: str, level: int, sample: str
     ) -> dict[str, Any] | None:
@@ -384,24 +419,38 @@ class BatchRunner:
             })
             return None
 
-        # ── reconstruct ───────────────────────────────────────────────────
-        start = time.perf_counter()
-        try:
-            reconstruction = method_plugin.reconstruct(batch)
-        except Exception as exc:
-            tb = traceback.format_exc()
-            console.print(
-                f"[red]Reconstruction failed for method={method} "
-                f"level={level} sample={sample}: {exc}[/red]"
-            )
-            self.failures.append({
-                "method": method, "level": level, "sample": sample,
-                "error_type": type(exc).__name__, "error_msg": str(exc),
-                "traceback": tb,
-                "stage": "reconstruct",
-            })
-            return None
-        runtime_ms = (time.perf_counter() - start) * 1000
+        # ── reconstruct (with automatic result cache) ─────────────────────
+        # The reconstruction is deterministic for a given method + input data,
+        # so we cache the output keyed by (method, method source code, input
+        # data). This applies to EVERY method automatically — including newly
+        # added or uploaded ones — with no per-method cache code required. On a
+        # cache hit we skip reconstruct() entirely; if the method's source or the
+        # input data changes, the key changes and it recomputes.
+        result_key = self._result_cache_key(method, batch)
+        cached_recon = _opcache.load(result_key) if result_key else None
+        if cached_recon is not None:
+            reconstruction = cached_recon
+            runtime_ms = 0.0
+        else:
+            start = time.perf_counter()
+            try:
+                reconstruction = method_plugin.reconstruct(batch)
+            except Exception as exc:
+                tb = traceback.format_exc()
+                console.print(
+                    f"[red]Reconstruction failed for method={method} "
+                    f"level={level} sample={sample}: {exc}[/red]"
+                )
+                self.failures.append({
+                    "method": method, "level": level, "sample": sample,
+                    "error_type": type(exc).__name__, "error_msg": str(exc),
+                    "traceback": tb,
+                    "stage": "reconstruct",
+                })
+                return None
+            runtime_ms = (time.perf_counter() - start) * 1000
+            if result_key is not None:
+                _opcache.save(result_key, reconstruction)
 
         # ── score ─────────────────────────────────────────────────────────
         gt = batch.ground_truth
