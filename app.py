@@ -238,6 +238,11 @@ section[data-testid="stSidebar"] hr{border-color:var(--bd)!important;margin:13px
 .streamlit-expanderContent{
   background:var(--sur)!important;border:1px solid var(--bd)!important;border-top:none!important;
 }
+section[data-testid="stSidebar"] [data-testid="stExpander"] summary svg,
+section[data-testid="stSidebar"] [data-testid="stExpander"] summary [data-testid="stIconMaterial"],
+section[data-testid="stSidebar"] [data-testid="stExpander"] summary span[aria-hidden="true"]{
+  display:none!important;
+}
 
 /* -- typography -- */
 h1{font-family:'Inter',sans-serif!important;font-size:15px!important;font-weight:500!important;color:var(--tx)!important;margin:0 0 3px!important;}
@@ -305,6 +310,48 @@ p,.stMarkdown p{font-size:11px!important;color:var(--tx2)!important;line-height:
   text-align:center;
 }
 
+/* -- Add Method panel -- */
+.plugin-section-label{
+  font-family:'JetBrains Mono',monospace;
+  font-size:12px;
+  font-weight:700;
+  color:var(--tx3);
+  margin:10px 0 6px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+.plugin-empty,
+.plugin-help{
+  font-family:'JetBrains Mono',monospace;
+  font-size:12px;
+  color:var(--tx3);
+  line-height:1.45;
+  margin:4px 0 8px;
+}
+.plugin-item{
+  border:1px solid var(--bd);
+  border-radius:6px;
+  background:var(--bg);
+  padding:8px 9px;
+  margin:8px 0 6px;
+}
+.plugin-name{
+  font-family:'JetBrains Mono',monospace;
+  font-size:12px;
+  font-weight:600;
+  color:var(--tx2);
+  line-height:1.3;
+  overflow-wrap:anywhere;
+}
+.plugin-file{
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;
+  color:var(--tx3);
+  line-height:1.3;
+  margin-top:3px;
+  overflow-wrap:anywhere;
+}
+
 /* -- tier bar -- */
 .tier-bar-wrap{height:3px;background:var(--bd);border-radius:2px;margin-top:3px;}
 .tier-bar-fill{height:3px;background:var(--grn);border-radius:2px;}
@@ -345,36 +392,92 @@ section[data-testid="stSidebar"] [data-testid^="stColumn"] button[kind="secondar
 }
 section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]{
   align-items:center!important;
-  gap:6px!important;
+  gap:5px!important;
 }
 section[data-testid="stSidebar"] [data-testid="stCheckbox"]{
-  min-height:32px!important;
+  min-height:26px!important;
+  height:auto!important;
   display:flex!important;
   align-items:center!important;
+  margin:2px 0 2px!important;
+  overflow:visible!important;
 }
 section[data-testid="stSidebar"] [data-testid="stCheckbox"] label{
   display:flex!important;
   align-items:center!important;
   gap:7px!important;
+  min-height:26px!important;
+  height:auto!important;
+  overflow:visible!important;
+}
+section[data-testid="stSidebar"] [data-testid="stCheckbox"] label > div:first-child,
+section[data-testid="stSidebar"] [data-testid="stCheckbox"] span[data-baseweb="checkbox"]{
+  flex:0 0 auto!important;
+  margin-top:0!important;
 }
 section[data-testid="stSidebar"] [data-testid="stCheckbox"] p{
   font-size:12px!important;
-  line-height:1.25!important;
+  line-height:1.35!important;
   color:var(--tx2)!important;
   margin:0!important;
   white-space:normal!important;
+  overflow:visible!important;
+  overflow-wrap:anywhere!important;
+  word-break:normal!important;
 }
-section[data-testid="stSidebar"] [data-testid^="stColumn"] [data-testid="stButton"]{
+section[data-testid="stSidebar"] [data-testid^="stColumn"] [data-testid="stButton"],
+section[data-testid="stSidebar"] [data-testid="column"] [data-testid="stButton"]{
   display:flex!important;
   align-items:center!important;
   justify-content:center!important;
+  width:100%!important;
+  margin:0!important;
 }
-section[data-testid="stSidebar"] [data-testid^="stColumn"] button[kind="secondary"]{
+section[data-testid="stSidebar"] [data-testid^="stColumn"] [data-testid="stButton"] button,
+section[data-testid="stSidebar"] [data-testid="column"] [data-testid="stButton"] button{
+  width:100%!important;
+  min-width:0!important;
+  height:28px!important;
+  min-height:28px!important;
+  padding:0 8px!important;
+  line-height:1!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+section[data-testid="stSidebar"] [data-testid="stButton"] button:disabled,
+section[data-testid="stSidebar"] [data-testid="stButton"] button[disabled],
+section[data-testid="stSidebar"] [data-testid^="stBaseButton"]:disabled,
+section[data-testid="stSidebar"] [data-testid^="stBaseButton"][disabled]{
   width:100%!important;
   min-width:0!important;
   height:30px!important;
   min-height:30px!important;
-  padding:0 4px!important;
+  padding:0 8px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  box-sizing:border-box!important;
+}
+section[data-testid="stSidebar"] [data-testid="stButton"] button p,
+section[data-testid="stSidebar"] [data-testid^="stBaseButton"] p{
+  width:100%!important;
+  text-align:center!important;
+  margin:0!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
+section[data-testid="stSidebar"] [data-testid^="stColumn"] button[kind="secondary"],
+section[data-testid="stSidebar"] [data-testid="column"] button[kind="secondary"]{
+  width:100%!important;
+  min-width:0!important;
+  height:30px!important;
+  min-height:30px!important;
+  padding:0 8px!important;
   line-height:1!important;
   font-size:10px!important;
   white-space:nowrap!important;
@@ -469,11 +572,35 @@ section[data-testid="stSidebar"] [data-baseweb="select"] *{
   font-size:12px!important;line-height:1.35!important;
   padding-top:7px!important;padding-bottom:7px!important;
   color:var(--tx)!important;opacity:1!important;
+  width:100%!important;
+  box-sizing:border-box!important;
+  display:flex!important;
+  align-items:center!important;
+  background:var(--sur)!important;
 }
 [data-baseweb="popover"] [role="option"] *,
 [data-baseweb="menu"] li *{color:var(--tx)!important;opacity:1!important;}
+[data-baseweb="popover"] [role="option"]:hover,
+[data-baseweb="popover"] [role="option"][aria-selected="true"],
+[data-baseweb="popover"] [role="option"][aria-current="true"],
+[data-baseweb="menu"] li:hover,
+[data-baseweb="menu"] li[aria-selected="true"],
+[data-baseweb="menu"] li[aria-current="true"]{
+  background:var(--grn-bg)!important;
+  color:var(--grn)!important;
+}
+[data-baseweb="popover"] [role="option"]:hover *,
+[data-baseweb="popover"] [role="option"][aria-selected="true"] *,
+[data-baseweb="popover"] [role="option"][aria-current="true"] *,
+[data-baseweb="menu"] li:hover *,
+[data-baseweb="menu"] li[aria-selected="true"] *,
+[data-baseweb="menu"] li[aria-current="true"] *{
+  background:transparent!important;
+  color:var(--grn)!important;
+}
 .stSlider,.stSelectbox,.stMultiSelect{margin-bottom:8px!important;}
-.stCheckbox{margin-bottom:2px!important;}
+.stCheckbox{margin-bottom:3px!important;}
+section[data-testid="stSidebar"] .stCheckbox{margin-bottom:2px!important;}
 
 /* -- responsive page spacing: keep sidebar/main padding tight without changing sidebar width -- */
 [data-testid="stAppViewContainer"] > .main,
@@ -484,10 +611,6 @@ section[data-testid="stSidebar"] [data-baseweb="select"] *{
 [data-testid="stAppViewContainer"] .main .block-container{
   padding:0 clamp(6px,.8vw,10px) 42px!important;
   max-width:100%!important;
-}
-section[data-testid="stSidebar"]>div:first-child{
-  padding-left:8px!important;
-  padding-right:8px!important;
 }
 .dash-header,
 .kpi-row,
@@ -507,11 +630,11 @@ section[data-testid="stSidebar"]>div:first-child{
   min-width:0!important;
 }
 .dataset-summary-card{
-  flex:1 1 150px!important;
+  flex:0 0 132px!important;
   min-width:0!important;
 }
 .dataset-summary-card:first-child{
-  flex-basis:320px!important;
+  flex:1 1 520px!important;
 }
 .chip,
 .kpi-s,
@@ -539,6 +662,120 @@ section[data-testid="stSidebar"]>div:first-child{
     justify-content:center!important;
   }
 }
+
+/* -- final responsive guardrails for charts, tables, and sidebar control rows -- */
+[data-testid="stVerticalBlock"],
+[data-testid="stHorizontalBlock"],
+[data-testid="stColumn"],
+[data-testid="stElementContainer"],
+[data-testid="stPlotlyChart"],
+[data-testid="stDataFrame"],
+.js-plotly-plot,
+.plot-container,
+.svg-container{
+  max-width:100%!important;
+  min-width:0!important;
+  box-sizing:border-box!important;
+}
+[data-testid="stPlotlyChart"],
+[data-testid="stDataFrame"],
+[data-testid="stTable"]{
+  overflow-x:auto!important;
+}
+[data-testid="stImage"] img,
+img{
+  max-width:100%!important;
+  height:auto!important;
+}
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]{
+  display:flex!important;
+  flex-wrap:nowrap!important;
+  width:100%!important;
+}
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] > [data-testid^="stColumn"]{
+  min-width:0!important;
+}
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] > [data-testid="column"]{
+  flex:1 1 0!important;
+  min-width:0!important;
+}
+@media (max-width: 760px){
+  .dash-title{font-size:16px!important;}
+  .dash-sub{font-size:11px!important;}
+  .kpi-row{gap:8px!important;}
+  .kpi{flex-basis:100%!important;}
+  .chips{gap:4px!important;}
+  .chip{max-width:100%!important;}
+  .dataset-summary-row{
+    gap:8px!important;
+  }
+  .dataset-summary-card,
+  .dataset-summary-card:first-child{
+    flex:1 1 100%!important;
+  }
+}
+@media (max-width: 420px){
+  .stTabs [data-baseweb="tab"]{
+    flex:1 1 100%!important;
+    min-width:0!important;
+  }
+  section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]{
+    gap:4px!important;
+  }
+  section[data-testid="stSidebar"] [data-testid^="stColumn"] [data-testid="stButton"] button,
+  section[data-testid="stSidebar"] [data-testid="column"] [data-testid="stButton"] button{
+    font-size:10px!important;
+    padding:0 6px!important;
+  }
+}
+
+/* Equalize paired sidebar action buttons such as Run History Load/Delete. */
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]{
+  align-items:stretch!important;
+  gap:5px!important;
+  margin:1px 0 6px!important;
+}
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid="column"],
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid^="stColumn"]{
+  flex:1 1 0!important;
+  width:0!important;
+  min-width:0!important;
+  display:flex!important;
+}
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid="column"] > div,
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid="column"] [data-testid="stButton"],
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid^="stColumn"] > div,
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid^="stColumn"] [data-testid="stButton"]{
+  width:100%!important;
+  min-width:0!important;
+  display:flex!important;
+}
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid="column"] button,
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid^="stColumn"] button,
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid="column"] [data-testid^="stBaseButton"],
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid^="stColumn"] [data-testid^="stBaseButton"]{
+  width:100%!important;
+  min-width:0!important;
+  height:30px!important;
+  min-height:30px!important;
+  max-height:30px!important;
+  padding:0 8px!important;
+  box-sizing:border-box!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid="column"] button p,
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid^="stColumn"] button p,
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid^="stBaseButton"] p{
+  width:100%!important;
+  margin:0!important;
+  text-align:center!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
 </style>
 <script>
 (function(){
@@ -554,10 +791,9 @@ section[data-testid="stSidebar"]>div:first-child{
           el.style.setProperty('display','none','important');
         });
       });
-      /* 2. Also target any leaf node in the sidebar whose text starts with
-         "keyboard" - that is the raw icon fallback text */
+      /* 2. Also target raw Material icon fallback text in the sidebar. */
       doc.querySelectorAll('section[data-testid="stSidebar"] *').forEach(function(el){
-        if(!el.children.length && /^keyboard/i.test((el.textContent||'').trim())){
+        if(!el.children.length && /^(keyboard|arrow|chevron)_/i.test((el.textContent||'').trim())){
           el.style.setProperty('display','none','important');
         }
       });
@@ -888,6 +1124,8 @@ def write_runtime_config(method_name: str) -> Path:
         f"samples: {samples_yaml}\n\n"
         f"methods:\n  - {method_name}\n\n"
         "method_plugin_paths:\n  - external_methods\n\n"
+        "include_external_methods: false\n\n"
+        "merge_with_latest: true\n\n"
         "output_dir: outputs/\n",
         encoding="utf-8",
     )
@@ -1315,6 +1553,30 @@ def discover_available_methods() -> List[str]:
         for file_path in ext_dir.glob("*.py"):
             for name in plugin_method_candidates(file_path):
                 external_methods_on_disk[name] = file_path.name
+        for bundle_dir in sorted(
+            d for d in ext_dir.iterdir()
+            if d.is_dir() and not d.name.startswith("_") and (d / "method.yaml").exists()
+        ):
+            try:
+                from src.ktc_framework.methods.manifest_loader import load_manifest
+                manifest = load_manifest(bundle_dir / "method.yaml")
+                external_methods_on_disk[manifest.name] = bundle_dir.name
+            except Exception:
+                pass
+
+    if 'uploaded_methods' not in st.session_state:
+        st.session_state.uploaded_methods = {}
+    st.session_state.uploaded_methods = {
+        name: fname
+        for name, fname in st.session_state.uploaded_methods.items()
+        if ((name in external_methods_on_disk or name in configured_methods)
+                and name not in BUILTIN_METHODS
+                and name not in HIDDEN_METHODS
+                and name not in removed_external)
+    }
+    for name, fname in external_methods_on_disk.items():
+        if name not in BUILTIN_METHODS and name not in HIDDEN_METHODS and name not in removed_external:
+            st.session_state.uploaded_methods.setdefault(name, fname)
 
     def add(name: str):
         if (name and name not in methods and name not in HIDDEN_METHODS
@@ -1340,8 +1602,6 @@ def discover_available_methods() -> List[str]:
     for name in configured_methods:
         add(str(name))
 
-    if 'uploaded_methods' not in st.session_state:
-        st.session_state.uploaded_methods = {}
     for name in st.session_state.uploaded_methods.keys():
         add(name)
 
@@ -1359,7 +1619,10 @@ def discover_available_methods() -> List[str]:
             )
             if py_files or bundle_dirs_da:
                 _load_ext([str(ext_dir)])
-                discovered = sorted(set(_list_methods()) - before)
+                discovered = sorted(
+                    name for name in set(_list_methods()) - before
+                    if name in external_methods_on_disk and name not in BUILTIN_METHODS
+                )
                 for name in discovered:
                     fname = external_methods_on_disk.get(name) or next(
                         (f.name for f in py_files if name.lower() in f.stem.lower()), "")
@@ -1473,9 +1736,19 @@ def render_sidebar():
     try:
         import yaml as _yaml
         _cfg_path = Path("configs/ktc_all_methods.yaml")
-        _n_methods = len(_yaml.safe_load(_cfg_path.read_text()).get("methods", []))
-        _eta = f"~{_n_methods * 4} min"
-        _n_str = str(_n_methods)
+        _configured_methods = [
+            str(m) for m in (_yaml.safe_load(_cfg_path.read_text()).get("methods", []) or [])
+        ]
+        _visible_methods = [m for m in _configured_methods if m not in HIDDEN_METHODS]
+        _available_methods = [
+            m for m in st.session_state.get('_available_methods', [])
+            if m not in HIDDEN_METHODS
+            and m not in st.session_state.get('_removed_external_methods', [])
+        ]
+        if _available_methods:
+            _visible_methods = _available_methods
+        _eta = f"~{len(_configured_methods) * 4} min"
+        _n_str = str(len(_visible_methods))
     except Exception:
         _eta = "several min"
         _n_str = "all"
@@ -1516,7 +1789,11 @@ def render_sidebar():
     # -- Reset All Filters -------------------------------------
     if st.sidebar.button("Reset All Filters", key="reset_all_btn", use_container_width=True):
         st.session_state.selected_metrics  = ALL_METRICS_SIDEBAR.copy()
-        st.session_state.selected_methods  = st.session_state.get('_available_methods', []).copy()
+        active_methods = set(st.session_state.get('_active_result_methods', []))
+        available_methods = st.session_state.get('_available_methods', [])
+        st.session_state.selected_methods  = [
+            m for m in available_methods if not active_methods or m in active_methods
+        ]
         st.session_state.level_range       = (1, 7)
         st.session_state.selected_samples  = ['A', 'B', 'C']
         # clear checkbox widget state so they re-render checked
@@ -1562,9 +1839,35 @@ def render_sidebar():
         m for m in st.session_state.get('_available_methods', [])
         if m not in removed_external
     ]
+    try:
+        import yaml as _yaml
+        _cfg_path = Path("configs/ktc_all_methods.yaml")
+        _cfg = _yaml.safe_load(_cfg_path.read_text(encoding="utf-8")) if _cfg_path.exists() else {}
+        configured_sidebar_methods = [
+            str(m) for m in ((_cfg or {}).get("methods", []) or [])
+            if str(m) not in HIDDEN_METHODS and str(m) not in removed_external
+        ]
+    except Exception:
+        configured_sidebar_methods = []
+    for m in configured_sidebar_methods + list(st.session_state.get('uploaded_methods', {}).keys()):
+        if m not in available_methods and m not in HIDDEN_METHODS and m not in removed_external:
+            available_methods.append(m)
     st.session_state['_available_methods'] = available_methods
+    try:
+        active_scores, _active_per_run = load_run_data(find_latest_run())
+        active_result_methods = {
+            m for m in active_scores.keys()
+            if m not in HIDDEN_METHODS and m not in removed_external
+        }
+    except Exception:
+        active_result_methods = set()
+    st.session_state['_active_result_methods'] = sorted(active_result_methods)
+    previous_active_result_methods = set(st.session_state.get('_known_active_result_methods', []))
+    newly_active_result_methods = active_result_methods - previous_active_result_methods
     if 'selected_methods' not in st.session_state:
-        st.session_state.selected_methods = available_methods.copy()
+        st.session_state.selected_methods = [
+            m for m in available_methods if not active_result_methods or m in active_result_methods
+        ]
     previous_available = st.session_state.get('_known_available_methods', [])
     newly_available = [m for m in available_methods if m not in previous_available]
     if newly_available:
@@ -1572,26 +1875,50 @@ def render_sidebar():
             m for m in st.session_state.selected_methods if m in available_methods
         ]
         for m in newly_available:
-            if m not in st.session_state.selected_methods:
+            if m in active_result_methods and m not in st.session_state.selected_methods:
                 st.session_state.selected_methods.append(m)
+    if active_result_methods:
+        st.session_state.selected_methods = [
+            m for m in st.session_state.selected_methods if m in active_result_methods
+        ]
+        for m in available_methods:
+            if m in newly_active_result_methods and m not in st.session_state.selected_methods:
+                st.session_state.selected_methods.append(m)
+                st.session_state[f"method_{m}"] = True
+        if not st.session_state.selected_methods and newly_active_result_methods:
+            st.session_state.selected_methods = [
+                m for m in available_methods if m in active_result_methods
+            ]
+            for m in st.session_state.selected_methods:
+                st.session_state[f"method_{m}"] = True
     st.session_state['_known_available_methods'] = available_methods.copy()
+    st.session_state['_known_active_result_methods'] = sorted(active_result_methods)
 
     _uploaded = st.session_state.get('uploaded_methods', {})
 
     if available_methods:
         for m in available_methods:
             display_name = method_display_name(m)
-            checked = m in st.session_state.selected_methods
-            is_external = m in _uploaded
+            is_external = m in _uploaded or m not in BUILTIN_METHODS
+            has_active_results = not active_result_methods or m in active_result_methods
+            if not has_active_results:
+                st.session_state[f"method_{m}"] = False
+            checked = has_active_results and m in st.session_state.selected_methods
+            label = display_name if has_active_results else f"{display_name} (not run)"
 
             # Row: [checkbox  |  Run  |  ✕ (external only)]
-            _chk_col, _run_col, _del_col = st.sidebar.columns([5, 2, 1])
-            with _chk_col:
-                new_val = st.checkbox(display_name, value=checked, key=f"method_{m}")
+            new_val = st.sidebar.checkbox(
+                label,
+                value=checked,
+                key=f"method_{m}",
+                disabled=not has_active_results,
+                help=None if has_active_results else "Run this method first to show it in charts.",
+            )
             if new_val and m not in st.session_state.selected_methods:
                 st.session_state.selected_methods.append(m)
             elif not new_val and m in st.session_state.selected_methods:
                 st.session_state.selected_methods.remove(m)
+            _run_col, _del_col = st.sidebar.columns([1, 1], gap="small")
             with _run_col:
                 if st.button("Run", key=f"mrun_{m}", use_container_width=True,
                              help=f"Benchmark {display_name} now"):
@@ -1600,24 +1927,39 @@ def render_sidebar():
                         st.rerun()
             with _del_col:
                 if is_external:
-                    if st.button("✕", key=f"mdel_{m}", help="Remove plugin"):
-                        _fname = _uploaded.get(m, m)
+                    if st.button("Remove", key=f"mdel_{m}", use_container_width=True, help="Remove plugin"):
+                        _fname = _uploaded.get(m)
                         try:
                             from src.ktc_framework.registry import unregister_method as _unreg
                             _unreg(m)
                         except Exception:
                             pass
-                        _tgt = Path("external_methods") / _fname
-                        if _tgt.is_dir():
-                            shutil.rmtree(_tgt, ignore_errors=True)
-                        else:
-                            _tgt.unlink(missing_ok=True)
+                        _tgt = Path("external_methods") / _fname if _fname else None
+                        if _tgt is None:
+                            ext_dir = Path("external_methods")
+                            _tgt = next(
+                                (p for p in ext_dir.glob("*.py") if m in plugin_method_candidates(p)),
+                                None,
+                            ) if ext_dir.exists() else None
+                        if _tgt is not None:
+                            if _tgt.is_dir():
+                                shutil.rmtree(_tgt, ignore_errors=True)
+                            else:
+                                _tgt.unlink(missing_ok=True)
                         remove_method_from_config(m)
                         remove_external_method_state(m)
                         reset_method_upload_widget()
                         st.cache_data.clear()
                         st.session_state['_method_refresh_msg'] = f"Removed: {m}"
                         st.rerun()
+                else:
+                    st.button(
+                        "Remove",
+                        key=f"mdel_disabled_{m}",
+                        use_container_width=True,
+                        disabled=True,
+                        help="Built-in methods cannot be removed.",
+                    )
     else:
         st.sidebar.markdown('<div style="font-size:11px;color:var(--tx3)">Loading methods...</div>', unsafe_allow_html=True)
 
@@ -1674,6 +2016,22 @@ def render_sidebar():
     )
     if 'uploaded_methods' not in st.session_state:
         st.session_state.uploaded_methods = {}
+    removed_external = set(st.session_state.get('_removed_external_methods', []))
+    ext_dir_for_panel = Path("external_methods")
+    if ext_dir_for_panel.exists():
+        disk_plugins = {
+            name: file_path.name
+            for file_path in ext_dir_for_panel.glob("*.py")
+            for name in plugin_method_candidates(file_path)
+            if name not in BUILTIN_METHODS and name not in HIDDEN_METHODS and name not in removed_external
+        }
+        st.session_state.uploaded_methods = {
+            name: fname
+            for name, fname in st.session_state.uploaded_methods.items()
+            if name in disk_plugins and name not in removed_external
+        }
+        for name, fname in disk_plugins.items():
+            st.session_state.uploaded_methods.setdefault(name, fname)
 
     if st.sidebar.button("Scan external_methods/", key="scan_ext_btn",
                          use_container_width=True,
@@ -1703,9 +2061,14 @@ def render_sidebar():
                 available_after = set(_list_methods())
 
                 ready_methods = sorted(
-                    {nm for nms in candidates_by_file.values() for nm in nms if nm in available_after}
+                    {
+                        name
+                        for names in candidates_by_file.values()
+                        for name in names
+                        if name in available_after and name not in BUILTIN_METHODS
+                    }
                 )
-                new_methods = sorted(available_after - before)
+                new_methods = sorted(name for name in available_after - before if name in ready_methods)
                 for nm in ready_methods:
                     fname = next(
                         (f.name for f in py_files if nm.lower() in f.stem.lower()),
@@ -1748,15 +2111,53 @@ def render_sidebar():
             except Exception as exc:
                 st.sidebar.error(f"Scan failed: {exc}")
 
-    # -- 2. Upload new plugin ---------------------------------
+    # -- 2. Registered methods - always show with action buttons -
+    if st.session_state.uploaded_methods:
+        st.sidebar.markdown(
+            '<div class="plugin-section-label">Registered plugins</div>',
+            unsafe_allow_html=True)
+        for nm, fname in list(st.session_state.uploaded_methods.items()):
+            st.sidebar.markdown(
+                f'<div class="plugin-item">'
+                f'<div class="plugin-name">{nm}</div>'
+                f'<div class="plugin-file">{fname}</div>'
+                f'</div>',
+                unsafe_allow_html=True)
+            ca, cb = st.sidebar.columns([1, 1], gap="small")
+            if ca.button("Add", key=f"cfg_{nm}",
+                         help="Add to ktc_all_methods.yaml and benchmark this plugin now"):
+                append_method_to_config(nm)
+                cfg_path = write_runtime_config(nm)
+                if launch_benchmark(cfg_path):
+                    st.rerun()
+            if cb.button("Remove", key=f"rm_up_{nm}", help="Remove plugin file from disk"):
+                try:
+                    from src.ktc_framework.registry import unregister_method as _unregister_method
+                    _unregister_method(nm)
+                except Exception:
+                    pass
+                plugin_path = Path("external_methods") / fname
+                if plugin_path.is_dir():
+                    shutil.rmtree(plugin_path, ignore_errors=True)
+                else:
+                    plugin_path.unlink(missing_ok=True)
+                remove_method_from_config(nm)
+                remove_external_method_state(nm)
+                reset_method_upload_widget()
+                st.cache_data.clear()
+                st.session_state['_method_refresh_msg'] = f"Removed: {nm}"
+                st.rerun()
+    else:
+        st.sidebar.markdown(
+            '<div class="plugin-empty">No plugins yet. Upload .py or scan.</div>',
+            unsafe_allow_html=True)
+
+    # -- 3. Upload new plugin ---------------------------------
     st.sidebar.markdown(
-        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
-        'color:var(--tx3);margin:8px 0 5px;text-transform:uppercase;'
-        'letter-spacing:.1em">Upload new plugin</div>',
+        '<div class="plugin-section-label">Upload new plugin</div>',
         unsafe_allow_html=True)
     st.sidebar.markdown(
-        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
-        'color:var(--tx3);line-height:1.55;margin-bottom:6px">'
+        '<div class="plugin-help">'
         '<b style="color:var(--tx2)">.py</b> — class with <code>reconstruct(self, batch)</code><br>'
         '<b style="color:var(--tx2)">.zip</b> — ML bundle with <code>method.yaml</code> at root</div>',
         unsafe_allow_html=True)
@@ -1884,33 +2285,34 @@ def render_sidebar():
 
         default_idx = run_names.index(current_run) if current_run in run_names else 0
         # C1: rich labels with status icon + failure count
+        if st.session_state.get('_selected_run_active') != current_run:
+            st.session_state.selected_run = current_run if current_run in run_names else run_names[default_idx]
+            st.session_state['_selected_run_active'] = current_run
         chosen_run = st.sidebar.selectbox(
             "Load run:", run_names, index=default_idx, key="selected_run",
             label_visibility="collapsed",
             format_func=lambda name: _run_label(runs_root / name))
 
-        c_load, c_del = st.sidebar.columns(2)
-        with c_load:
-            if st.button("Load", key="load_run_btn", use_container_width=True):
-                selected_path = runs_root / chosen_run
-                (runs_root / "latest.txt").write_text(str(selected_path.resolve()))
-                st.session_state.pop("_confirm_delete_run", None)
-                st.cache_data.clear()
-                st.rerun()
-        with c_del:
-            # C2: delete run with confirmation
-            _active_is_chosen = chosen_run == current_run
-            if st.button(
-                "Delete", key="delete_run_btn", use_container_width=True,
-                disabled=_active_is_chosen,
-                help="Cannot delete the currently active run" if _active_is_chosen else "Delete this run from disk",
-            ):
+        if st.sidebar.button("Load", key="load_run_btn", use_container_width=True):
+            selected_path = runs_root / chosen_run
+            (runs_root / "latest.txt").write_text(str(selected_path.resolve()))
+            st.session_state.pop("_confirm_delete_run", None)
+            st.cache_data.clear()
+            st.rerun()
+
+        # C2: delete run with confirmation
+        _active_is_chosen = chosen_run == current_run
+        if st.sidebar.button("Delete", key="delete_run_btn", use_container_width=True,
+                             help="Delete this run from disk"):
+            if _active_is_chosen:
+                st.sidebar.info("Cannot delete the currently active run.")
+            else:
                 st.session_state["_confirm_delete_run"] = chosen_run
 
         _pending_del = st.session_state.get("_confirm_delete_run")
         if _pending_del and _pending_del == chosen_run:
             st.sidebar.warning(f"Delete **{_pending_del}**? This cannot be undone.")
-            c_yes, c_no = st.sidebar.columns(2)
+            c_yes, c_no = st.sidebar.columns([1, 1], gap="small")
             with c_yes:
                 if st.button("Yes", key="confirm_del_yes", use_container_width=True):
                     shutil.rmtree(runs_root / _pending_del, ignore_errors=True)
@@ -2083,8 +2485,12 @@ def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple
     lvl_min, lvl_max = level_range
     dm = all_methods(scores)
     # Default: all methods so the full run is visible immediately.
-    chosen = st.multiselect("Select methods:", dm,
-        default=[m for m in dm if m not in st.session_state.get('custom_methods',[])])
+    chosen = st.multiselect(
+        "Select methods:",
+        dm,
+        default=[m for m in dm if m not in st.session_state.get('custom_methods', [])],
+        format_func=method_display_name,
+    )
 
     if not chosen:
         st.info("Select at least one method.")
@@ -3423,9 +3829,7 @@ def main():
         st.markdown(
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:12px;'
             f'color:var(--tx3);margin:-2px 0 10px;padding:0 2px;line-height:1.35">'
-            f'Run: <span style="color:var(--grn)">{latest_run.name}</span> &nbsp;|&nbsp; '
-            f'{len(scores)} method(s) &nbsp;|&nbsp; '
-            f'{sum(len(v) for v in per_run.values()) if per_run else 0} total reconstructions'
+            f'Run: <span style="color:var(--grn)">{latest_run.name}</span>'
             f'{gt_badge}{fail_badge}</div>',
             unsafe_allow_html=True)
 
