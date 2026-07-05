@@ -67,39 +67,8 @@ class ConfigError(Exception):
 # Public API
 # ---------------------------------------------------------------------------
 
-def load_config(config_path: str) -> dict[str, Any]:
-    """Load and validate an experiment YAML config file.
-
-    Validation steps (in order):
-    1.  File extension must be ``.yaml`` or ``.yml``.
-    2.  File must be parseable by ``yaml.safe_load``.
-    3.  All required fields must be present (checked one at a time).
-    4.  ``levels``      — non-empty list of integers in 1–7.
-    5.  ``samples``     — non-empty list, each in ``{A, B, C, 1, 2, 3, 4}``.
-    6.  ``methods``     — non-empty list of non-empty strings.
-    7.  ``mesh_path``   — non-empty string; path must exist (file or directory).
-    8.  ``KTC_DATASET_ROOT`` env var overrides ``dataset_root`` if set.
-    9.  ``dataset_root``— directory must exist (checked after env-var override).
-    10. ``ref.mat``     — soft check: warn if absent, do not raise.
-    11. ``output_dir``  — created with ``os.makedirs`` if it does not exist.
-
-    Parameters
-    ----------
-    config_path:
-        Path to the YAML configuration file (absolute or relative).
-
-    Returns
-    -------
-    dict[str, Any]
-        Fully validated configuration dict, ready for use by ``BatchRunner``.
-
-    Raises
-    ------
-    ConfigError
-        On any validation failure.  The message names the specific field and
-        the offending value so the user knows exactly what to fix.
-    """
-    # ── 1. Extension check ─────────────────────────────────────────────────
+def _validate_file_extension(config_path: str) -> None:
+    """Step 1: extension must be .yaml/.yml, and the file must exist."""
     _, ext = os.path.splitext(str(config_path))
     if ext.lower() not in (".yaml", ".yml"):
         raise ConfigError(
@@ -110,7 +79,9 @@ def load_config(config_path: str) -> dict[str, Any]:
     if not os.path.isfile(str(config_path)):
         raise ConfigError(f"Config error: file not found: {config_path}")
 
-    # ── 2. Parse YAML ──────────────────────────────────────────────────────
+
+def _parse_yaml(config_path: str) -> dict[str, Any]:
+    """Step 2: parse the YAML file into a top-level mapping."""
     with open(str(config_path), "r", encoding="utf-8") as fh:
         try:
             config: Any = yaml.safe_load(fh)
@@ -123,15 +94,20 @@ def load_config(config_path: str) -> dict[str, Any]:
         raise ConfigError(
             f"Config error: top-level YAML must be a mapping (got {type(config).__name__})"
         )
+    return config
 
-    # ── 3. Required fields — one at a time for specific error messages ─────
+
+def _validate_required_fields(config: dict[str, Any], config_path: str) -> None:
+    """Step 3: required fields, checked one at a time for specific error messages."""
     for field in REQUIRED_FIELDS:
         if field not in config:
             raise ConfigError(
                 f"Config error: required field '{field}' is missing from {config_path}"
             )
 
-    # ── 4. Validate levels ─────────────────────────────────────────────────
+
+def _validate_levels(config: dict[str, Any]) -> None:
+    """Step 4: 'levels' — non-empty list of integers in 1-7."""
     levels = config["levels"]
     if not isinstance(levels, list) or len(levels) == 0:
         raise ConfigError(
@@ -144,7 +120,9 @@ def load_config(config_path: str) -> dict[str, Any]:
             f"got {bad_levels!r} in {levels!r}"
         )
 
-    # ── 5. Validate samples ────────────────────────────────────────────────
+
+def _validate_samples(config: dict[str, Any]) -> None:
+    """Step 5: 'samples' — non-empty list, each in {A, B, C, 1, 2, 3, 4}."""
     samples = config["samples"]
     if not isinstance(samples, list) or len(samples) == 0:
         raise ConfigError(
@@ -157,7 +135,10 @@ def load_config(config_path: str) -> dict[str, Any]:
             f"got {bad_samples!r} in {samples!r}"
         )
 
-    # ── 6. Validate methods ────────────────────────────────────────────────
+
+def _validate_methods_and_plugin_paths(config: dict[str, Any]) -> None:
+    """Step 6: 'methods' — non-empty list of non-empty strings; plus the
+    optional 'method_plugin_paths' folders methods are imported from."""
     methods = config["methods"]
     if not isinstance(methods, list) or len(methods) == 0:
         raise ConfigError(
@@ -193,7 +174,10 @@ def load_config(config_path: str) -> dict[str, Any]:
             )
     config["method_plugin_paths"] = method_plugin_paths
 
-    # ── 7. Resolve mesh_path (auto-detect if not specified or missing) ─────
+
+def _resolve_mesh_path(config: dict[str, Any]) -> None:
+    """Step 7: resolve mesh_path, auto-detecting from _MESH_CANDIDATES if
+    not specified or missing."""
     mesh_path = config.get("mesh_path", "")
     if not mesh_path or not os.path.exists(mesh_path):
         resolved = None
@@ -212,7 +196,13 @@ def load_config(config_path: str) -> dict[str, Any]:
     else:
         config["mesh_path"] = mesh_path
 
-    # ── 8. Resolve dataset_root (env var > config > auto-detect) ──────────
+
+def _resolve_dataset_root(config: dict[str, Any]) -> str:
+    """Step 8: resolve dataset_root (env var > config > auto-detect).
+
+    Returns the resolved path (also stored back into config), since the
+    ref.mat soft check that follows needs it directly.
+    """
     env_root = os.environ.get("KTC_DATASET_ROOT")
     if env_root:
         config["dataset_root"] = env_root
@@ -231,9 +221,12 @@ def load_config(config_path: str) -> dict[str, Any]:
                 f"{_DATASET_ROOT_CANDIDATES}"
             )
 
-    dataset_root = config["dataset_root"]
+    return config["dataset_root"]
 
-    # ── 9. Soft check for ref.mat (search multiple locations) ─────────────
+
+def _check_ref_mat_soft(dataset_root: str) -> None:
+    """Step 9: soft check for ref.mat (search multiple locations) — warns,
+    does not raise, since BackProjection/GaussNewton have a fallback."""
     ref_candidates = [
         os.path.join(dataset_root, "ref.mat"),
         os.path.join(dataset_root, "TrainingData", "ref.mat"),
@@ -248,9 +241,55 @@ def load_config(config_path: str) -> dict[str, Any]:
             stacklevel=2,
         )
 
-    # ── 10. Create output_dir if needed ───────────────────────────────────
+
+def _ensure_output_dir(config: dict[str, Any]) -> None:
+    """Step 10: create output_dir if it does not already exist."""
     output_dir = config.get("output_dir", "outputs/")
     config["output_dir"] = output_dir
     os.makedirs(output_dir, exist_ok=True)
+
+
+def load_config(config_path: str) -> dict[str, Any]:
+    """Load and validate an experiment YAML config file.
+
+    Validation steps (in order):
+    1.  File extension must be ``.yaml`` or ``.yml``.
+    2.  File must be parseable by ``yaml.safe_load``.
+    3.  All required fields must be present (checked one at a time).
+    4.  ``levels``      — non-empty list of integers in 1–7.
+    5.  ``samples``     — non-empty list, each in ``{A, B, C, 1, 2, 3, 4}``.
+    6.  ``methods``     — non-empty list of non-empty strings.
+    7.  ``mesh_path``   — non-empty string; path must exist (file or directory).
+    8.  ``KTC_DATASET_ROOT`` env var overrides ``dataset_root`` if set.
+    9.  ``dataset_root``— directory must exist (checked after env-var override).
+    10. ``ref.mat``     — soft check: warn if absent, do not raise.
+    11. ``output_dir``  — created with ``os.makedirs`` if it does not exist.
+
+    Parameters
+    ----------
+    config_path:
+        Path to the YAML configuration file (absolute or relative).
+
+    Returns
+    -------
+    dict[str, Any]
+        Fully validated configuration dict, ready for use by ``BatchRunner``.
+
+    Raises
+    ------
+    ConfigError
+        On any validation failure.  The message names the specific field and
+        the offending value so the user knows exactly what to fix.
+    """
+    _validate_file_extension(config_path)
+    config = _parse_yaml(config_path)
+    _validate_required_fields(config, config_path)
+    _validate_levels(config)
+    _validate_samples(config)
+    _validate_methods_and_plugin_paths(config)
+    _resolve_mesh_path(config)
+    dataset_root = _resolve_dataset_root(config)
+    _check_ref_mat_soft(dataset_root)
+    _ensure_output_dir(config)
 
     return config

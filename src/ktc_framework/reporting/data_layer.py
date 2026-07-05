@@ -39,6 +39,20 @@ def _run_has_data(run_dir: Path) -> bool:
         return False
 
 
+def iter_run_dirs_newest_first(runs_root: str | Path = "outputs") -> list[Path]:
+    """Return every run_* directory under runs_root, newest first.
+
+    Single source of truth for "walk past runs" — shared by every place
+    that falls back across runs: find_latest_run and load_merged_run_data
+    below, and app.py's load_images_for_sample (a single-method run only
+    contains that one method's images, so the image lookup falls back
+    across older runs the same way scores do). Keeping the glob+sort here
+    means those call sites can't quietly drift out of sync with each other
+    (e.g. if the run-directory naming convention ever changed).
+    """
+    return sorted(Path(runs_root).glob("run_*"), reverse=True)
+
+
 def find_latest_run(runs_root: str | Path = "outputs") -> Path:
     """Return the active run folder: latest.txt pointer, newest run_*, or flat root."""
     runs_root = Path(runs_root)
@@ -47,8 +61,7 @@ def find_latest_run(runs_root: str | Path = "outputs") -> Path:
         latest = Path(pointer.read_text().strip())
         if latest.exists() and _run_has_data(latest):
             return latest
-    run_dirs = sorted(runs_root.glob("run_*"), reverse=True)
-    for run_dir in run_dirs:
+    for run_dir in iter_run_dirs_newest_first(runs_root):
         if _run_has_data(run_dir):
             return run_dir
     return runs_root
@@ -65,8 +78,7 @@ def load_merged_run_data(runs_root: str | Path = "outputs") -> tuple[dict, dict]
     merged_per_run: dict = {}
 
     # Newest run first so the first occurrence per method is the most recent.
-    run_dirs = sorted(runs_root.glob("run_*"), reverse=True)
-    for run_dir in run_dirs:
+    for run_dir in iter_run_dirs_newest_first(runs_root):
         if not _run_has_data(run_dir):
             continue
         scores, per_run = load_run_data(run_dir)
