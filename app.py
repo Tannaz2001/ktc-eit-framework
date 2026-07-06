@@ -1427,7 +1427,53 @@ def register_cli_script(script_path: Path) -> str:
     return name
 
 
+def _methods_discovery_fingerprint() -> tuple:
+    """Cheap signature of everything that can change the discovered-methods list.
+
+    Reading a handful of mtimes and session-state keys is orders of magnitude
+    cheaper than the full discovery (which imports external plugin modules and
+    reloads run data). When this signature is unchanged we can safely reuse the
+    previous result instead of re-scanning on every Streamlit rerun.
+    """
+    parts: list = []
+    try:
+        lt = Path("outputs/latest.txt")
+        parts.append(lt.read_text(encoding="utf-8").strip() if lt.exists() else "")
+    except Exception:
+        parts.append("")
+    ext_dir = Path("external_methods")
+    if ext_dir.exists():
+        try:
+            for p in sorted(ext_dir.glob("*.py")):
+                parts.append((p.name, int(p.stat().st_mtime)))
+            for d in sorted(ext_dir.iterdir()):
+                if d.is_dir() and not d.name.startswith("_") and (d / "method.yaml").exists():
+                    parts.append((d.name, int((d / "method.yaml").stat().st_mtime)))
+        except Exception:
+            pass
+    parts.append(tuple(sorted(st.session_state.get('uploaded_methods', {}).keys())))
+    parts.append(tuple(sorted(st.session_state.get('_removed_external_methods', []))))
+    return tuple(parts)
+
+
 def discover_available_methods() -> List[str]:
+    """Memoized wrapper around the real discovery.
+
+    Streamlit reruns the whole script on every widget interaction, so calling
+    the (expensive) discovery each time made selecting/removing a method feel
+    slow. We recompute only when the discovery fingerprint changes; otherwise we
+    return the cached list from session_state.
+    """
+    fp = _methods_discovery_fingerprint()
+    cache = st.session_state.get('_methods_cache')
+    if cache is not None and cache.get('fp') == fp:
+        return list(cache['methods'])
+    methods = _discover_available_methods_impl()
+    st.session_state['_methods_cache'] = {'fp': fp, 'methods': list(methods)}
+    return methods
+
+
+def _discover_available_methods_impl() -> List[str]:
     """Collect scored, configured, and registered methods without running benchmarks."""
     methods: List[str] = []
     removed_external = set(st.session_state.get('_removed_external_methods', []))
@@ -1629,6 +1675,7 @@ def _render_sidebar_run_benchmark():
     # Runs only the methods currently ticked in the METHODS checklist below.
     if st.sidebar.button("Refresh methods", use_container_width=True, key="refresh_methods_btn"):
         st.cache_data.clear()
+        st.session_state.pop('_methods_cache', None)  # force a fresh scan
         refreshed_methods = discover_available_methods()
         st.session_state['_available_methods'] = refreshed_methods
         current_selection = st.session_state.get('selected_methods', refreshed_methods.copy())
@@ -3755,20 +3802,28 @@ def _render_html_report_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str,
         if export_figures.exists():
             shutil.rmtree(export_figures)
         export_figures.mkdir(parents=True, exist_ok=True)
-        try:
-            _write_dashboard_report_charts(scores, per_run, mm, export_figures)
-        except Exception as chart_error:
-            target.warning(
-                "Leaderboard/degradation PNG export failed. Install `kaleido==0.2.1` in the active venv. "
-                f"Fallback report charts will be used. Details: {chart_error}"
-            )
-        try:
-            _write_dashboard_hull_charts(scores, per_run, mm, export_figures)
-        except Exception as chart_error:
-            target.warning(
-                "Hull chart PNG export failed. Install `kaleido==0.2.1` in the active venv. "
-                f"Hull table will still be shown. Details: {chart_error}"
-            )
+        # NOTE: we deliberately do NOT render the dashboard's Plotly charts to
+        # PNG via kaleido here. On Windows each kaleido write_image spins up a
+        # Chromium subprocess (6 charts => tens of seconds, and it can hang),
+        # which is exactly what made the export appear frozen with no download
+        # button. The HTML report has its own fast, self-contained SVG charts
+        # (leaderboard / degradation / radar / hull) that render in a fraction
+        # of a second and need no external process. Set the env var
+        # KTC_REPORT_USE_KALEIDO=1 only if you specifically want pixel-identical
+        # dashboard PNGs and are willing to wait.
+        import os as _os
+        if _os.environ.get("KTC_REPORT_USE_KALEIDO") == "1":
+            for _writer, _label in (
+                (_write_dashboard_report_charts, "Leaderboard/degradation"),
+                (_write_dashboard_hull_charts, "Hull"),
+            ):
+                try:
+                    _writer(scores, per_run, mm, export_figures)
+                except Exception as chart_error:
+                    target.warning(
+                        f"{_label} PNG export failed; SVG fallback charts will be used. "
+                        f"Details: {chart_error}"
+                    )
 
         summary_names = set()
         wanted_names = set(summary_names)
@@ -3786,10 +3841,12 @@ def _render_html_report_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str,
                 if src.exists():
                     shutil.copyfile(src, export_figures / name)
 
-        report_path = Path(generate_html_report(results, export_dir, {"_metric_keys": selected_metric_keys}))
+        with st.spinner("Building the report (embedding charts & reconstructions)…"):
+            report_path = Path(generate_html_report(results, export_dir, {"_metric_keys": selected_metric_keys}))
+        report_bytes = report_path.read_bytes()
         target.download_button(
-            "Download HTML Report",
-            data=report_path.read_bytes(),
+            f"Download HTML Report ({len(report_bytes) / 1_000_000:.1f} MB)",
+            data=report_bytes,
             file_name=f"eit_report_{run_name}.html",
             mime="text/html",
             key="html_report_download_btn",
