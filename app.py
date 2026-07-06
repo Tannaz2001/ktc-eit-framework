@@ -1427,7 +1427,53 @@ def register_cli_script(script_path: Path) -> str:
     return name
 
 
+def _methods_discovery_fingerprint() -> tuple:
+    """Cheap signature of everything that can change the discovered-methods list.
+
+    Reading a handful of mtimes and session-state keys is orders of magnitude
+    cheaper than the full discovery (which imports external plugin modules and
+    reloads run data). When this signature is unchanged we can safely reuse the
+    previous result instead of re-scanning on every Streamlit rerun.
+    """
+    parts: list = []
+    try:
+        lt = Path("outputs/latest.txt")
+        parts.append(lt.read_text(encoding="utf-8").strip() if lt.exists() else "")
+    except Exception:
+        parts.append("")
+    ext_dir = Path("external_methods")
+    if ext_dir.exists():
+        try:
+            for p in sorted(ext_dir.glob("*.py")):
+                parts.append((p.name, int(p.stat().st_mtime)))
+            for d in sorted(ext_dir.iterdir()):
+                if d.is_dir() and not d.name.startswith("_") and (d / "method.yaml").exists():
+                    parts.append((d.name, int((d / "method.yaml").stat().st_mtime)))
+        except Exception:
+            pass
+    parts.append(tuple(sorted(st.session_state.get('uploaded_methods', {}).keys())))
+    parts.append(tuple(sorted(st.session_state.get('_removed_external_methods', []))))
+    return tuple(parts)
+
+
 def discover_available_methods() -> List[str]:
+    """Memoized wrapper around the real discovery.
+
+    Streamlit reruns the whole script on every widget interaction, so calling
+    the (expensive) discovery each time made selecting/removing a method feel
+    slow. We recompute only when the discovery fingerprint changes; otherwise we
+    return the cached list from session_state.
+    """
+    fp = _methods_discovery_fingerprint()
+    cache = st.session_state.get('_methods_cache')
+    if cache is not None and cache.get('fp') == fp:
+        return list(cache['methods'])
+    methods = _discover_available_methods_impl()
+    st.session_state['_methods_cache'] = {'fp': fp, 'methods': list(methods)}
+    return methods
+
+
+def _discover_available_methods_impl() -> List[str]:
     """Collect scored, configured, and registered methods without running benchmarks."""
     methods: List[str] = []
     removed_external = set(st.session_state.get('_removed_external_methods', []))
@@ -1629,6 +1675,7 @@ def _render_sidebar_run_benchmark():
     # Runs only the methods currently ticked in the METHODS checklist below.
     if st.sidebar.button("Refresh methods", use_container_width=True, key="refresh_methods_btn"):
         st.cache_data.clear()
+        st.session_state.pop('_methods_cache', None)  # force a fresh scan
         refreshed_methods = discover_available_methods()
         st.session_state['_available_methods'] = refreshed_methods
         current_selection = st.session_state.get('selected_methods', refreshed_methods.copy())
