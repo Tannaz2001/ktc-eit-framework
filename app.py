@@ -3755,20 +3755,28 @@ def _render_html_report_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str,
         if export_figures.exists():
             shutil.rmtree(export_figures)
         export_figures.mkdir(parents=True, exist_ok=True)
-        try:
-            _write_dashboard_report_charts(scores, per_run, mm, export_figures)
-        except Exception as chart_error:
-            target.warning(
-                "Leaderboard/degradation PNG export failed. Install `kaleido==0.2.1` in the active venv. "
-                f"Fallback report charts will be used. Details: {chart_error}"
-            )
-        try:
-            _write_dashboard_hull_charts(scores, per_run, mm, export_figures)
-        except Exception as chart_error:
-            target.warning(
-                "Hull chart PNG export failed. Install `kaleido==0.2.1` in the active venv. "
-                f"Hull table will still be shown. Details: {chart_error}"
-            )
+        # NOTE: we deliberately do NOT render the dashboard's Plotly charts to
+        # PNG via kaleido here. On Windows each kaleido write_image spins up a
+        # Chromium subprocess (6 charts => tens of seconds, and it can hang),
+        # which is exactly what made the export appear frozen with no download
+        # button. The HTML report has its own fast, self-contained SVG charts
+        # (leaderboard / degradation / radar / hull) that render in a fraction
+        # of a second and need no external process. Set the env var
+        # KTC_REPORT_USE_KALEIDO=1 only if you specifically want pixel-identical
+        # dashboard PNGs and are willing to wait.
+        import os as _os
+        if _os.environ.get("KTC_REPORT_USE_KALEIDO") == "1":
+            for _writer, _label in (
+                (_write_dashboard_report_charts, "Leaderboard/degradation"),
+                (_write_dashboard_hull_charts, "Hull"),
+            ):
+                try:
+                    _writer(scores, per_run, mm, export_figures)
+                except Exception as chart_error:
+                    target.warning(
+                        f"{_label} PNG export failed; SVG fallback charts will be used. "
+                        f"Details: {chart_error}"
+                    )
 
         summary_names = set()
         wanted_names = set(summary_names)
@@ -3786,10 +3794,12 @@ def _render_html_report_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str,
                 if src.exists():
                     shutil.copyfile(src, export_figures / name)
 
-        report_path = Path(generate_html_report(results, export_dir, {"_metric_keys": selected_metric_keys}))
+        with st.spinner("Building the report (embedding charts & reconstructions)…"):
+            report_path = Path(generate_html_report(results, export_dir, {"_metric_keys": selected_metric_keys}))
+        report_bytes = report_path.read_bytes()
         target.download_button(
-            "Download HTML Report",
-            data=report_path.read_bytes(),
+            f"Download HTML Report ({len(report_bytes) / 1_000_000:.1f} MB)",
+            data=report_bytes,
             file_name=f"eit_report_{run_name}.html",
             mime="text/html",
             key="html_report_download_btn",
