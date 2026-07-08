@@ -148,6 +148,48 @@ def extract_bundle(zip_path: Path, dest_dir: Path) -> Path:
         )
 
 
+def extract_archive(zip_path: Path, dest_dir: Path) -> Path:
+    """Extract any method repository zip into dest_dir.
+
+    Unlike extract_bundle, this is used for raw ML/KTC repository archives that
+    do not yet contain method.yaml. If the archive has one top-level directory
+    (the normal GitHub zip layout), that directory is flattened so the generated
+    method.yaml can live directly in dest_dir.
+    """
+    if not zipfile.is_zipfile(zip_path):
+        raise ManifestError(f"Not a valid zip file: {zip_path}")
+
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        names = zf.namelist()
+        if not names:
+            raise ManifestError("Empty zip file")
+
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        top_dirs = {n.split("/")[0] for n in names if "/" in n}
+        has_root_files = any("/" not in n.rstrip("/") for n in names if not n.endswith("/"))
+        root_prefix = f"{next(iter(top_dirs))}/" if len(top_dirs) == 1 and not has_root_files else ""
+
+        for member in zf.infolist():
+            if member.is_dir():
+                continue
+            target_name = member.filename
+            if root_prefix:
+                if not target_name.startswith(root_prefix):
+                    continue
+                target_name = target_name[len(root_prefix):]
+            if not target_name:
+                continue
+
+            target = (dest_dir / target_name).resolve()
+            if dest_dir.resolve() not in target.parents and target != dest_dir.resolve():
+                raise ManifestError(f"Unsafe zip member path: {member.filename}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with zf.open(member, "r") as src, target.open("wb") as dst:
+                dst.write(src.read())
+
+    return dest_dir
+
+
 def _as_str_list(val: Any) -> list[str]:
     if val is None:
         return []
