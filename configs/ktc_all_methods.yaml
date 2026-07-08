@@ -18,6 +18,8 @@ levels: [1, 2, 3, 4, 5, 6, 7]
 samples: [A, B, C]
 
 methods:
+  - ml_inverse_method_2
+ 
   - main
   - DampedLeastSquaresReconstruction
   - RegularizedFEMReconstruction
