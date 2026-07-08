@@ -1,0 +1,12 @@
+name: ml_inverse_method_2
+description: Auto-generated wrapper for uploaded ML/KTC zip.
+
+runtime:
+  python_versions: ["3.12", "3.11", "3.10"]
+  env_override: ML_INVERSE_METHOD_2_PYTHON
+
+solver:
+  entry_point: main.py
+  working_dir: .
+  timeout: 900
+  args: ["input_dir", "output_dir", "level"]

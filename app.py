@@ -1284,6 +1284,73 @@ def remove_external_method_state(method_name: str) -> None:
         del st.session_state[widget_key]
 
 
+def _discover_external_method_artifacts(ext_dir: Path = Path("external_methods")) -> dict[str, str]:
+    """Return method names currently backed by files/bundles in external_methods."""
+    found: dict[str, str] = {}
+    if not ext_dir.exists():
+        return found
+
+    for file_path in ext_dir.glob("*.py"):
+        try:
+            for name in plugin_method_candidates(file_path):
+                found[name] = file_path.name
+            if is_cli_contract_script(file_path):
+                try:
+                    from src.ktc_framework.adapters.cli_plugin_wrapper import derive_cli_method_name
+                    found.setdefault(derive_cli_method_name(file_path.stem), file_path.name)
+                except Exception:
+                    found.setdefault(file_path.stem, file_path.name)
+        except Exception:
+            continue
+
+    for bundle_dir in ext_dir.iterdir():
+        if not bundle_dir.is_dir() or bundle_dir.name.startswith("_"):
+            continue
+        manifest_path = bundle_dir / "method.yaml"
+        if not manifest_path.exists():
+            continue
+        try:
+            from src.ktc_framework.methods.manifest_loader import load_manifest
+            manifest = load_manifest(manifest_path)
+            found[manifest.name] = bundle_dir.name
+        except Exception:
+            continue
+    return found
+
+
+def _prune_missing_external_methods(configured_methods: set[str] | None = None) -> tuple[set[str], dict[str, str]]:
+    """Drop uploaded methods whose backing external_methods artifact was deleted."""
+    if 'uploaded_methods' not in st.session_state:
+        st.session_state.uploaded_methods = {}
+
+    external_on_disk = _discover_external_method_artifacts()
+    configured_methods = set(configured_methods or set())
+    stale_methods: set[str] = set()
+
+    for name, artifact in list(st.session_state.uploaded_methods.items()):
+        target = Path("external_methods") / str(artifact)
+        if name not in external_on_disk and not target.exists():
+            stale_methods.add(name)
+
+    # If the app restarts after manual deletion, session_state no longer knows
+    # the upload. Treat non-builtin configured names with no external artifact as
+    # stale so deleted ML zip methods do not reappear from ktc_all_methods.yaml.
+    for name in configured_methods:
+        if name not in BUILTIN_METHODS and name not in external_on_disk and name not in HIDDEN_METHODS:
+            stale_methods.add(name)
+
+    for name in sorted(stale_methods):
+        remove_method_from_config(name)
+        remove_external_method_state(name)
+
+    if stale_methods:
+        st.session_state.pop('_methods_cache', None)
+        st.session_state['_method_refresh_msg'] = (
+            "Removed missing external method(s): " + ", ".join(sorted(stale_methods))
+        )
+    return stale_methods, external_on_disk
+
+
 def reset_method_upload_widget() -> None:
     """Force Streamlit's file uploader to clear its displayed filename."""
     st.session_state['_method_upload_nonce'] = st.session_state.get('_method_upload_nonce', 0) + 1
@@ -1464,6 +1531,17 @@ def discover_available_methods() -> List[str]:
     slow. We recompute only when the discovery fingerprint changes; otherwise we
     return the cached list from session_state.
     """
+    configured_methods: set[str] = set()
+    cfg_path = Path("configs/ktc_all_methods.yaml")
+    if cfg_path.exists():
+        try:
+            import yaml as _yaml
+            cfg = _yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+            configured_methods = {str(name) for name in cfg.get("methods", [])}
+        except Exception:
+            configured_methods = set()
+    _prune_missing_external_methods(configured_methods)
+
     fp = _methods_discovery_fingerprint()
     cache = st.session_state.get('_methods_cache')
     if cache is not None and cache.get('fp') == fp:
@@ -1478,7 +1556,6 @@ def _discover_available_methods_impl() -> List[str]:
     methods: List[str] = []
     removed_external = set(st.session_state.get('_removed_external_methods', []))
     configured_methods: set[str] = set()
-    external_methods_on_disk: dict[str, str] = {}
 
     cfg_path = Path("configs/ktc_all_methods.yaml")
     if cfg_path.exists():
@@ -1489,11 +1566,8 @@ def _discover_available_methods_impl() -> List[str]:
         except Exception:
             configured_methods = set()
 
-    ext_dir = Path("external_methods")
-    if ext_dir.exists():
-        for file_path in ext_dir.glob("*.py"):
-            for name in plugin_method_candidates(file_path):
-                external_methods_on_disk[name] = file_path.name
+    _, external_methods_on_disk = _prune_missing_external_methods(configured_methods)
+    removed_external = set(st.session_state.get('_removed_external_methods', []))
 
     def add(name: str):
         if (name and name not in methods and name not in HIDDEN_METHODS
@@ -1503,7 +1577,6 @@ def _discover_available_methods_impl() -> List[str]:
     def is_visible_source(name: str) -> bool:
         return (
             name in BUILTIN_METHODS
-            or name in configured_methods
             or name in external_methods_on_disk
             or name in st.session_state.get('uploaded_methods', {})
         )
@@ -1517,12 +1590,14 @@ def _discover_available_methods_impl() -> List[str]:
         pass
 
     for name in configured_methods:
-        add(str(name))
+        if is_visible_source(str(name)):
+            add(str(name))
 
+    ext_dir = Path("external_methods")
     if 'uploaded_methods' not in st.session_state:
         st.session_state.uploaded_methods = {}
     for name in st.session_state.uploaded_methods.keys():
-        add(name)
+        add(str(name))
 
     if ext_dir.exists():
         try:
@@ -1949,26 +2024,60 @@ def _render_scan_external_methods_button():
 
 
 def _handle_zip_plugin_upload(up, dest_dir: Path) -> None:
-    """Extract and register an uploaded .zip as a method.yaml bundle."""
+    """Extract and register an uploaded .zip as a method bundle.
+
+    Explicit method.yaml bundles are still preferred. If the upload is a raw
+    ML/KTC repository zip, detect a CLI entry script and generate method.yaml
+    so future benchmark subprocesses can rediscover the method from disk.
+    """
     try:
-        from src.ktc_framework.methods.manifest_loader import extract_bundle, load_manifest, ManifestError
+        from src.ktc_framework.methods.manifest_loader import (
+            extract_archive, extract_bundle, load_manifest, ManifestError,
+        )
         from src.ktc_framework.methods.subprocess_wrapper import create_wrapper_class
-        from src.ktc_framework.registry import register_method as _register_method
+        from src.ktc_framework.registry import (
+            list_methods as _list_methods,
+            register_method as _register_method,
+        )
         bundle_name = Path(up.name).stem
         bundle_dest = dest_dir / bundle_name
         tmp_zip = dest_dir / up.name
         tmp_zip.write_bytes(up.getbuffer())
-        bundle_dir = extract_bundle(tmp_zip, bundle_dest)
+        try:
+            bundle_dir = extract_bundle(tmp_zip, bundle_dest)
+            generated = False
+            manifest_path = bundle_dir / "method.yaml"
+        except ManifestError:
+            shutil.rmtree(bundle_dest, ignore_errors=True)
+            bundle_dir = extract_archive(tmp_zip, bundle_dest)
+            manifest_path = _generate_manifest_for_raw_zip(
+                bundle_dir=bundle_dir,
+                uploaded_stem=bundle_name,
+                existing=set(_list_methods()),
+            )
+            generated = True
         manifest = load_manifest(bundle_dir / "method.yaml")
         wrapper_cls = create_wrapper_class(manifest)
         _register_method(wrapper_cls)
         st.session_state.uploaded_methods[manifest.name] = bundle_dest.name
         append_method_to_config(manifest.name)
-        st.session_state['_method_refresh_msg'] = f"Registered bundle: {manifest.name}"
+        removed = set(st.session_state.get('_removed_external_methods', []))
+        removed.discard(manifest.name)
+        st.session_state['_removed_external_methods'] = sorted(removed)
+        current_available = st.session_state.get('_available_methods', [])
+        if manifest.name not in current_available:
+            current_available.append(manifest.name)
+        st.session_state['_available_methods'] = current_available
+        st.session_state['_method_refresh_msg'] = (
+            f"Registered raw zip method: {manifest.name} (generated {manifest_path.name})"
+            if generated else f"Registered bundle: {manifest.name}"
+        )
         reset_method_upload_widget()
         tmp_zip.unlink(missing_ok=True)
         st.rerun()
     except Exception as exc:
+        if 'tmp_zip' in locals():
+            tmp_zip.unlink(missing_ok=True)
         shutil.rmtree(dest_dir / up.name.rsplit(".", 1)[0], ignore_errors=True)
         st.sidebar.error(
             f"Bundle rejected: {exc}\n\n"
@@ -1980,6 +2089,128 @@ def _handle_zip_plugin_upload(up, dest_dir: Path) -> None:
             "Raw GitHub repo zips do not work — package only the "
             "files your solver needs, with method.yaml alongside them."
         )
+
+
+def _generate_manifest_for_raw_zip(
+    bundle_dir: Path,
+    uploaded_stem: str,
+    existing: set,
+) -> Path:
+    entry = _find_zip_cli_entry(bundle_dir)
+    if entry is None:
+        raise ValueError(
+            "No KTC-style CLI entry script found. Expected main.py/main_python.py "
+            "or a script with three positional argparse arguments: input, output, level."
+        )
+
+    name = _safe_method_name(uploaded_stem, existing)
+    rel_entry = entry.relative_to(bundle_dir).as_posix()
+    rel_cwd = entry.parent.relative_to(bundle_dir).as_posix()
+    if rel_cwd == ".":
+        rel_cwd = "."
+    check_import = _infer_runtime_import(bundle_dir, entry)
+    weights = _discover_weight_files(bundle_dir)
+    env_override = f"{name.upper()}_PYTHON"
+
+    lines = [
+        f"name: {name}",
+        "description: Auto-generated wrapper for uploaded ML/KTC zip.",
+        "",
+        "runtime:",
+        '  python_versions: ["3.12", "3.11", "3.10"]',
+        f"  env_override: {env_override}",
+    ]
+    if check_import:
+        lines.append(f"  check_import: {check_import}")
+    lines.extend([
+        "",
+        "solver:",
+        f"  entry_point: {rel_entry}",
+        f"  working_dir: {rel_cwd}",
+        "  timeout: 900",
+        '  args: ["input_dir", "output_dir", "level"]',
+    ])
+    if weights:
+        lines.append("")
+        lines.append("weights:")
+        lines.extend(f"  - {w}" for w in weights)
+
+    manifest_path = bundle_dir / "method.yaml"
+    manifest_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return manifest_path
+
+
+def _find_zip_cli_entry(bundle_dir: Path) -> Path | None:
+    from src.ktc_framework.adapters.plugin_detector import (
+        CONTRACT_CLI, PluginDetectionError, detect_contract, has_argparse_signature,
+    )
+
+    py_files = sorted(
+        [p for p in bundle_dir.rglob("*.py") if "__pycache__" not in p.parts],
+        key=lambda p: (
+            p.name not in {"main.py", "main_python.py"},
+            len(p.parts),
+            p.as_posix().lower(),
+        ),
+    )
+    for path in py_files:
+        try:
+            if detect_contract(path) == CONTRACT_CLI or has_argparse_signature(path):
+                return path
+        except PluginDetectionError:
+            continue
+    return None
+
+
+def _safe_method_name(stem: str, existing: set) -> str:
+    base = re.sub(r"\W+", "_", stem).strip("_") or "UploadedMLMethod"
+    if not base[0].isalpha():
+        base = f"Method_{base}"
+    name = base
+    suffix = 2
+    while name in existing:
+        name = f"{base}_{suffix}"
+        suffix += 1
+    return name
+
+
+def _infer_runtime_import(bundle_dir: Path, entry: Path) -> str | None:
+    texts = []
+    for name in ("requirements.txt", "environment.yml", "environment.yaml"):
+        path = next(bundle_dir.rglob(name), None)
+        if path is not None:
+            try:
+                texts.append(path.read_text(encoding="utf-8", errors="ignore").lower())
+            except OSError:
+                pass
+    try:
+        texts.append(entry.read_text(encoding="utf-8", errors="ignore").lower())
+    except OSError:
+        pass
+    blob = "\n".join(texts)
+    for needle, import_name in (
+        ("tensorflow", "tensorflow"),
+        ("torch-geometric", "torch_geometric"),
+        ("torch_geometric", "torch_geometric"),
+        ("pytorch", "torch"),
+        ("torch", "torch"),
+        ("opencv", "cv2"),
+        ("cv2", "cv2"),
+        ("scikit-image", "skimage"),
+        ("skimage", "skimage"),
+    ):
+        if needle in blob:
+            return import_name
+    return None
+
+
+def _discover_weight_files(bundle_dir: Path) -> list[str]:
+    suffixes = {".h5", ".keras", ".pt", ".pth", ".ckpt", ".onnx", ".pkl", ".joblib", ".npz"}
+    weights = []
+    for path in sorted(bundle_dir.rglob("*")):
+        if path.is_file() and path.suffix.lower() in suffixes:
+            weights.append(path.relative_to(bundle_dir).as_posix())
+    return weights
 
 
 def _handle_py_plugin_upload(up, dest_dir: Path, before: set) -> None:
