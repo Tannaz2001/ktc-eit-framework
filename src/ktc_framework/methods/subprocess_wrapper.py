@@ -121,6 +121,72 @@ def _find_data_file(
     return None
 
 
+def _find_ref_file(data_file: Path) -> Optional[Path]:
+    """Locate ref.mat for a KTC CLI-style subprocess input directory."""
+    env_root = os.environ.get("KTC_DATASET_ROOT", "")
+    roots = []
+    if env_root:
+        roots.append(Path(env_root))
+    roots.extend([data_file.parent, data_file.parent.parent, _FRAMEWORK_ROOT, Path.cwd()])
+
+    candidates = []
+    for root in roots:
+        candidates.extend([
+            root / "ref.mat",
+            root / "TrainingData" / "ref.mat",
+            root / "EvaluationData" / "ref.mat",
+            root / "evaluation_datasets" / "ref.mat",
+        ])
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _prepare_single_sample_input(data_file: Path) -> str:
+    """Create a temp input folder with exactly one data*.mat plus ref.mat."""
+    tmp_input = tempfile.mkdtemp(prefix="manifest_in_")
+    shutil.copy2(str(data_file), os.path.join(tmp_input, data_file.name))
+
+    ref_file = _find_ref_file(data_file)
+    if ref_file is not None:
+        shutil.copy2(str(ref_file), os.path.join(tmp_input, "ref.mat"))
+    else:
+        _logger.warning(
+            "No ref.mat found for %s. The subprocess may fail or use its own fallback.",
+            data_file,
+        )
+
+    return tmp_input
+
+
+def _build_command_args(
+    args_order: list[str],
+    input_dir: str,
+    output_dir: str,
+    level: int,
+    sample_id: str,
+    data_file: Path,
+) -> list[str]:
+    values = {
+        "input_dir": input_dir,
+        "input_folder": input_dir,
+        "input_path": input_dir,
+        "output_dir": output_dir,
+        "output_folder": output_dir,
+        "output_path": output_dir,
+        "level": str(level),
+        "category": str(level),
+        "category_nbr": str(level),
+        "sample": sample_id,
+        "sample_id": sample_id,
+        "data_file": str(data_file),
+    }
+    default = ["input_dir", "output_dir", "level"]
+    return [values.get(str(arg), str(arg)) for arg in (args_order or default)]
+
+
 # ---------------------------------------------------------------------------
 # Model fingerprinting (generalized from competition_cnn.py)
 # ---------------------------------------------------------------------------
@@ -156,9 +222,26 @@ def create_wrapper_class(manifest: MethodManifest) -> type:
     python = _find_python_for_package(
         manifest.python_versions, manifest.check_import, manifest.env_override,
     )
-    model_fp = _compute_model_fingerprint(manifest.bundle_dir, manifest.weights)
-    entry_point = str(manifest.bundle_dir / manifest.entry_point)
-    cwd = str(manifest.bundle_dir / manifest.working_dir)
+    bundle_dir = manifest.bundle_dir.resolve()
+    model_fp = _compute_model_fingerprint(bundle_dir, manifest.weights)
+    entry_point = str((bundle_dir / manifest.entry_point).resolve())
+    cwd = str((bundle_dir / manifest.working_dir).resolve())
+    cache_fp = hashlib.md5()
+    for part in (
+        str(bundle_dir),
+        str(entry_point),
+        str(cwd),
+        "|".join(manifest.args_order),
+        str(manifest.timeout),
+        model_fp,
+    ):
+        cache_fp.update(part.encode("utf-8"))
+    for path in (bundle_dir / "method.yaml", Path(entry_point)):
+        if path.exists():
+            cache_fp.update(path.name.encode("utf-8"))
+            cache_fp.update(str(path.stat().st_size).encode("utf-8"))
+            cache_fp.update(str(int(path.stat().st_mtime)).encode("utf-8"))
+    wrapper_fp = cache_fp.hexdigest()[:16]
 
     class _Wrapper(MethodPlugin):
 
@@ -166,7 +249,7 @@ def create_wrapper_class(manifest: MethodManifest) -> type:
             level = int(batch.level)
             sample_id = str(getattr(batch, "sample_id", "?"))
 
-            cache_key = f"manifest|{manifest.name}|{model_fp}|L{level}|{sample_id}"
+            cache_key = f"manifest|{manifest.name}|{wrapper_fp}|L{level}|{sample_id}"
             cached = cache_load(cache_key)
             if cached is not None:
                 return cached
@@ -182,12 +265,23 @@ def create_wrapper_class(manifest: MethodManifest) -> type:
             tmp_input = None
             tmp_output = None
             try:
-                # Pass the actual data directory — no copy needed since the
-                # KTC dataset is already on disk in the project.
-                input_dir = str(data_file.parent)
+                # Give the subprocess only the selected sample. Many KTC
+                # scripts process every data*.mat file in their input folder.
+                input_dir = _prepare_single_sample_input(data_file)
                 tmp_output = tempfile.mkdtemp(prefix=f"{manifest.name}_out_")
 
-                cmd = [python, entry_point, input_dir, tmp_output, str(level)]
+                cmd = [
+                    python,
+                    entry_point,
+                    *_build_command_args(
+                        manifest.args_order,
+                        input_dir,
+                        tmp_output,
+                        level,
+                        sample_id,
+                        data_file,
+                    ),
+                ]
 
                 _logger.info(
                     "%s: subprocess — level=%d sample=%s",
@@ -261,12 +355,14 @@ def create_wrapper_class(manifest: MethodManifest) -> type:
                 return np.zeros((256, 256), dtype=np.uint8)
 
             finally:
-                if tmp_output and os.path.isdir(tmp_output):
-                    try:
-                        shutil.rmtree(tmp_output)
-                    except Exception:
-                        pass
+                for tmp_dir in (tmp_input, tmp_output):
+                    if tmp_dir and os.path.isdir(tmp_dir):
+                        try:
+                            shutil.rmtree(tmp_dir)
+                        except Exception:
+                            pass
 
     _Wrapper.__name__ = manifest.name
     _Wrapper.__qualname__ = manifest.name
+    _Wrapper.__cache_fingerprint__ = wrapper_fp
     return _Wrapper

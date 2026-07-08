@@ -339,7 +339,11 @@ class BatchRunner:
             h.update(method.encode("utf-8"))
             # Method source: editing the algorithm changes the key -> recompute.
             try:
-                h.update(inspect.getsource(registry_get(method)).encode("utf-8"))
+                method_cls = registry_get(method)
+                h.update(inspect.getsource(method_cls).encode("utf-8"))
+                cache_fp = getattr(method_cls, "__cache_fingerprint__", "")
+                if cache_fp:
+                    h.update(str(cache_fp).encode("utf-8"))
             except Exception:
                 pass
             # Inputs that determine the output.
