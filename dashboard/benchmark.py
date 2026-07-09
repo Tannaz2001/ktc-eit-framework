@@ -12,12 +12,15 @@ import yaml
 import pandas as pd
 import streamlit as st
 
+from dashboard.state import K
+import dashboard.state as SS
+
 BENCH_LOG = Path("outputs/benchmark_log.txt")
 
 
 def launch_benchmark(config_path) -> bool:
     """Start `python example_usage.py --no-app --config <cfg>` in the background."""
-    proc = st.session_state.get('bench_proc')
+    proc = st.session_state.get(K.BENCH_PROC)
     if proc is not None and proc.poll() is None:
         st.sidebar.warning("A benchmark is already running - wait for it to finish.")
         return False
@@ -25,22 +28,22 @@ def launch_benchmark(config_path) -> bool:
     BENCH_LOG.parent.mkdir(exist_ok=True)
     log = open(BENCH_LOG, "w", encoding="utf-8")
     _env = {**_os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
-    st.session_state.bench_proc = subprocess.Popen(
+    st.session_state[K.BENCH_PROC] = subprocess.Popen(
         [sys.executable, "example_usage.py", "--no-app", "--config", str(config_path)],
         stdout=log, stderr=subprocess.STDOUT,
         cwd=str(Path(__file__).resolve().parents[1]),
         env=_env,
     )
-    st.session_state.bench_config = Path(config_path).stem
-    st.session_state.bench_aborted = False
+    st.session_state[K.BENCH_CONFIG] = Path(config_path).stem
+    st.session_state[K.BENCH_ABORTED] = False
     return True
 
 
 def stop_benchmark() -> bool:
     """Abort the running benchmark process tree and keep latest.txt unchanged."""
-    proc = st.session_state.get('bench_proc')
+    proc = st.session_state.get(K.BENCH_PROC)
     if proc is None or proc.poll() is not None:
-        st.session_state.bench_proc = None
+        st.session_state[K.BENCH_PROC] = None
         return False
 
     try:
@@ -58,21 +61,21 @@ def stop_benchmark() -> bool:
             except subprocess.TimeoutExpired:
                 proc.kill()
     finally:
-        st.session_state.bench_aborted = True
-        st.session_state['_bench_was_running'] = False
-        st.session_state.bench_proc = None
+        st.session_state[K.BENCH_ABORTED] = True
+        st.session_state[K.BENCH_WAS_RUNNING] = False
+        st.session_state[K.BENCH_PROC] = None
         st.cache_data.clear()
     return True
 
 
 def _get_cfg_settings() -> tuple[str, str, list[int], list[str]]:
     """Read dataset/mesh/levels/samples from sidebar session_state with safe defaults."""
-    dataset_root = st.session_state.get('cfg_dataset_root', 'EvaluationData') or 'EvaluationData'
-    mesh_path = st.session_state.get('cfg_mesh_path', 'Codes_Matlab/Mesh_sparse.mat') or 'Codes_Matlab/Mesh_sparse.mat'
-    level_range = st.session_state.get('level_range', (1, 7))
+    dataset_root = SS.cfg_dataset_root()
+    mesh_path = SS.cfg_mesh_path()
+    level_range = SS.level_range()
     lvl_min, lvl_max = int(level_range[0]), int(level_range[1])
     levels = list(range(lvl_min, lvl_max + 1))
-    samples = st.session_state.get('selected_samples', ['A', 'B', 'C']) or ['A', 'B', 'C']
+    samples = SS.selected_samples() or ['A', 'B', 'C']
     return dataset_root, mesh_path, levels, samples
 
 
@@ -210,10 +213,10 @@ def _render_failures_panel(run_dir: Path) -> None:
 
 def render_benchmark_status() -> None:
     """Sidebar status for the running/finished benchmark subprocess."""
-    proc = st.session_state.get('bench_proc')
+    proc = st.session_state.get(K.BENCH_PROC)
     if proc is not None:
         code = proc.poll()
-        cfg = st.session_state.get('bench_config', '')
+        cfg = st.session_state.get(K.BENCH_CONFIG, '')
         if code is None:
             st.sidebar.markdown(
                 f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;'
@@ -222,12 +225,12 @@ def render_benchmark_status() -> None:
             if st.sidebar.button("Refresh status", use_container_width=True, key="bench_refresh"):
                 st.rerun()
         elif code == 0:
-            st.session_state.bench_proc = None
+            st.session_state[K.BENCH_PROC] = None
             st.cache_data.clear()
             st.rerun()
         else:
-            st.session_state.bench_proc = None
-            if st.session_state.pop('bench_aborted', False):
+            st.session_state[K.BENCH_PROC] = None
+            if st.session_state.pop(K.BENCH_ABORTED, False):
                 st.sidebar.info("Benchmark aborted. Showing previous completed data.")
             else:
                 st.sidebar.error(f"Benchmark failed (exit {code}).")
@@ -266,22 +269,22 @@ def render_benchmark_status() -> None:
 
 def render_bench_progress() -> None:
     """Full-width progress banner in the main area while a benchmark subprocess runs."""
-    if st.session_state.get('bench_proc') is None:
+    if st.session_state.get(K.BENCH_PROC) is None:
         return
     _render_bench_progress_fragment()
 
 
 @st.fragment(run_every="2s")
 def _render_bench_progress_fragment() -> None:
-    proc = st.session_state.get('bench_proc')
+    proc = st.session_state.get(K.BENCH_PROC)
     if proc is None:
         return
     if proc.poll() is not None:
-        if st.session_state.get('_bench_was_running'):
-            st.session_state['_bench_was_running'] = False
+        if st.session_state.get(K.BENCH_WAS_RUNNING):
+            st.session_state[K.BENCH_WAS_RUNNING] = False
             st.rerun()
         return
-    st.session_state['_bench_was_running'] = True
+    st.session_state[K.BENCH_WAS_RUNNING] = True
 
     import re as _re
     completed, total = 0, 0
@@ -303,7 +306,7 @@ def _render_bench_progress_fragment() -> None:
 
     if total == 0:
         try:
-            cfg_name = st.session_state.get('bench_config', 'ktc_all_methods')
+            cfg_name = st.session_state.get(K.BENCH_CONFIG, 'ktc_all_methods')
             cfg_path = Path("configs") / f"{cfg_name}.yaml"
             if not cfg_path.exists():
                 cfg_path = Path("configs/ktc_all_methods.yaml")
@@ -316,7 +319,7 @@ def _render_bench_progress_fragment() -> None:
 
     pct = min(completed / total, 1.0) if total > 0 else 0.0
     pct_px = f"{pct * 100:.1f}%"
-    cfg_lbl = st.session_state.get('bench_config', 'ktc_all_methods')
+    cfg_lbl = st.session_state.get(K.BENCH_CONFIG, 'ktc_all_methods')
     cur_info = (f"&nbsp;|&nbsp; {cur_method} &nbsp;L{cur_level}/{cur_sample}"
                 if cur_method else "&nbsp;|&nbsp; initialising...")
 
@@ -394,10 +397,10 @@ def remove_method_from_config(
 
 def remove_external_method_state(method_name: str) -> None:
     """Remove an external method from dashboard session state and widgets."""
-    removed = set(st.session_state.get('_removed_external_methods', []))
+    removed = SS.removed_external()
     removed.add(method_name)
-    st.session_state['_removed_external_methods'] = sorted(removed)
-    st.session_state.uploaded_methods.pop(method_name, None)
+    st.session_state[K.REMOVED_EXTERNAL] = sorted(removed)
+    SS.uploaded_methods().pop(method_name, None)
     for key in ("_available_methods", "selected_methods", "_known_available_methods", "custom_methods"):
         values = st.session_state.get(key)
         if isinstance(values, list):

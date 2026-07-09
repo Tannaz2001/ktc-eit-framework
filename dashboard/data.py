@@ -11,6 +11,7 @@ import streamlit as st
 from PIL import Image
 
 from ktc_framework.reporting.constants import METRIC_SPECS
+import dashboard.state as SS
 from ktc_framework.reporting.data_layer import (
     create_method_mapping,
     filter_by_level,
@@ -117,7 +118,7 @@ def apply_dashboard_filters(
 ) -> Tuple[Dict, Dict, Dict]:
     """Apply sidebar method, level, and sample filters for every tab/report."""
     selected_methods = list(scores.keys()) if selected_methods is None else selected_methods
-    removed_external = set(st.session_state.get('_removed_external_methods', []))
+    removed_external = SS.removed_external()
     selected_methods = [m for m in selected_methods if m not in removed_external]
     selected_samples = selected_samples if selected_samples is not None else ['A', 'B', 'C']
     sample_set = {str(s).strip().lower() for s in selected_samples}

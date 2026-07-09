@@ -39,6 +39,8 @@ from dashboard.scoring import (
     render_section_header, render_what_why_how,
     build_leaderboard_df, build_leaderboard_figure,
 )
+from dashboard import state as SS
+from dashboard.state import K
 from dashboard.benchmark import (
     BENCH_LOG,
     launch_benchmark, stop_benchmark,
@@ -134,7 +136,7 @@ def publish_method(method_name: str) -> Tuple[bool, str]:
 
     manifest = _load_published_manifest()
     manifest[method_name] = {
-        "source": st.session_state.get('uploaded_methods', {}).get(method_name, ""),
+        "source": SS.uploaded_methods().get(method_name, ""),
         "snapshot": snap_path.name,
         "published_at": snapshot["published_at"],
     }
@@ -222,14 +224,14 @@ def _discover_external_method_artifacts(ext_dir: Path = Path("external_methods")
 
 def _prune_missing_external_methods(configured_methods: set[str] | None = None) -> tuple[set[str], dict[str, str]]:
     """Drop uploaded methods whose backing external_methods artifact was deleted."""
-    if 'uploaded_methods' not in st.session_state:
-        st.session_state.uploaded_methods = {}
+    if K.UPLOADED_METHODS not in st.session_state:
+        st.session_state[K.UPLOADED_METHODS] = {}
 
     external_on_disk = _discover_external_method_artifacts()
     configured_methods = set(configured_methods or set())
     stale_methods: set[str] = set()
 
-    for name, artifact in list(st.session_state.uploaded_methods.items()):
+    for name, artifact in list(SS.uploaded_methods().items()):
         target = Path("external_methods") / str(artifact)
         if name not in external_on_disk and not target.exists():
             stale_methods.add(name)
@@ -246,8 +248,8 @@ def _prune_missing_external_methods(configured_methods: set[str] | None = None) 
         remove_external_method_state(name)
 
     if stale_methods:
-        st.session_state.pop('_methods_cache', None)
-        st.session_state['_method_refresh_msg'] = (
+        st.session_state.pop(K.METHODS_CACHE, None)
+        st.session_state[K.METHOD_REFRESH_MSG] = (
             "Removed missing external method(s): " + ", ".join(sorted(stale_methods))
         )
     return stale_methods, external_on_disk
@@ -255,8 +257,8 @@ def _prune_missing_external_methods(configured_methods: set[str] | None = None) 
 
 def reset_method_upload_widget() -> None:
     """Force Streamlit's file uploader to clear its displayed filename."""
-    st.session_state['_method_upload_nonce'] = st.session_state.get('_method_upload_nonce', 0) + 1
-    st.session_state.pop('_last_method_upload', None)
+    st.session_state['_method_upload_nonce'] = st.session_state.get(K.METHOD_UPLOAD_NONCE, 0) + 1
+    st.session_state.pop(K.LAST_METHOD_UPLOAD, None)
 
 
 def ensure_method_plugin_registered(plugin_path: Path) -> List[str]:
@@ -420,8 +422,8 @@ def _methods_discovery_fingerprint() -> tuple:
                     parts.append((d.name, int((d / "method.yaml").stat().st_mtime)))
         except OSError:
             pass
-    parts.append(tuple(sorted(st.session_state.get('uploaded_methods', {}).keys())))
-    parts.append(tuple(sorted(st.session_state.get('_removed_external_methods', []))))
+    parts.append(tuple(sorted(SS.uploaded_methods().keys())))
+    parts.append(tuple(sorted(list(SS.removed_external()))))
     return tuple(parts)
 
 
@@ -444,18 +446,18 @@ def discover_available_methods() -> List[str]:
     _prune_missing_external_methods(configured_methods)
 
     fp = _methods_discovery_fingerprint()
-    cache = st.session_state.get('_methods_cache')
+    cache = st.session_state.get(K.METHODS_CACHE)
     if cache is not None and cache.get('fp') == fp:
         return list(cache['methods'])
     methods = _discover_available_methods_impl()
-    st.session_state['_methods_cache'] = {'fp': fp, 'methods': list(methods)}
+    st.session_state[K.METHODS_CACHE] = {'fp': fp, 'methods': list(methods)}
     return methods
 
 
 def _discover_available_methods_impl() -> List[str]:
     """Collect scored, configured, and registered methods without running benchmarks."""
     methods: List[str] = []
-    removed_external = set(st.session_state.get('_removed_external_methods', []))
+    removed_external = SS.removed_external()
     configured_methods: set[str] = set()
 
     cfg_path = Path("configs/ktc_all_methods.yaml")
@@ -467,7 +469,7 @@ def _discover_available_methods_impl() -> List[str]:
             configured_methods = set()
 
     _, external_methods_on_disk = _prune_missing_external_methods(configured_methods)
-    removed_external = set(st.session_state.get('_removed_external_methods', []))
+    removed_external = SS.removed_external()
 
     def add(name: str):
         if (name and name not in methods and name not in HIDDEN_METHODS
@@ -478,7 +480,7 @@ def _discover_available_methods_impl() -> List[str]:
         return (
             name in BUILTIN_METHODS
             or name in external_methods_on_disk
-            or name in st.session_state.get('uploaded_methods', {})
+            or name in SS.uploaded_methods()
         )
 
     try:
@@ -494,9 +496,9 @@ def _discover_available_methods_impl() -> List[str]:
             add(str(name))
 
     ext_dir = Path("external_methods")
-    if 'uploaded_methods' not in st.session_state:
-        st.session_state.uploaded_methods = {}
-    for name in st.session_state.uploaded_methods.keys():
+    if K.UPLOADED_METHODS not in st.session_state:
+        st.session_state[K.UPLOADED_METHODS] = {}
+    for name in SS.uploaded_methods().keys():
         add(str(name))
 
     if ext_dir.exists():
@@ -528,7 +530,7 @@ def _discover_available_methods_impl() -> List[str]:
                                     break
                             except Exception:
                                 pass
-                    st.session_state.uploaded_methods.setdefault(name, fname or name)
+                    SS.uploaded_methods().setdefault(name, fname or name)
                     add(name)
         except Exception:
             pass
@@ -587,8 +589,8 @@ def _render_sidebar_dataset_settings():
             help="Path to Mesh_sparse.mat.",
         )
         if st.button("Validate paths", key="validate_cfg_btn", use_container_width=True):
-            _d = Path(st.session_state.get("cfg_dataset_root", "EvaluationData"))
-            _m = Path(st.session_state.get("cfg_mesh_path", "Codes_Matlab/Mesh_sparse.mat"))
+            _d = Path(SS.cfg_dataset_root())
+            _m = Path(SS.cfg_mesh_path())
             _eval_ok = any((_d / x).is_dir() for x in ["evaluation_datasets", "EvaluationData"])
             _gt_ok   = any((_d / x).is_dir() for x in ["GroundTruths", "groundtruths", "GroundTruth"])
             _ref_candidates = [
@@ -597,14 +599,14 @@ def _render_sidebar_dataset_settings():
                 _d / "ref.mat",
                 Path("Codes_Matlab") / "TrainingData" / "ref.mat",
             ]
-            st.session_state["_cfg_validation"] = {
+            st.session_state[K.CFG_VALIDATION] = {
                 "root": _d.exists(),
                 "eval": _eval_ok,
                 "gt":   _gt_ok,
                 "mesh": _m.exists(),
                 "ref":  any(p.exists() for p in _ref_candidates),
             }
-        _v = st.session_state.get("_cfg_validation")
+        _v = st.session_state.get(K.CFG_VALIDATION)
         if _v:
             _checks = [
                 ("dataset_root exists", _v["root"]),
@@ -649,17 +651,17 @@ def _render_sidebar_run_benchmark():
     # Runs only the methods currently ticked in the METHODS checklist below.
     if st.sidebar.button("Refresh methods", use_container_width=True, key="refresh_methods_btn"):
         st.cache_data.clear()
-        st.session_state.pop('_methods_cache', None)  # force a fresh scan
+        st.session_state.pop(K.METHODS_CACHE, None)  # force a fresh scan
         refreshed_methods = discover_available_methods()
-        st.session_state['_available_methods'] = refreshed_methods
-        current_selection = st.session_state.get('selected_methods', refreshed_methods.copy())
-        st.session_state.selected_methods = [m for m in current_selection if m in refreshed_methods]
-        if not st.session_state.selected_methods:
-            st.session_state.selected_methods = refreshed_methods.copy()
-        st.session_state['_method_refresh_msg'] = f"{len(refreshed_methods)} method(s) available"
+        st.session_state[K.AVAILABLE_METHODS] = refreshed_methods
+        current_selection = st.session_state.get(K.SELECTED_METHODS, refreshed_methods.copy())
+        st.session_state[K.SELECTED_METHODS] = [m for m in current_selection if m in refreshed_methods]
+        if not st.session_state[K.SELECTED_METHODS]:
+            st.session_state[K.SELECTED_METHODS] = refreshed_methods.copy()
+        st.session_state[K.METHOD_REFRESH_MSG] = f"{len(refreshed_methods)} method(s) available"
         st.rerun()
 
-    refresh_msg = st.session_state.pop('_method_refresh_msg', None)
+    refresh_msg = st.session_state.pop(K.METHOD_REFRESH_MSG, None)
     if refresh_msg:
         st.sidebar.markdown(
             f'<div class="method-refresh-status">{refresh_msg}</div>',
@@ -671,16 +673,16 @@ def _render_sidebar_run_benchmark():
 def _render_sidebar_reset_filters():
     """Reset All Filters button: restores metrics/methods/levels/samples to defaults."""
     if st.sidebar.button("Reset All Filters", key="reset_all_btn", use_container_width=True):
-        st.session_state.selected_metrics  = ALL_METRICS_SIDEBAR.copy()
-        st.session_state.selected_methods  = st.session_state.get('_available_methods', []).copy()
-        st.session_state.level_range       = (1, 7)
-        st.session_state.selected_samples  = ['A', 'B', 'C']
+        st.session_state[K.SELECTED_METRICS]  = ALL_METRICS_SIDEBAR.copy()
+        st.session_state[K.SELECTED_METHODS]  = SS.available_methods().copy()
+        st.session_state[K.LEVEL_RANGE]       = (1, 7)
+        st.session_state[K.SELECTED_SAMPLES]  = ['A', 'B', 'C']
         # clear checkbox widget state so they re-render checked
         for m in ALL_METRICS_SIDEBAR:
             st.session_state[f'metric_{m}'] = True
         for s in ['A','B','C']:
             st.session_state[f'samp_{s}'] = True
-        for m in st.session_state.get('_available_methods', []):
+        for m in SS.available_methods():
             st.session_state[f'method_{m}'] = True
         st.rerun()
 
@@ -688,66 +690,66 @@ def _render_sidebar_reset_filters():
 def _render_sidebar_metrics_selector():
     """Metrics checklist — keeps selected_metrics in sync as new metrics appear."""
     st.sidebar.markdown("## Metrics")
-    if 'selected_metrics' not in st.session_state:
-        st.session_state.selected_metrics = ALL_METRICS_SIDEBAR.copy()
-    previous_metrics = st.session_state.get('_known_metrics_sidebar', [])
+    if K.SELECTED_METRICS not in st.session_state:
+        st.session_state[K.SELECTED_METRICS] = ALL_METRICS_SIDEBAR.copy()
+    previous_metrics = st.session_state.get(K.KNOWN_METRICS_SIDEBAR, [])
     newly_available_metrics = [m for m in ALL_METRICS_SIDEBAR if m not in previous_metrics]
     if newly_available_metrics:
-        st.session_state.selected_metrics = [
-            m for m in st.session_state.selected_metrics if m in ALL_METRICS_SIDEBAR
+        st.session_state[K.SELECTED_METRICS] = [
+            m for m in st.session_state[K.SELECTED_METRICS] if m in ALL_METRICS_SIDEBAR
         ]
         for m in newly_available_metrics:
-            if m not in st.session_state.selected_metrics:
-                st.session_state.selected_metrics.append(m)
-    st.session_state['_known_metrics_sidebar'] = ALL_METRICS_SIDEBAR.copy()
+            if m not in st.session_state[K.SELECTED_METRICS]:
+                st.session_state[K.SELECTED_METRICS].append(m)
+    st.session_state[K.KNOWN_METRICS_SIDEBAR] = ALL_METRICS_SIDEBAR.copy()
     for m in ALL_METRICS_SIDEBAR:
-        checked = m in st.session_state.selected_metrics
+        checked = m in st.session_state[K.SELECTED_METRICS]
         if st.sidebar.checkbox(m, value=checked, key=f"metric_{m}"):
-            if m not in st.session_state.selected_metrics:
-                st.session_state.selected_metrics.append(m)
+            if m not in st.session_state[K.SELECTED_METRICS]:
+                st.session_state[K.SELECTED_METRICS].append(m)
         else:
-            if m in st.session_state.selected_metrics:
-                st.session_state.selected_metrics.remove(m)
+            if m in st.session_state[K.SELECTED_METRICS]:
+                st.session_state[K.SELECTED_METRICS].remove(m)
 
 
 def _render_sidebar_method_selector():
     """Methods checklist — one row per method with inline Run + ✕ (external only) buttons."""
     st.sidebar.markdown("## Methods")
-    removed_external = set(st.session_state.get('_removed_external_methods', []))
+    removed_external = SS.removed_external()
     available_methods = [
-        m for m in st.session_state.get('_available_methods', [])
+        m for m in SS.available_methods()
         if m not in removed_external
     ]
-    st.session_state['_available_methods'] = available_methods
-    if 'selected_methods' not in st.session_state:
-        st.session_state.selected_methods = available_methods.copy()
-    previous_available = st.session_state.get('_known_available_methods', [])
+    st.session_state[K.AVAILABLE_METHODS] = available_methods
+    if K.SELECTED_METHODS not in st.session_state:
+        st.session_state[K.SELECTED_METHODS] = available_methods.copy()
+    previous_available = st.session_state.get(K.KNOWN_AVAILABLE, [])
     newly_available = [m for m in available_methods if m not in previous_available]
     if newly_available:
-        st.session_state.selected_methods = [
-            m for m in st.session_state.selected_methods if m in available_methods
+        st.session_state[K.SELECTED_METHODS] = [
+            m for m in st.session_state[K.SELECTED_METHODS] if m in available_methods
         ]
         for m in newly_available:
-            if m not in st.session_state.selected_methods:
-                st.session_state.selected_methods.append(m)
-    st.session_state['_known_available_methods'] = available_methods.copy()
+            if m not in st.session_state[K.SELECTED_METHODS]:
+                st.session_state[K.SELECTED_METHODS].append(m)
+    st.session_state[K.KNOWN_AVAILABLE] = available_methods.copy()
 
-    _uploaded = st.session_state.get('uploaded_methods', {})
+    _uploaded = SS.uploaded_methods()
 
     if available_methods:
         for m in available_methods:
             display_name = method_display_name(m)
-            checked = m in st.session_state.selected_methods
+            checked = m in st.session_state[K.SELECTED_METHODS]
             is_external = m in _uploaded
 
             # Row: [checkbox  |  Run  |  ✕ (external only)]
             _chk_col, _run_col, _del_col = st.sidebar.columns([5, 2, 1])
             with _chk_col:
                 new_val = st.checkbox(display_name, value=checked, key=f"method_{m}")
-            if new_val and m not in st.session_state.selected_methods:
-                st.session_state.selected_methods.append(m)
-            elif not new_val and m in st.session_state.selected_methods:
-                st.session_state.selected_methods.remove(m)
+            if new_val and m not in st.session_state[K.SELECTED_METHODS]:
+                st.session_state[K.SELECTED_METHODS].append(m)
+            elif not new_val and m in st.session_state[K.SELECTED_METHODS]:
+                st.session_state[K.SELECTED_METHODS].remove(m)
             with _run_col:
                 if st.button("Run", key=f"mrun_{m}", use_container_width=True,
                              help=f"Benchmark {display_name} now"):
@@ -772,7 +774,7 @@ def _render_sidebar_method_selector():
                         remove_external_method_state(m)
                         reset_method_upload_widget()
                         st.cache_data.clear()
-                        st.session_state['_method_refresh_msg'] = f"Removed: {m}"
+                        st.session_state[K.METHOD_REFRESH_MSG] = f"Removed: {m}"
                         st.rerun()
     else:
         st.sidebar.markdown('<div style="font-size:11px;color:var(--tx3)">Loading methods...</div>', unsafe_allow_html=True)
@@ -781,9 +783,9 @@ def _render_sidebar_method_selector():
 def _render_sidebar_level_filter():
     """Level Filter: from/to level range, clamped and swapped if reversed."""
     st.sidebar.markdown("## Level Filter")
-    if 'level_range' not in st.session_state:
-        st.session_state.level_range = (1, 7)
-    cur_min, cur_max = st.session_state.level_range
+    if K.LEVEL_RANGE not in st.session_state:
+        st.session_state[K.LEVEL_RANGE] = (1, 7)
+    cur_min, cur_max = st.session_state[K.LEVEL_RANGE]
     c_min, c_max = st.sidebar.columns(2)
     with c_min:
         lvl_min = st.selectbox(
@@ -795,7 +797,7 @@ def _render_sidebar_level_filter():
             key="sb_level_max")
     if lvl_min > lvl_max:
         lvl_min, lvl_max = lvl_max, lvl_min
-    st.session_state.level_range = (lvl_min, lvl_max)
+    st.session_state[K.LEVEL_RANGE] = (lvl_min, lvl_max)
     st.sidebar.markdown(
         f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;'
         f'color:var(--tx3);margin-top:-4px">Showing levels {lvl_min}-{lvl_max}</div>',
@@ -805,16 +807,16 @@ def _render_sidebar_level_filter():
 def _render_sidebar_sample_filter():
     """Sample Filter: A/B/C checkboxes."""
     st.sidebar.markdown("## Samples")
-    if 'selected_samples' not in st.session_state:
-        st.session_state.selected_samples = ['A','B','C']
+    if K.SELECTED_SAMPLES not in st.session_state:
+        st.session_state[K.SELECTED_SAMPLES] = ['A','B','C']
     for s in ['A','B','C']:
-        checked = s in st.session_state.selected_samples
+        checked = s in st.session_state[K.SELECTED_SAMPLES]
         if st.sidebar.checkbox(f"Sample {s}", value=checked, key=f"samp_{s}"):
-            if s not in st.session_state.selected_samples:
-                st.session_state.selected_samples.append(s)
+            if s not in st.session_state[K.SELECTED_SAMPLES]:
+                st.session_state[K.SELECTED_SAMPLES].append(s)
         else:
-            if s in st.session_state.selected_samples:
-                st.session_state.selected_samples.remove(s)
+            if s in st.session_state[K.SELECTED_SAMPLES]:
+                st.session_state[K.SELECTED_SAMPLES].remove(s)
 
 
 def _render_scan_external_methods_button():
@@ -825,9 +827,9 @@ def _render_scan_external_methods_button():
         list_methods as _list_methods,
         load_external_methods as _load_ext,
     )
-    if 'uploaded_methods' not in st.session_state:
-        st.session_state.uploaded_methods = {}
-    removed_external = set(st.session_state.get('_removed_external_methods', []))
+    if K.UPLOADED_METHODS not in st.session_state:
+        st.session_state[K.UPLOADED_METHODS] = {}
+    removed_external = SS.removed_external()
     ext_dir_for_panel = Path("external_methods")
     if ext_dir_for_panel.exists():
         disk_plugins = {
@@ -839,14 +841,14 @@ def _render_scan_external_methods_button():
         # Only class-based .py plugins are re-derived above — bundles and CLI
         # scripts aren't, so don't drop them just for being absent from
         # disk_plugins. Keep any entry whose backing file/dir still exists.
-        st.session_state.uploaded_methods = {
+        st.session_state[K.UPLOADED_METHODS] = {
             name: fname
-            for name, fname in st.session_state.uploaded_methods.items()
+            for name, fname in SS.uploaded_methods().items()
             if name not in removed_external
             and (name in disk_plugins or (ext_dir_for_panel / fname).exists())
         }
         for name, fname in disk_plugins.items():
-            st.session_state.uploaded_methods.setdefault(name, fname)
+            SS.uploaded_methods().setdefault(name, fname)
 
     if st.sidebar.button("Import from external_methods/", key="scan_ext_btn",
                          use_container_width=True,
@@ -885,7 +887,7 @@ def _render_scan_external_methods_button():
                         (f.name for f in py_files if nm.lower() in f.stem.lower()),
                         py_files[0].name if py_files else "",
                     )
-                    st.session_state.uploaded_methods[nm] = fname
+                    SS.uploaded_methods()[nm] = fname
 
                 # ── raw CLI-contract scripts (main() + argparse + __main__) ──
                 # load_external_methods() already skips these when importing
@@ -894,7 +896,7 @@ def _render_scan_external_methods_button():
                 # already registered from a previous scan as a CLIScriptPlugin
                 # instead of silently dropping it.
                 cli_found = []
-                already_registered_files = set(st.session_state.uploaded_methods.values())
+                already_registered_files = set(SS.uploaded_methods().values())
                 for file_path in py_files:
                     if file_path.name in already_registered_files:
                         continue  # wrapped in a prior scan
@@ -904,7 +906,7 @@ def _render_scan_external_methods_button():
                         continue
                     try:
                         cli_name = register_cli_script(file_path)
-                        st.session_state.uploaded_methods[cli_name] = file_path.name
+                        SS.uploaded_methods()[cli_name] = file_path.name
                         cli_found.append(cli_name)
                     except Exception as exc:
                         st.sidebar.warning(f"Could not wrap {file_path.name} as a CLI method: {exc}")
@@ -916,28 +918,28 @@ def _render_scan_external_methods_button():
                         from ktc_framework.methods.manifest_loader import load_manifest, ManifestError
                         manifest = load_manifest(bd / "method.yaml")
                         if manifest.name in available_after:
-                            st.session_state.uploaded_methods[manifest.name] = bd.name
+                            SS.uploaded_methods()[manifest.name] = bd.name
                             bundle_found.append(manifest.name)
                     except Exception as _be:
                         st.sidebar.warning(f"Skipping bundle {bd.name}: {_be}")
 
                 all_found = sorted(set(ready_methods) | set(bundle_found) | set(cli_found))
-                removed = set(st.session_state.get('_removed_external_methods', []))
+                removed = SS.removed_external()
                 removed.difference_update(all_found)
-                st.session_state['_removed_external_methods'] = sorted(removed)
-                current_available = st.session_state.get('_available_methods', [])
+                st.session_state[K.REMOVED_EXTERNAL] = sorted(removed)
+                current_available = SS.available_methods()
                 for nm in all_found:
                     if nm not in current_available:
                         current_available.append(nm)
-                st.session_state['_available_methods'] = current_available
+                st.session_state[K.AVAILABLE_METHODS] = current_available
 
                 if all_found:
                     for nm in all_found:
                         append_method_to_config(nm)
                     label = "Found" if (new_methods or bundle_found or cli_found) else "Already registered"
-                    st.session_state['_method_refresh_msg'] = f"{label}: {', '.join(all_found)}"
+                    st.session_state[K.METHOD_REFRESH_MSG] = f"{label}: {', '.join(all_found)}"
                     if auto_fixed:
-                        st.session_state['_method_refresh_msg'] += " (added missing @register_method)"
+                        st.session_state[K.METHOD_REFRESH_MSG] += " (added missing @register_method)"
                     st.rerun()
                 else:
                     st.sidebar.info("No usable methods found in external_methods/")
@@ -945,11 +947,11 @@ def _render_scan_external_methods_button():
                 st.sidebar.error(f"Scan failed: {exc}")
 
     # -- Registered plugins - always show with per-plugin action buttons --
-    if st.session_state.uploaded_methods:
+    if SS.uploaded_methods():
         st.sidebar.markdown(
             '<div class="plugin-section-label">Registered plugins</div>',
             unsafe_allow_html=True)
-        for nm, fname in list(st.session_state.uploaded_methods.items()):
+        for nm, fname in list(SS.uploaded_methods().items()):
             st.sidebar.markdown(
                 f'<div class="plugin-item">'
                 f'<div class="plugin-name">{nm}</div>'
@@ -970,14 +972,14 @@ def _render_scan_external_methods_button():
                              help="Remove this method's published baseline — teammates "
                                   "won't see its scores until they run it themselves"):
                     unpublish_method(nm)
-                    st.session_state['_method_refresh_msg'] = f"Unpublished: {nm}"
+                    st.session_state[K.METHOD_REFRESH_MSG] = f"Unpublished: {nm}"
                     st.rerun()
             else:
                 if cb.button("Publish", key=f"pub_{nm}", use_container_width=True,
                              help="Snapshot this method's current scores into a git-tracked "
                                   "baseline so teammates see them right after pulling"):
                     ok, msg = publish_method(nm)
-                    st.session_state['_method_refresh_msg'] = msg
+                    st.session_state[K.METHOD_REFRESH_MSG] = msg
                     if ok:
                         st.rerun()
                     else:
@@ -999,7 +1001,7 @@ def _render_scan_external_methods_button():
                 remove_external_method_state(nm)
                 reset_method_upload_widget()
                 st.cache_data.clear()
-                st.session_state['_method_refresh_msg'] = f"Removed: {nm}"
+                st.session_state[K.METHOD_REFRESH_MSG] = f"Removed: {nm}"
                 st.rerun()
     else:
         st.sidebar.markdown(
@@ -1046,25 +1048,25 @@ def _handle_zip_plugin_upload(up, dest_dir: Path, sig: str) -> None:
         manifest = load_manifest(bundle_dir / "method.yaml")
         wrapper_cls = create_wrapper_class(manifest)
         _register_method(wrapper_cls)
-        st.session_state.uploaded_methods[manifest.name] = bundle_dest.name
+        SS.uploaded_methods()[manifest.name] = bundle_dest.name
         append_method_to_config(manifest.name)
-        removed = set(st.session_state.get('_removed_external_methods', []))
+        removed = SS.removed_external()
         removed.discard(manifest.name)
-        st.session_state['_removed_external_methods'] = sorted(removed)
-        current_available = st.session_state.get('_available_methods', [])
+        st.session_state[K.REMOVED_EXTERNAL] = sorted(removed)
+        current_available = SS.available_methods()
         if manifest.name not in current_available:
             current_available.append(manifest.name)
-        st.session_state['_available_methods'] = current_available
-        st.session_state['_method_refresh_msg'] = (
+        st.session_state[K.AVAILABLE_METHODS] = current_available
+        st.session_state[K.METHOD_REFRESH_MSG] = (
             f"Registered raw zip method: {manifest.name} (generated {manifest_path.name})"
             if generated else f"Registered bundle: {manifest.name}"
         )
-        st.session_state['_last_method_upload'] = sig
+        st.session_state[K.LAST_METHOD_UPLOAD] = sig
         reset_method_upload_widget()
         tmp_zip.unlink(missing_ok=True)
         st.rerun()
     except Exception as exc:
-        st.session_state['_last_method_upload'] = sig
+        st.session_state[K.LAST_METHOD_UPLOAD] = sig
         if 'tmp_zip' in locals():
             tmp_zip.unlink(missing_ok=True)
         shutil.rmtree(dest_dir / up.name.rsplit(".", 1)[0], ignore_errors=True)
@@ -1234,23 +1236,23 @@ def _handle_py_plugin_upload(up, dest_dir: Path, before: set, sig: str) -> None:
     if is_cli_contract_script(dest):
         try:
             cli_name = register_cli_script(dest)
-            st.session_state.uploaded_methods[cli_name] = dest.name
+            SS.uploaded_methods()[cli_name] = dest.name
             append_method_to_config(cli_name)
-            removed = set(st.session_state.get('_removed_external_methods', []))
+            removed = SS.removed_external()
             removed.discard(cli_name)
-            st.session_state['_removed_external_methods'] = sorted(removed)
-            current_available = st.session_state.get('_available_methods', [])
+            st.session_state[K.REMOVED_EXTERNAL] = sorted(removed)
+            current_available = SS.available_methods()
             if cli_name not in current_available:
                 current_available.append(cli_name)
-            st.session_state['_available_methods'] = current_available
-            st.session_state['_method_refresh_msg'] = (
+            st.session_state[K.AVAILABLE_METHODS] = current_available
+            st.session_state[K.METHOD_REFRESH_MSG] = (
                 f"Registered CLI method: {cli_name} (runs as an isolated subprocess)"
             )
-            st.session_state['_last_method_upload'] = sig
+            st.session_state[K.LAST_METHOD_UPLOAD] = sig
             reset_method_upload_widget()
             st.rerun()
         except Exception as exc:
-            st.session_state['_last_method_upload'] = sig
+            st.session_state[K.LAST_METHOD_UPLOAD] = sig
             dest.unlink(missing_ok=True)
             reset_method_upload_widget()
             st.sidebar.error(f"Rejected {dest.name}: {exc}")
@@ -1268,25 +1270,25 @@ def _handle_py_plugin_upload(up, dest_dir: Path, before: set, sig: str) -> None:
                 for nm in ready_methods:
                     if not callable(getattr(_get_method(nm), "reconstruct", None)):
                         st.sidebar.warning(f"{nm} has no reconstruct(batch) - will fail at run time.")
-                    st.session_state.uploaded_methods[nm] = dest.name
+                    SS.uploaded_methods()[nm] = dest.name
                     append_method_to_config(nm)
-                removed = set(st.session_state.get('_removed_external_methods', []))
+                removed = SS.removed_external()
                 removed.difference_update(ready_methods)
-                st.session_state['_removed_external_methods'] = sorted(removed)
-                current_available = st.session_state.get('_available_methods', [])
+                st.session_state[K.REMOVED_EXTERNAL] = sorted(removed)
+                current_available = SS.available_methods()
                 for nm in ready_methods:
                     if nm not in current_available:
                         current_available.append(nm)
-                st.session_state['_available_methods'] = current_available
+                st.session_state[K.AVAILABLE_METHODS] = current_available
                 label = "Registered" if new_methods else "Already registered"
-                st.session_state['_method_refresh_msg'] = f"{label}: {', '.join(ready_methods)}"
+                st.session_state[K.METHOD_REFRESH_MSG] = f"{label}: {', '.join(ready_methods)}"
                 if auto_fixed:
-                    st.session_state['_method_refresh_msg'] += " (added missing @register_method)"
-                st.session_state['_last_method_upload'] = sig
+                    st.session_state[K.METHOD_REFRESH_MSG] += " (added missing @register_method)"
+                st.session_state[K.LAST_METHOD_UPLOAD] = sig
                 reset_method_upload_widget()
                 st.rerun()
             else:
-                st.session_state['_last_method_upload'] = sig
+                st.session_state[K.LAST_METHOD_UPLOAD] = sig
                 dest.unlink(missing_ok=True)
                 reset_method_upload_widget()
                 st.sidebar.warning(
@@ -1296,7 +1298,7 @@ def _handle_py_plugin_upload(up, dest_dir: Path, before: set, sig: str) -> None:
                     "(main() + argparse + if __name__ == '__main__')."
                 )
         except Exception as exc:
-            st.session_state['_last_method_upload'] = sig
+            st.session_state[K.LAST_METHOD_UPLOAD] = sig
             dest.unlink(missing_ok=True)
             reset_method_upload_widget()
             st.sidebar.error(f"Rejected {dest.name}: {exc}")
@@ -1319,12 +1321,12 @@ def _render_upload_new_plugin_widget():
         'or a raw KTC CLI script (<code>main()</code> + argparse)<br>'
         '<b style="color:var(--tx2)">.zip</b> — ML bundle with <code>method.yaml</code> at root</div>',
         unsafe_allow_html=True)
-    upload_key = f"method_upload_{st.session_state.get('_method_upload_nonce', 0)}"
+    upload_key = f"method_upload_{st.session_state.get(K.METHOD_UPLOAD_NONCE, 0)}"
     up = st.sidebar.file_uploader("Upload plugin (.py or .zip)", type=["py", "zip"], key=upload_key,
                                   label_visibility="collapsed")
     if up is not None:
         sig = f"{up.name}:{up.size}"
-        if st.session_state.get('_last_method_upload') != sig:
+        if st.session_state.get(K.LAST_METHOD_UPLOAD) != sig:
             dest_dir = Path("external_methods")
             dest_dir.mkdir(exist_ok=True)
             before = set(_list_methods())
@@ -1348,8 +1350,8 @@ def _render_upload_new_plugin_widget():
 def _render_sidebar_add_method():
     """Add Method: Scan external_methods/ button, then Upload new plugin (.py/.zip)."""
     st.sidebar.markdown("## Add Method")
-    if 'uploaded_methods' not in st.session_state:
-        st.session_state.uploaded_methods = {}
+    if K.UPLOADED_METHODS not in st.session_state:
+        st.session_state[K.UPLOADED_METHODS] = {}
 
     _render_scan_external_methods_button()
     _render_upload_new_plugin_widget()
@@ -1399,7 +1401,7 @@ def _render_sidebar_run_history():
             if st.button("Load", key="load_run_btn", use_container_width=True):
                 selected_path = runs_root / chosen_run
                 (runs_root / "latest.txt").write_text(str(selected_path.resolve()))
-                st.session_state.pop("_confirm_delete_run", None)
+                st.session_state.pop(K.CONFIRM_DELETE_RUN, None)
                 st.cache_data.clear()
                 st.rerun()
         with c_del:
@@ -1410,21 +1412,21 @@ def _render_sidebar_run_history():
                 disabled=_active_is_chosen,
                 help="Cannot delete the currently active run" if _active_is_chosen else "Delete this run from disk",
             ):
-                st.session_state["_confirm_delete_run"] = chosen_run
+                st.session_state[K.CONFIRM_DELETE_RUN] = chosen_run
 
-        _pending_del = st.session_state.get("_confirm_delete_run")
+        _pending_del = st.session_state.get(K.CONFIRM_DELETE_RUN)
         if _pending_del and _pending_del == chosen_run:
             st.sidebar.warning(f"Delete **{_pending_del}**? This cannot be undone.")
             c_yes, c_no = st.sidebar.columns(2)
             with c_yes:
                 if st.button("Yes", key="confirm_del_yes", use_container_width=True):
                     shutil.rmtree(runs_root / _pending_del, ignore_errors=True)
-                    st.session_state.pop("_confirm_delete_run", None)
+                    st.session_state.pop(K.CONFIRM_DELETE_RUN, None)
                     st.cache_data.clear()
                     st.rerun()
             with c_no:
                 if st.button("No", key="confirm_del_no", use_container_width=True):
-                    st.session_state.pop("_confirm_delete_run", None)
+                    st.session_state.pop(K.CONFIRM_DELETE_RUN, None)
                     st.rerun()
 
         # C3: re-run failed only — visible when active run has failures
@@ -1478,7 +1480,7 @@ def _render_method_library_contents(container) -> None:
     """
     from ktc_framework.registry import list_methods as _list_methods_lib
 
-    uploaded = st.session_state.get('uploaded_methods', {})
+    uploaded = SS.uploaded_methods()
     published = _load_published_manifest()
     # Classify against the live registry, not the uploaded_methods bookkeeping
     # dict — that dict is only populated by Scan/Upload and stays empty for
@@ -1606,7 +1608,7 @@ def render_sidebar():
     st.sidebar.markdown("---")
     st.sidebar.markdown("## Export")
     if st.sidebar.button("Export HTML Report", use_container_width=True, key="pdf_sidebar_btn"):
-        st.session_state['_trigger_pdf'] = True
+        st.session_state[K.TRIGGER_PDF] = True
     pdf_export_slot = st.sidebar.empty()
 
     st.sidebar.markdown("---")
@@ -1828,7 +1830,7 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
     def grade_color(grade):
         return {'A':'#dafbe1','B':'#ddf4ff','C':'#fff8c5','D':'#ffebe9'}.get(grade,'')
 
-    pc = st.session_state.get('_pcolors', {})
+    pc = SS.pcolors()
     row_bg    = pc.get('bg', '#f6f8fa')
     cell_col  = '#1f2328'
     hdr_bg    = pc.get('bg', '#f6f8fa')
@@ -1870,7 +1872,7 @@ def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple
     dm = all_methods(scores)
     # Default: all methods so the full run is visible immediately.
     chosen = st.multiselect("Select methods:", dm,
-        default=[m for m in dm if m not in st.session_state.get('custom_methods',[])])
+        default=[m for m in dm if m not in SS.custom_methods()])
 
     if not chosen:
         st.info("Select at least one method.")
@@ -1881,7 +1883,7 @@ def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--amb);margin-bottom:6px">'
             f'Showing levels {lvl_min}-{lvl_max}</div>', unsafe_allow_html=True)
 
-    pc  = st.session_state.get('_pcolors', {})
+    pc  = SS.pcolors()
     pb  = pc.get('bg',     '#f6f8fa')
     pp  = pc.get('paper',  'rgba(0,0,0,0)')
     pg  = pc.get('grid',   '#d0d7de')
@@ -2063,8 +2065,8 @@ def view_comparison(scores:Dict, per_run:Dict, mm:Dict, sel_metrics:list=None, l
 
     run_key = f"L{lvl}_{sid}"
 
-    p1  = m1 in st.session_state.get('custom_methods', [])
-    p2  = m2 in st.session_state.get('custom_methods', [])
+    p1  = m1 in SS.custom_methods()
+    p2  = m2 in SS.custom_methods()
     if p1: st.info(f"{m1} is a custom method - connect its backend to see metrics.")
     if p2: st.info(f"{m2} is a custom method - connect its backend to see metrics.")
 
@@ -2491,7 +2493,7 @@ def view_radar_chart(scores:Dict, per_run:Dict, sel_metrics:list=None):
             "Showing a bar comparison instead. Add more metrics (Dice, IoU...) to unlock the full radar."
         )
         metric = chosen[0]
-        pc2 = st.session_state.get('_pcolors', {})
+        pc2 = SS.pcolors()
         bar_data = [(name, max(0, metrics.get(metric, 0))) for name, metrics in scores.items()]
         bar_data.sort(key=lambda x: x[1], reverse=True)
         fig2 = go.Figure()
@@ -2553,7 +2555,7 @@ def view_radar_chart(scores:Dict, per_run:Dict, sel_metrics:list=None):
         fig.add_trace(go.Scatterpolar(r=vals,theta=cats,fill='toself',name=name,
             line_color=c,fillcolor=hex_to_rgba(c, 0.13),
             hovertemplate=f"<b>{label}</b><br>%{{theta}}: %{{r:.3f}}<extra></extra>"))
-    pc = st.session_state.get('_pcolors',{})
+    pc = SS.pcolors()
     fig.update_layout(
         polar=dict(bgcolor=pc.get('bg','#f6f8fa'),
             radialaxis=dict(visible=True,range=[0,1],gridcolor=pc.get('grid','#d0d7de'),linecolor=pc.get('grid','#d0d7de'),tickfont=dict(size=8,color=pc.get('text','#848d97'))),
@@ -2610,7 +2612,7 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
     metric_opts = sorted(sample_metrics)
     if not metric_opts:
         metric_opts = ['ktc_score']
-    sel_metrics_sidebar = st.session_state.get('selected_metrics', [])
+    sel_metrics_sidebar = SS.selected_metrics()
     selected_metric_keys = [
         METRIC_LABEL_TO_KEY[m] for m in sel_metrics_sidebar
         if m in METRIC_LABEL_TO_KEY and METRIC_LABEL_TO_KEY[m] in metric_opts
@@ -2684,7 +2686,7 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
             f'{"Lower" if lower_is_better else "Higher"} = greener (better).</div>',
             unsafe_allow_html=True)
 
-    pc = st.session_state.get('_pcolors', {})
+    pc = SS.pcolors()
     pb = pc.get('bg', '#f6f8fa')
     pg = pc.get('grid', '#d0d7de')
     pt = pc.get('text', '#848d97')
@@ -3092,7 +3094,7 @@ def _write_dashboard_report_charts(scores: Dict, per_run: Dict, mm: Dict, export
 
     fig = go.Figure()
     stats = []
-    chosen = [m for m in all_methods(scores) if m not in st.session_state.get("custom_methods", [])]
+    chosen = [m for m in all_methods(scores) if m not in SS.custom_methods()]
     all_levels = []
     for disp_name in chosen:
         ik = mm.get(disp_name, disp_name)
@@ -3184,7 +3186,7 @@ def _write_dashboard_hull_charts(scores: Dict, per_run: Dict, mm: Dict, export_f
         return
 
     df = pd.DataFrame(hull_rows)
-    pc = st.session_state.get('_pcolors', {})
+    pc = SS.pcolors()
     pc = {
         "bg": pc.get("bg", "#f6f8fa"),
         "paper": pc.get("paper", "rgba(0,0,0,0)"),
@@ -3317,7 +3319,7 @@ def _render_html_report_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str,
 
         run_dir = Path("outputs") / run_name
         results = []
-        selected_metric_labels = st.session_state.get("selected_metrics", ALL_METRICS_SIDEBAR.copy())
+        selected_metric_labels = SS.selected_metrics()
         selected_metric_keys = [
             key for label, key in METRIC_SPECS
             if label in selected_metric_labels
@@ -3524,7 +3526,7 @@ def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple
     """Object-detection quality: did each method find the right shapes,
     roughly the right size, in roughly the right place?"""
 
-    pc = st.session_state.get('_pcolors', {})
+    pc = SS.pcolors()
     sel_methods = list(scores.keys())
     lvl_min, lvl_max = level_range
 
@@ -3584,7 +3586,7 @@ def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple
         "costs -1 — the same as a miss — so confidently hallucinating objects is penalized, not free.",
     )
     if entries_for_detection:
-        dataset_root = st.session_state.get("cfg_dataset_root", "EvaluationData")
+        dataset_root = SS.cfg_dataset_root()
         qual = _compute_qualitative_detection(dataset_root, tuple(entries_for_detection))
         if not qual:
             st.info("Could not load saved reconstructions/ground truth to check object detection for this run.")
@@ -3750,8 +3752,8 @@ def _render_first_run_wizard() -> None:
     """D2: Guided setup panel shown when no benchmark output exists yet."""
     import importlib as _il
 
-    _d = Path(st.session_state.get("cfg_dataset_root", "EvaluationData"))
-    _m = Path(st.session_state.get("cfg_mesh_path", "Codes_Matlab/Mesh_sparse.mat"))
+    _d = Path(SS.cfg_dataset_root())
+    _m = Path(SS.cfg_mesh_path())
     _eval_ok = any((_d / x).is_dir() for x in ["evaluation_datasets", "EvaluationData"])
     _mesh_ok = _m.exists()
 
@@ -3841,22 +3843,22 @@ def main():
     # teammate pulls the repo and opens the dashboard for the first time —
     # publish_method()'s baseline snapshot covers the *scores* half of that,
     # this covers the *runnable* half.
-    if not st.session_state.get('_ext_methods_autoloaded'):
+    if not st.session_state.get(K.EXT_AUTOLOADED):
         try:
             from ktc_framework.registry import load_external_methods as _autoload_ext
             _autoload_ext(["external_methods"])
         except Exception:
             pass
-        st.session_state['_ext_methods_autoloaded'] = True
+        st.session_state[K.EXT_AUTOLOADED] = True
 
     # Populate the available method list from the latest run BEFORE the sidebar
     # renders, so the methods section shows immediately instead of stalling on
     # "Loading methods..." on the first paint. (The sidebar reads this; the
     # main body refreshes it again after load_data below.)
     try:
-        st.session_state['_available_methods'] = discover_available_methods()
+        st.session_state[K.AVAILABLE_METHODS] = discover_available_methods()
     except Exception:
-        st.session_state.setdefault('_available_methods', [])
+        st.session_state.setdefault(K.AVAILABLE_METHODS, [])
 
     pdf_export_slot = render_sidebar()
     plot_bg     = '#f6f8fa'
@@ -3864,7 +3866,7 @@ def main():
     plot_grid   = '#d0d7de'
     plot_text   = '#848d97'
     plot_legend = 'rgba(255,255,255,.9)'
-    st.session_state['_pcolors'] = dict(bg=plot_bg, paper=plot_paper,
+    st.session_state[K.PCOLORS] = dict(bg=plot_bg, paper=plot_paper,
                                         grid=plot_grid, text=plot_text, legend=plot_legend)
 
     header_bg = 'var(--sur)'
@@ -3884,7 +3886,7 @@ def main():
         latest_run = find_latest_run()
         scores, per_run, mm = load_data(str(latest_run.resolve()))
         scores, per_run, mm, published_fallback = _apply_published_baselines(scores, per_run, mm)
-        removed_external = set(st.session_state.get('_removed_external_methods', []))
+        removed_external = SS.removed_external()
         if removed_external:
             scores = {k: v for k, v in scores.items() if k not in removed_external}
             per_run = {k: v for k, v in per_run.items() if k not in removed_external}
@@ -3924,12 +3926,12 @@ def main():
             return
 
         # Store available methods so sidebar checkboxes can render them
-        st.session_state['_available_methods'] = discover_available_methods()
+        st.session_state[K.AVAILABLE_METHODS] = discover_available_methods()
         # Selected metrics + methods + level range from sidebar
-        sel_metrics = st.session_state.get('selected_metrics', ['KTC Score'])
-        sel_methods = st.session_state.get('selected_methods', list(scores.keys()))
-        level_range = st.session_state.get('level_range', (1, 7))
-        sel_samples = st.session_state.get('selected_samples', ['A', 'B', 'C'])
+        sel_metrics = SS.selected_metrics()
+        sel_methods = st.session_state.get(K.SELECTED_METHODS, list(scores.keys()))
+        level_range = SS.level_range()
+        sel_samples = SS.selected_samples()
 
         # Apply method, level, and sample filters once so every tab/report agrees.
         scores_f, per_run_f, mm_f = apply_dashboard_filters(
@@ -3971,8 +3973,8 @@ def main():
         _render_failures_panel(latest_run)
 
         # PDF export - triggered from sidebar button
-        if st.session_state.get('_trigger_pdf'):
-            st.session_state['_trigger_pdf'] = False
+        if st.session_state.get(K.TRIGGER_PDF):
+            st.session_state[K.TRIGGER_PDF] = False
             _render_html_report_export(scores_f, per_run_f, mm_f, latest_run.name, target=pdf_export_slot)
 
         # Tabs

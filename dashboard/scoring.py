@@ -19,6 +19,7 @@ from ktc_framework.reporting.constants import (
 from ktc_framework.reporting.data_layer import filter_by_level
 
 from dashboard.data import METRIC_SPECS, METRIC_KEY_TO_LABEL
+import dashboard.state as SS
 
 
 def calculate_composite_score(metrics: Dict[str, float], weights: Dict[str, float] = None) -> float:
@@ -32,10 +33,10 @@ def letter_grade(score: float) -> str:
 
 
 def all_methods(scores: Dict) -> List[str]:
-    removed_external = set(st.session_state.get('_removed_external_methods', []))
+    removed_external = SS.removed_external()
     return [
         m for m in list(scores.keys())
-        + [m for m in st.session_state.get('custom_methods', []) if m not in scores]
+        + [m for m in SS.custom_methods() if m not in scores]
         if m not in removed_external
     ]
 
