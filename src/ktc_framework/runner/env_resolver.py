@@ -60,7 +60,8 @@ _PROBE_CANDIDATES: List[str] = [
     "tensorflow",
     "torch",           # PyTorch
     "torch_geometric", # PyTorch Geometric
-    "dolfin",          # FEniCS
+    "dolfin",          # FEniCS (legacy, 2019.x)
+    "dolfinx",         # FEniCSx (new API, distinct package from dolfin)
     "deepinv",         # DeepInverse
     "cv2",             # opencv-python
 ]
@@ -372,6 +373,9 @@ def parse_repo_imports(repo_path: str) -> Set[str]:
         "opencv":          "cv2",
         "fenics":          "dolfin",
         "fenics_dolfin":   "dolfin",
+        "fenicsx":         "dolfinx",
+        "fenics-dolfinx":  "dolfinx",
+        "fenics_dolfinx":  "dolfinx",
         "torch-geometric": "torch_geometric",
         "tensorflow-gpu":  "tensorflow",
         "tensorflow_gpu":  "tensorflow",
@@ -528,3 +532,40 @@ def resolve_env(
             )
 
     raise EnvError("\n".join(lines))
+
+
+def resolve(manifest) -> Optional[str]:
+    """Resolve a python interpreter path for a MethodManifest's bundle.
+
+    Thin additive wrapper around ``resolve_env()``/``build_env_index()`` for
+    callers (e.g. the manifest-driven subprocess wrapper) that need an actual
+    interpreter path to put in a subprocess command, not just a conda env
+    name. Best-effort: returns ``None`` (never raises) whenever conda isn't
+    available, no environment matches, or the repo only needs lightweight
+    packages — callers should fall back to their own interpreter discovery
+    in all of those cases (e.g. ``env_resolver.resolve(manifest) or python``).
+
+    Parameters
+    ----------
+    manifest:
+        A ``MethodManifest`` (or any object with a ``bundle_dir`` attribute
+        pointing at the extracted method's directory).
+
+    Returns
+    -------
+    str or None
+        Absolute path to a python executable inside the matched conda env,
+        or ``None`` if nothing could be resolved.
+    """
+    try:
+        env_index = build_env_index()
+        env_name = resolve_env(str(manifest.bundle_dir), env_index)
+    except Exception:
+        return None
+
+    if env_name is None or env_name not in env_index:
+        return None
+
+    env_dir = Path(env_index[env_name]["path"])
+    python_path = env_dir / "python.exe" if os.name == "nt" else env_dir / "bin" / "python"
+    return str(python_path) if python_path.exists() else None

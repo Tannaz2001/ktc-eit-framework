@@ -64,6 +64,7 @@ field — that plumbing does not exist yet.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import re
@@ -76,6 +77,7 @@ from typing import Optional
 
 import numpy as np
 
+from src.ktc_framework.methods._opcache import load as cache_load, save as cache_save
 from src.ktc_framework.methods.method_plugin import MethodPlugin
 from src.ktc_framework.types import DataBatch
 
@@ -205,6 +207,20 @@ def create_cli_wrapper_class(
     _python_exec = python_exec
     _timeout = timeout
 
+    # Fingerprint the script's on-disk state (size + mtime) alongside its
+    # config, so cached reconstructions from ``outputs/.opcache/`` are only
+    # reused while the script is unchanged — editing/re-uploading it
+    # produces a different key and the cache is rebuilt automatically.
+    # Mirrors ``subprocess_wrapper.create_wrapper_class``'s ``wrapper_fp``.
+    _fp = hashlib.md5()
+    for part in (name, str(script_path), str(scoring_path), str(mesh_path), str(timeout)):
+        _fp.update(part.encode("utf-8"))
+    _script_file = Path(script_path)
+    if _script_file.exists():
+        _fp.update(str(_script_file.stat().st_size).encode("utf-8"))
+        _fp.update(str(int(_script_file.stat().st_mtime)).encode("utf-8"))
+    _cache_fingerprint = _fp.hexdigest()[:16]
+
     class _CLIWrapper(CLIScriptPlugin):
         def __init__(self) -> None:
             super().__init__(
@@ -217,6 +233,7 @@ def create_cli_wrapper_class(
 
     _CLIWrapper.__name__ = name
     _CLIWrapper.__qualname__ = name
+    _CLIWrapper.__cache_fingerprint__ = _cache_fingerprint
     return _CLIWrapper
 
 
@@ -278,6 +295,20 @@ class CLIScriptPlugin(MethodPlugin):
     # ------------------------------------------------------------------
 
     def reconstruct(self, batch: DataBatch) -> np.ndarray:
+        # Cache is only available for instances built through
+        # create_cli_wrapper_class (which stamps __cache_fingerprint__ on
+        # the subclass) — a bare CLIScriptPlugin() has no fingerprint to
+        # key against, so it skips caching entirely rather than guessing one.
+        cache_fp = getattr(type(self), "__cache_fingerprint__", None)
+        cache_key: Optional[str] = None
+        if cache_fp:
+            level = int(batch.level)
+            sample_id = str(getattr(batch, "sample_id", "?"))
+            cache_key = f"cli|{type(self).__name__}|{cache_fp}|L{level}|{sample_id}"
+            cached = cache_load(cache_key)
+            if cached is not None:
+                return cached
+
         tmp_in: Optional[str] = None
         tmp_out: Optional[str] = None
 
@@ -365,6 +396,8 @@ class CLIScriptPlugin(MethodPlugin):
             # Defence-in-depth — matches the MethodPlugin base-class contract.
             # Shape/label checks above already make this a no-op in practice.
             self.validate_output(reconstruction)
+            if cache_key is not None:
+                cache_save(cache_key, reconstruction)
             return reconstruction
 
         except subprocess.TimeoutExpired:

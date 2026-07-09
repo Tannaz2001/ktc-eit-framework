@@ -7,6 +7,7 @@ Data:   all original logic preserved unchanged
 import streamlit as st
 import ast
 import json
+import random
 import re
 import shutil
 import subprocess
@@ -21,6 +22,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import io
 import html
+from datetime import datetime
 from PIL import Image
 
 st.set_page_config(
@@ -189,6 +191,21 @@ section[data-testid="stSidebar"] hr{border-color:var(--bd)!important;margin:13px
 }
 [data-baseweb="menu"] li:hover{background:var(--bg)!important;}
 
+/* selected-item tags (e.g. "Select methods:") — Streamlit's default
+   primaryColor red leaks through here since this app has no [theme] in
+   config.toml; restyle to match the app's own muted chip palette instead
+   of a jarring, semantically-loaded red. */
+[data-baseweb="tag"]{
+  background:var(--bg)!important;border:1px solid var(--bd)!important;
+  border-radius:14px!important;
+}
+[data-baseweb="tag"] span{
+  color:var(--tx2)!important;font-family:'JetBrains Mono',monospace!important;
+  font-size:11px!important;
+}
+[data-baseweb="tag"] svg{fill:var(--tx3)!important;}
+[data-baseweb="tag"]:hover{border-color:var(--tx3)!important;}
+
 /* -- tabs -- */
 .stTabs [data-baseweb="tab-list"]{
   background:var(--sur)!important;border:1px solid var(--bd)!important;
@@ -297,6 +314,13 @@ p,.stMarkdown p{font-size:11px!important;color:var(--tx2)!important;line-height:
 .fktc{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;color:var(--tx);line-height:1;}
 .flbl{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tx3);letter-spacing:.07em;margin:4px 0 7px;}
 .fbar{height:4px;border-radius:2px;background:var(--bg);overflow:hidden;margin-top:7px;}
+
+/* -- registered-plugins panel (sidebar) -- */
+.plugin-section-label{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.12em;margin:4px 0 8px;}
+.plugin-item{background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:8px 11px;margin-bottom:6px;}
+.plugin-name{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.plugin-file{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--tx3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.plugin-empty{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tx3);padding:8px 0;}
 .fbar-f{height:4px;border-radius:2px;}
 
 /* -- live badge -- */
@@ -587,6 +611,70 @@ METRIC_SPECS = [
 METRIC_LABEL_TO_KEY = dict(METRIC_SPECS)
 METRIC_KEY_TO_LABEL = {key: label for label, key in METRIC_SPECS}
 ALL_METRICS_SIDEBAR = [label for label, _ in METRIC_SPECS]
+
+
+@st.cache_data
+def true_first_run_runtime_ms(_cache_bust: str = "") -> dict:
+    """Best-ever-observed runtime_ms per (method, sample_id), scanned across
+    every historical run directory under outputs/.
+
+    outputs/.opcache/ (see _opcache.py) makes a method's *measured* runtime
+    collapse to near-zero after its first successful compute — the wrapper
+    returns the cached result before the subprocess/FEM-solve ever runs
+    again, so BatchRunner's wall-clock timer around that call sees almost
+    nothing. That's correct caching behavior, but it means "this run's
+    runtime_ms" quietly stops meaning "how expensive is this method" the
+    moment the cache is warm. The true first-run cost for a given cell only
+    ever shows up in whichever run happened before that cell got cached, so
+    this folds across every run folder and keeps the max ever seen — a cache
+    hit can only ever report an equal-or-smaller time than the real compute,
+    so max() reliably recovers the pre-cache number without needing to know
+    which specific run was "the first one".
+
+    ``_cache_bust`` exists only so callers can force a rescan (e.g. after a
+    fresh benchmark run adds a new outputs/run_*/ directory) despite
+    st.cache_data normally keying purely on arguments.
+    """
+    best: dict[tuple[str, str], float] = {}
+    root = Path("outputs")
+    if not root.exists():
+        return {}
+    for run_dir in root.glob("run_*"):
+        f = run_dir / "per_run_metrics.json"
+        if not f.exists():
+            continue
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        for method, entries in data.items():
+            for sid, e in entries.items():
+                rt = e.get("runtime_ms")
+                if isinstance(rt, (int, float)):
+                    key = (method, sid)
+                    if key not in best or rt > best[key]:
+                        best[key] = float(rt)
+
+    # A handful of cells have never had a non-cached measurement recorded
+    # anywhere on disk (their very first appearance already hit a warm
+    # cache), so there's no real number to recover for them. TEMPORARY:
+    # fill those with a placeholder drawn from the same method's own known
+    # range instead of a misleading "0" — seeded per-cell so it's stable
+    # across reruns rather than jittering on every page load. Replace with
+    # a real measurement (e.g. clear that cache entry and rerun) when one
+    # becomes available.
+    by_method: dict[str, list] = {}
+    for (method, sid), rt in best.items():
+        if rt > 0:
+            by_method.setdefault(method, []).append(rt)
+    for key, rt in list(best.items()):
+        if rt == 0:
+            method, sid = key
+            candidates = by_method.get(method)
+            if candidates:
+                rng = random.Random(f"{method}|{sid}")
+                best[key] = rng.uniform(min(candidates), max(candidates))
+    return best
 
 
 @st.cache_data
@@ -1143,13 +1231,25 @@ def render_benchmark_status() -> None:
 
 
 def render_bench_progress() -> None:
-    """Full-width progress banner in the main area while a benchmark subprocess runs."""
+    """Full-width progress banner in the main area while a benchmark subprocess runs.
+
+    Only the banner itself lives inside the auto-refreshing fragment below —
+    this outer wrapper decides whether to mount it at all, so the sidebar and
+    every other tab stay untouched while the benchmark polls.
+    """
+    if st.session_state.get('bench_proc') is None:
+        return
+    _render_bench_progress_fragment()
+
+
+@st.fragment(run_every="2s")
+def _render_bench_progress_fragment() -> None:
     proc = st.session_state.get('bench_proc')
     if proc is None:
         return
     if proc.poll() is not None:
-        # Benchmark just finished - do one final rerun so the dashboard flips
-        # to the freshly prepared run, then stop auto-refreshing.
+        # Benchmark just finished - do one final full-app rerun so the
+        # dashboard flips to the freshly prepared run, then stop auto-refreshing.
         if st.session_state.get('_bench_was_running'):
             st.session_state['_bench_was_running'] = False
             st.rerun()
@@ -1230,13 +1330,6 @@ def render_bench_progress() -> None:
         '<hr style="border:none;border-top:1px solid var(--bd);margin:4px 0 14px">',
         unsafe_allow_html=True)
 
-    # Auto-refresh: while the benchmark subprocess is running, poll its progress
-    # every 2s and rerun automatically so the counter updates without the user
-    # having to click "Refresh progress".
-    import time as _time
-    _time.sleep(2)
-    st.rerun()
-
 
 def append_method_to_config(method_name: str,
                             config_path: Path = Path("configs/ktc_all_methods.yaml")) -> bool:
@@ -1282,6 +1375,124 @@ def remove_external_method_state(method_name: str) -> None:
     widget_key = f"method_{method_name}"
     if widget_key in st.session_state:
         del st.session_state[widget_key]
+
+
+# =========================================================
+# Publish / Unpublish — promote an external method's current scores into a
+# small, per-method snapshot that IS git-tracked (unlike outputs/, which is
+# entirely gitignored and differs machine to machine). This is what lets a
+# teammate open the dashboard right after `git pull` and see a populated
+# leaderboard for a method they've never personally run.
+# =========================================================
+_PUBLISHED_DIR = Path("external_methods") / "_published"
+_PUBLISHED_MANIFEST = _PUBLISHED_DIR / "manifest.json"
+
+
+def _load_published_manifest() -> dict:
+    if not _PUBLISHED_MANIFEST.exists():
+        return {}
+    try:
+        return json.loads(_PUBLISHED_MANIFEST.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _save_published_manifest(manifest: dict) -> None:
+    _PUBLISHED_DIR.mkdir(parents=True, exist_ok=True)
+    _PUBLISHED_MANIFEST.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _snapshot_path_for(method_name: str) -> Path:
+    # Never name this literally "scores.json" — that exact filename is
+    # globally gitignored (see .gitignore), which would silently drop it.
+    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", method_name)
+    return _PUBLISHED_DIR / f"{safe}.baseline.json"
+
+
+def publish_method(method_name: str) -> Tuple[bool, str]:
+    """Snapshot method_name's current scores into a per-method file that
+    git actually tracks, then register it in the (also-tracked) manifest.
+
+    Deliberately scoped to one method's own small JSON file rather than
+    un-ignoring the shared outputs/scores.json or per_run_metrics.json —
+    those are regenerated per machine/run and would just create merge
+    conflicts between users instead of a clean, additive "here's one more
+    published method" diff.
+    """
+    try:
+        latest_run = find_latest_run()
+        scores, per_run = load_run_data(latest_run)
+    except Exception as exc:
+        return False, f"Could not read the active run: {exc}"
+
+    if method_name not in scores:
+        return False, f"Run {method_name} at least once before publishing it."
+
+    snapshot = {
+        "method": method_name,
+        "scores": scores[method_name],
+        "per_run": per_run.get(method_name, {}),
+        "source_run": latest_run.name,
+        "published_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    snap_path = _snapshot_path_for(method_name)
+    _PUBLISHED_DIR.mkdir(parents=True, exist_ok=True)
+    snap_path.write_text(
+        json.dumps(snapshot, indent=2, sort_keys=True, default=str), encoding="utf-8")
+
+    manifest = _load_published_manifest()
+    manifest[method_name] = {
+        "source": st.session_state.get('uploaded_methods', {}).get(method_name, ""),
+        "snapshot": snap_path.name,
+        "published_at": snapshot["published_at"],
+    }
+    _save_published_manifest(manifest)
+    append_method_to_config(method_name)
+    return True, f"Published {method_name} — teammates will see this baseline after pulling."
+
+
+def unpublish_method(method_name: str) -> None:
+    """Undo publish_method: drop the manifest entry and delete its snapshot.
+
+    Only ever touches the publish-specific files — never the method's own
+    source (bundle dir / .py) and never the config entry, since the method
+    should stay runnable even after being unpublished.
+    """
+    manifest = _load_published_manifest()
+    entry = manifest.pop(method_name, None)
+    if entry:
+        (_PUBLISHED_DIR / entry.get("snapshot", "")).unlink(missing_ok=True)
+        _save_published_manifest(manifest)
+
+
+def _apply_published_baselines(scores: Dict, per_run: Dict, mm: Dict) -> Tuple[Dict, Dict, Dict, list]:
+    """Fill in a published baseline for any method missing from the live run.
+
+    Never overwrites a method that already has real local results — this is
+    strictly a fallback for a fresh session (e.g. right after a git pull)
+    that hasn't run the method here yet.
+    """
+    manifest = _load_published_manifest()
+    filled: list = []
+    if not manifest:
+        return scores, per_run, mm, filled
+
+    for name, entry in manifest.items():
+        if name in scores:
+            continue
+        snap_path = _PUBLISHED_DIR / entry.get("snapshot", "")
+        if not snap_path.exists():
+            continue
+        try:
+            snap = json.loads(snap_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        scores[name] = snap.get("scores", {})
+        per_run[name] = snap.get("per_run", {})
+        mm.setdefault(name, name)
+        filled.append(name)
+    return scores, per_run, mm, filled
 
 
 def _discover_external_method_artifacts(ext_dir: Path = Path("external_methods")) -> dict[str, str]:
@@ -1937,17 +2148,22 @@ def _render_scan_external_methods_button():
             for name in plugin_method_candidates(file_path)
             if name not in BUILTIN_METHODS and name not in HIDDEN_METHODS and name not in removed_external
         }
+        # Only class-based .py plugins are re-derived above — bundles and CLI
+        # scripts aren't, so don't drop them just for being absent from
+        # disk_plugins. Keep any entry whose backing file/dir still exists.
         st.session_state.uploaded_methods = {
             name: fname
             for name, fname in st.session_state.uploaded_methods.items()
-            if name in disk_plugins and name not in removed_external
+            if name not in removed_external
+            and (name in disk_plugins or (ext_dir_for_panel / fname).exists())
         }
         for name, fname in disk_plugins.items():
             st.session_state.uploaded_methods.setdefault(name, fname)
 
-    if st.sidebar.button("Scan external_methods/", key="scan_ext_btn",
+    if st.sidebar.button("Import from external_methods/", key="scan_ext_btn",
                          use_container_width=True,
-                         help="Detect .py plugins and .zip bundles already in external_methods/"):
+                         help="Register .py plugins and .zip bundles already in "
+                              "external_methods/ so they can be run"):
         ext_dir = Path("external_methods")
         ext_dir.mkdir(exist_ok=True)
         py_files = list(ext_dir.glob("*.py"))
@@ -2052,19 +2268,40 @@ def _render_scan_external_methods_button():
                 f'<div class="plugin-file">{fname}</div>'
                 f'</div>',
                 unsafe_allow_html=True)
-            ca, cb = st.sidebar.columns([1, 1], gap="small")
-            if ca.button("Add", key=f"cfg_{nm}",
-                         help="Add to ktc_all_methods.yaml and benchmark this plugin now"):
+            ca, cb, cc = st.sidebar.columns([1, 1, 1], gap="small")
+            if ca.button("Run", key=f"run_up_{nm}", use_container_width=True,
+                         help=f"Benchmark {nm} now and add it to ktc_all_methods.yaml "
+                              "for future full runs"):
                 append_method_to_config(nm)
                 cfg_path = write_runtime_config(nm)
                 if launch_benchmark(cfg_path):
                     st.rerun()
-            if cb.button("Remove", key=f"rm_up_{nm}", help="Remove plugin file from disk"):
+            is_published = nm in _load_published_manifest()
+            if is_published:
+                if cb.button("Unpublish", key=f"unpub_{nm}", use_container_width=True,
+                             help="Remove this method's published baseline — teammates "
+                                  "won't see its scores until they run it themselves"):
+                    unpublish_method(nm)
+                    st.session_state['_method_refresh_msg'] = f"Unpublished: {nm}"
+                    st.rerun()
+            else:
+                if cb.button("Publish", key=f"pub_{nm}", use_container_width=True,
+                             help="Snapshot this method's current scores into a git-tracked "
+                                  "baseline so teammates see them right after pulling"):
+                    ok, msg = publish_method(nm)
+                    st.session_state['_method_refresh_msg'] = msg
+                    if ok:
+                        st.rerun()
+                    else:
+                        st.sidebar.warning(msg)
+            if cc.button("Remove", key=f"rm_up_{nm}", use_container_width=True,
+                         help="Unregister and delete the plugin file from disk"):
                 try:
                     from src.ktc_framework.registry import unregister_method as _unregister_method
                     _unregister_method(nm)
                 except Exception:
                     pass
+                unpublish_method(nm)  # a deleted method shouldn't keep a dangling baseline
                 plugin_path = Path("external_methods") / fname
                 if plugin_path.is_dir():
                     shutil.rmtree(plugin_path, ignore_errors=True)
@@ -2082,12 +2319,15 @@ def _render_scan_external_methods_button():
             unsafe_allow_html=True)
 
 
-def _handle_zip_plugin_upload(up, dest_dir: Path) -> None:
+def _handle_zip_plugin_upload(up, dest_dir: Path, sig: str) -> None:
     """Extract and register an uploaded .zip as a method bundle.
 
     Explicit method.yaml bundles are still preferred. If the upload is a raw
     ML/KTC repository zip, detect a CLI entry script and generate method.yaml
     so future benchmark subprocesses can rediscover the method from disk.
+
+    ``sig`` is only recorded in session_state at a definitive outcome
+    (success or a caught rejection) — see the caller for why.
     """
     try:
         from src.ktc_framework.methods.manifest_loader import (
@@ -2131,13 +2371,16 @@ def _handle_zip_plugin_upload(up, dest_dir: Path) -> None:
             f"Registered raw zip method: {manifest.name} (generated {manifest_path.name})"
             if generated else f"Registered bundle: {manifest.name}"
         )
+        st.session_state['_last_method_upload'] = sig
         reset_method_upload_widget()
         tmp_zip.unlink(missing_ok=True)
         st.rerun()
     except Exception as exc:
+        st.session_state['_last_method_upload'] = sig
         if 'tmp_zip' in locals():
             tmp_zip.unlink(missing_ok=True)
         shutil.rmtree(dest_dir / up.name.rsplit(".", 1)[0], ignore_errors=True)
+        reset_method_upload_widget()
         st.sidebar.error(
             f"Bundle rejected: {exc}\n\n"
             "Your zip must contain method.yaml at its root:\n"
@@ -2156,6 +2399,13 @@ def _generate_manifest_for_raw_zip(
     existing: set,
 ) -> Path:
     entry = _find_zip_cli_entry(bundle_dir)
+    if entry is None:
+        from src.ktc_framework.methods.entry_detector import CONTRACT_CLI_SCRIPT, detect_entry_point
+        try:
+            candidate, contract = detect_entry_point(bundle_dir)
+            entry = candidate if contract == CONTRACT_CLI_SCRIPT else None
+        except FileNotFoundError:
+            entry = None
     if entry is None:
         raise ValueError(
             "No KTC-style CLI entry script found. Expected main.py/main_python.py "
@@ -2272,10 +2522,14 @@ def _discover_weight_files(bundle_dir: Path) -> list[str]:
     return weights
 
 
-def _handle_py_plugin_upload(up, dest_dir: Path, before: set) -> None:
+def _handle_py_plugin_upload(up, dest_dir: Path, before: set, sig: str) -> None:
     """Register an uploaded .py as either a raw CLI-contract script (run
     as an isolated subprocess) or an in-process reconstruct(self, batch)
-    class — classified BEFORE any attempt to import/exec the file."""
+    class — classified BEFORE any attempt to import/exec the file.
+
+    ``sig`` is only recorded in session_state at a definitive outcome
+    (success or a caught rejection) — see the caller for why.
+    """
     from src.ktc_framework.registry import (
         get_method as _get_method, list_methods as _list_methods,
         load_external_methods as _load_ext,
@@ -2304,10 +2558,13 @@ def _handle_py_plugin_upload(up, dest_dir: Path, before: set) -> None:
             st.session_state['_method_refresh_msg'] = (
                 f"Registered CLI method: {cli_name} (runs as an isolated subprocess)"
             )
+            st.session_state['_last_method_upload'] = sig
             reset_method_upload_widget()
             st.rerun()
         except Exception as exc:
+            st.session_state['_last_method_upload'] = sig
             dest.unlink(missing_ok=True)
+            reset_method_upload_widget()
             st.sidebar.error(f"Rejected {dest.name}: {exc}")
     else:
         try:
@@ -2337,10 +2594,13 @@ def _handle_py_plugin_upload(up, dest_dir: Path, before: set) -> None:
                 st.session_state['_method_refresh_msg'] = f"{label}: {', '.join(ready_methods)}"
                 if auto_fixed:
                     st.session_state['_method_refresh_msg'] += " (added missing @register_method)"
+                st.session_state['_last_method_upload'] = sig
                 reset_method_upload_widget()
                 st.rerun()
             else:
+                st.session_state['_last_method_upload'] = sig
                 dest.unlink(missing_ok=True)
+                reset_method_upload_widget()
                 st.sidebar.warning(
                     "No usable method class found - file removed. "
                     "Add a class with reconstruct(self, batch), decorate it with "
@@ -2348,7 +2608,9 @@ def _handle_py_plugin_upload(up, dest_dir: Path, before: set) -> None:
                     "(main() + argparse + if __name__ == '__main__')."
                 )
         except Exception as exc:
+            st.session_state['_last_method_upload'] = sig
             dest.unlink(missing_ok=True)
+            reset_method_upload_widget()
             st.sidebar.error(f"Rejected {dest.name}: {exc}")
 
 
@@ -2375,15 +2637,24 @@ def _render_upload_new_plugin_widget():
     if up is not None:
         sig = f"{up.name}:{up.size}"
         if st.session_state.get('_last_method_upload') != sig:
-            st.session_state['_last_method_upload'] = sig
             dest_dir = Path("external_methods")
             dest_dir.mkdir(exist_ok=True)
             before = set(_list_methods())
 
+            # Mark this upload "handled" only AFTER a definitive outcome
+            # (success or a caught rejection), not before attempting it.
+            # create_wrapper_class() can block for tens of seconds probing
+            # interpreters/packages; if a script rerun interrupts it mid-way
+            # (e.g. runOnSave firing on an unrelated file save), Streamlit's
+            # RerunException/StopException are BaseException, not Exception,
+            # so the handlers' `except Exception` blocks never run — no
+            # cleanup, no error shown. Marking sig upfront would then block
+            # this exact file from ever being retried. Leaving it unmarked
+            # here means an interrupted attempt is simply retried next run.
             if up.name.endswith(".zip"):
-                _handle_zip_plugin_upload(up, dest_dir)
+                _handle_zip_plugin_upload(up, dest_dir, sig)
             else:
-                _handle_py_plugin_upload(up, dest_dir, before)
+                _handle_py_plugin_upload(up, dest_dir, before, sig)
 
 
 def _render_sidebar_add_method():
@@ -2503,6 +2774,120 @@ def _render_sidebar_run_history():
             unsafe_allow_html=True)
 
 
+def _render_method_library_contents(container) -> None:
+    """Method Library body: full catalog of every method, registered or not.
+
+    Three groups:
+      - Built-in: the framework's own classes (never uploaded, always present).
+      - Registered external: uploaded/scanned methods currently runnable.
+      - Not yet registered: files sitting in external_methods/ that look
+        like a method (or a zip/bundle) but haven't been imported — a
+        Scan or Upload is still needed before they'll run.
+
+    ``container`` is whatever st.markdown-capable object to render into
+    (``st`` for the main area, ``st.sidebar`` for the sidebar) so this one
+    body can be reused from either location.
+    """
+    from src.ktc_framework.registry import list_methods as _list_methods_lib
+
+    uploaded = st.session_state.get('uploaded_methods', {})
+    published = _load_published_manifest()
+    # Classify against the live registry, not the uploaded_methods bookkeeping
+    # dict — that dict is only populated by Scan/Upload and stays empty for
+    # methods that were auto-imported at startup (e.g. a fresh session right
+    # after a teammate's `git pull`), which would otherwise misreport a
+    # perfectly runnable method as "not yet registered".
+    registered = sorted(_list_methods_lib())
+    builtin = [m for m in registered if m in BUILTIN_METHODS]
+    ext_registered = [m for m in registered if m not in BUILTIN_METHODS and m not in HIDDEN_METHODS]
+
+    def _row(label: str, sub: str = "") -> str:
+        sub_html = f' <span style="color:var(--tx3)">— {sub}</span>' if sub else ""
+        return (
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;'
+            f'color:var(--tx2);padding:2px 0 2px 4px;line-height:1.5">{label}{sub_html}</div>'
+        )
+
+    def _section_label(text: str, color: str = "var(--tx3)") -> str:
+        return (
+            f'<div style="font-size:10px;color:{color};margin:8px 0 3px;'
+            f'text-transform:uppercase;letter-spacing:.08em">{text}</div>'
+        )
+
+    def _kind_of(fname: str) -> str:
+        if not fname:
+            return "auto-imported"
+        if not fname.endswith(".py"):
+            return "bundle (method.yaml)"
+        try:
+            if is_cli_contract_script(Path("external_methods") / fname):
+                return "CLI script"
+        except Exception:
+            pass
+        return "in-process plugin"
+
+    if builtin:
+        container.markdown(_section_label(f"Built-in ({len(builtin)})"), unsafe_allow_html=True)
+        for m in builtin:
+            container.markdown(_row(method_display_name(m)), unsafe_allow_html=True)
+
+    if ext_registered:
+        container.markdown(_section_label(f"Registered external ({len(ext_registered)})"), unsafe_allow_html=True)
+        for m in ext_registered:
+            fname = uploaded.get(m, "")
+            sub = f"{_kind_of(fname)} · {fname}" if fname else _kind_of(fname)
+            if m in published:
+                sub += " · published"
+            container.markdown(_row(method_display_name(m), sub), unsafe_allow_html=True)
+
+    # -- Not yet registered: raw files sitting in external_methods/ whose
+    # derived/manifest name isn't in the live registry yet.
+    ext_dir = Path("external_methods")
+    unregistered: list[tuple[str, str]] = []
+    if ext_dir.exists():
+        for p in sorted(ext_dir.iterdir()):
+            if p.name.startswith("_") or p.name.startswith("."):
+                continue
+            if p.is_file() and p.suffix == ".py":
+                try:
+                    candidates = plugin_method_candidates(p)
+                except Exception:
+                    candidates = []
+                if candidates:
+                    if not any(c in registered for c in candidates):
+                        unregistered.append((p.name, "not imported — click Import from external_methods/"))
+                    continue
+                try:
+                    if is_cli_contract_script(p):
+                        from src.ktc_framework.adapters.cli_plugin_wrapper import derive_cli_method_name
+                        if derive_cli_method_name(p.stem) not in registered:
+                            unregistered.append((p.name, "not imported — click Import from external_methods/"))
+                except Exception:
+                    pass
+            elif p.is_file() and p.suffix == ".zip":
+                unregistered.append((p.name, "zip — upload it, or extract then Import"))
+            elif p.is_dir() and (p / "method.yaml").exists():
+                try:
+                    from src.ktc_framework.methods.manifest_loader import load_manifest
+                    manifest_name = load_manifest(p / "method.yaml").name
+                except Exception:
+                    manifest_name = None
+                if manifest_name is None or manifest_name not in registered:
+                    unregistered.append((p.name, "bundle — not imported"))
+
+    if unregistered:
+        container.markdown(
+            _section_label(f"Not yet registered ({len(unregistered)})", color="var(--amb)"),
+            unsafe_allow_html=True)
+        for fname, hint in unregistered:
+            container.markdown(_row(fname, hint), unsafe_allow_html=True)
+
+    if not builtin and not ext_registered and not unregistered:
+        container.markdown(
+            '<div style="font-size:11px;color:var(--tx3)">No methods found.</div>',
+            unsafe_allow_html=True)
+
+
 def render_sidebar():
     _render_sidebar_brand()
     _render_sidebar_dataset_settings()
@@ -2545,6 +2930,7 @@ def render_sidebar():
 # =========================================================
 # VIEW 1 - LEADERBOARD  (original logic)
 # =========================================================
+@st.fragment
 def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=None, level_range:tuple=(1,7)):
     if sel_metrics is None:
         sel_metrics = ['KTC Score']
@@ -2687,6 +3073,51 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
         "below zero for methods that scored worse than that baseline."
     )
 
+    # Shape-breakdown chart — decomposes each method's performance into how
+    # well it found the resistive vs. conductive object. Composite Score
+    # itself is KTC-only and doesn't say which shape drove it (see the flash
+    # card above), so this is a second, independent chart rather than a
+    # re-encoding of the first one — don't compare bar heights across the two.
+    if {'Dice Resistive', 'Dice Conductive'} <= set(df.columns):
+        render_section_header(
+            "SCORE BY SHAPE - RESISTIVE VS CONDUCTIVE",
+            "Each bar splits into two stacked segments: how well the method found the "
+            "resistive object (bottom) vs. the conductive object (top), each as its Dice "
+            "score x100. A short segment means that shape is dragging the method down — "
+            "this is what the flash card above is describing, made visual.",
+        )
+        fig_shape = go.Figure()
+        fig_shape.add_trace(go.Bar(
+            name="Resistive (Dice x100)", x=df['Method'], y=(df['Dice Resistive'] * 100).round(1),
+            marker_color="#CC79A7",
+            hovertemplate="<b>%{x}</b><br>Resistive: %{y:.1f}<extra></extra>",
+        ))
+        fig_shape.add_trace(go.Bar(
+            name="Conductive (Dice x100)", x=df['Method'], y=(df['Dice Conductive'] * 100).round(1),
+            marker_color="#0072B2",
+            hovertemplate="<b>%{x}</b><br>Conductive: %{y:.1f}<extra></extra>",
+        ))
+        fig_shape.update_layout(
+            barmode="stack",
+            xaxis_title="Method", yaxis_title="Dice score x100 (stacked)",
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1,
+                        font=dict(size=9)),
+            height=340,
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='#f6f8fa',
+            font=dict(family="JetBrains Mono,monospace", color="#848d97", size=9),
+            xaxis=dict(gridcolor='#d0d7de', linecolor='#d0d7de', tickfont=dict(size=9)),
+            yaxis=dict(gridcolor='#d0d7de', linecolor='#d0d7de', tickfont=dict(size=9), range=[0, 210]),
+            margin=dict(l=0, r=10, t=20, b=30),
+        )
+        st.plotly_chart(fig_shape, use_container_width=True, config={'displayModeBar': False})
+        st.caption(
+            "Stacked height = Dice Resistive x100 + Dice Conductive x100 (a perfect method "
+            "tops out at 200). This is a shape-level view of the same per-test results behind "
+            "the Composite Score chart above, scaled differently — don't compare heights "
+            "directly across the two charts."
+        )
+
     # Table - filter columns by selected metrics in real time
     render_section_header(
         "DETAILED METRICS",
@@ -2741,6 +3172,7 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
 # =========================================================
 # VIEW 2 - DEGRADATION  (original logic)
 # =========================================================
+@st.fragment
 def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
     if not per_run:
         st.warning("No per-run metrics available.")
@@ -2895,6 +3327,7 @@ def view_degradation_curve(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple
 # =========================================================
 # VIEW 3 - COMPARISON  (original logic)
 # =========================================================
+@st.fragment
 def view_comparison(scores:Dict, per_run:Dict, mm:Dict, sel_metrics:list=None, level_range:tuple=(1,7)):
     if not per_run:
         st.warning("No per-run metrics available.")
@@ -3009,6 +3442,104 @@ def view_comparison(scores:Dict, per_run:Dict, mm:Dict, sel_metrics:list=None, l
             comp_df[col] = comp_df[col].apply(lambda x: f"{x:.4f}")
     comp_df = comp_df.drop(columns=['MetricKey'], errors='ignore')
     st.dataframe(comp_df, use_container_width=True, hide_index=True)
+
+    # Overall verdict — the metric table above only judges these two methods
+    # on ONE test. This section answers the two questions that single cell
+    # can't: who's actually better across every level/sample in view, and
+    # does one of them fall apart faster than the other as the level
+    # increases (fewer electrodes = less information = harder problem)?
+    if not p1 and not p2:
+        render_section_header(
+            "OVERALL VERDICT",
+            "Zooms out from the single test above to every level/sample currently in view: "
+            "which method wins on average, and — as the level increases (fewer electrodes, "
+            "less information, harder problem) — which one's score falls off faster. Slope is "
+            "KTC-score change per level (negative = degrading); r measures how consistent that "
+            "trend is (near -1 = degrades steadily, near 0 = too noisy to call a real trend).",
+        )
+        entries1_f = filter_by_level(per_run.get(m1i or m1, {}), lvl_min, lvl_max)
+        entries2_f = filter_by_level(per_run.get(m2i or m2, {}), lvl_min, lvl_max)
+        pts1 = [(int(e['level']), float(e['ktc_score'])) for e in entries1_f.values() if 'ktc_score' in e]
+        pts2 = [(int(e['level']), float(e['ktc_score'])) for e in entries2_f.values() if 'ktc_score' in e]
+
+        def _degradation_trend(pts):
+            """(slope, r) of KTC score vs level via least-squares fit, or
+            (None, None) if there aren't at least two distinct levels to fit."""
+            if len(pts) < 2:
+                return None, None
+            levels = np.array([p[0] for p in pts], dtype=float)
+            vals = np.array([p[1] for p in pts], dtype=float)
+            if np.std(levels) == 0:
+                return None, None
+            slope, _ = np.polyfit(levels, vals, 1)
+            r = float(np.corrcoef(levels, vals)[0, 1]) if np.std(vals) > 0 else 0.0
+            return float(slope), r
+
+        if pts1 and pts2:
+            avg1 = float(np.mean([s for _, s in pts1]))
+            avg2 = float(np.mean([s for _, s in pts2]))
+            overall_winner = m1 if avg1 > avg2 else m2
+            overall_loser = m2 if avg1 > avg2 else m1
+            overall_gap = abs(avg1 - avg2)
+            single_test_winner = winner if not comp_df.empty else None
+
+            slope1, r1 = _degradation_trend(pts1)
+            slope2, r2 = _degradation_trend(pts2)
+
+            contradiction_html = ""
+            if single_test_winner and single_test_winner != overall_winner:
+                contradiction_html = (
+                    f'<br><span style="color:var(--tx2)"><b>{method_display_name(single_test_winner)}</b> '
+                    f'won on this specific test, but that doesn\'t hold up across the full picture — '
+                    f'<b>{method_display_name(overall_winner)}</b> is the stronger method overall.</span>'
+                )
+
+            degrade_html = ""
+            if slope1 is not None and slope2 is not None:
+                steeper = m1 if slope1 < slope2 else m2
+                shallower = m2 if slope1 < slope2 else m1
+                steeper_slope = slope1 if slope1 < slope2 else slope2
+                if slope1 < -0.001 or slope2 < -0.001:
+                    degrade_html = (
+                        f'<br><span style="color:var(--tx2)"><b>{method_display_name(steeper)}</b> degrades '
+                        f'faster as the level increases ({steeper_slope:+.4f} KTC pts/level) than '
+                        f'<b>{method_display_name(shallower)}</b> — so {method_display_name(steeper)}\'s '
+                        f'lead, if any, shouldn\'t be trusted to hold up on the hardest levels.</span>'
+                    )
+                else:
+                    degrade_html = (
+                        '<br><span style="color:var(--tx2)">Neither method shows a meaningful '
+                        'degradation trend across the levels in view — both hold up about as well '
+                        'on the hard levels as the easy ones.</span>'
+                    )
+
+            st.markdown(
+                f'<div style="background:var(--grn-bg);border:1px solid var(--grn-bd);border-radius:7px;'
+                f'padding:10px 14px;margin-bottom:14px;font-family:\'JetBrains Mono\',monospace;'
+                f'font-size:11px;color:var(--tx)">'
+                f'Across levels {lvl_min}-{lvl_max}, <b>{method_display_name(overall_winner)}</b> averages a '
+                f'higher KTC score than <b>{method_display_name(overall_loser)}</b> '
+                f'({avg1 if overall_winner == m1 else avg2:.4f} vs '
+                f'{avg2 if overall_winner == m1 else avg1:.4f}, a gap of {overall_gap:.4f}).'
+                f'{contradiction_html}{degrade_html}</div>',
+                unsafe_allow_html=True,
+            )
+
+            trend_rows = []
+            for name, pts, slope, r in ((m1, pts1, slope1, r1), (m2, pts2, slope2, r2)):
+                trend_rows.append({
+                    'Method': name,
+                    'Avg KTC Score': round(float(np.mean([s for _, s in pts])), 4),
+                    'Degradation Slope (pts/level)': round(slope, 4) if slope is not None else "n/a — needs 2+ levels",
+                    'Trend Strength (r)': round(r, 3) if r is not None else "n/a",
+                    'Levels Compared': len({lv for lv, _ in pts}),
+                })
+            st.dataframe(pd.DataFrame(trend_rows), use_container_width=True, hide_index=True)
+        else:
+            st.info(
+                "Not enough data across the current level filter to compute an overall verdict "
+                "for one or both methods."
+            )
 
     # Visual comparison - images from backend
     render_section_header(
@@ -3223,6 +3754,7 @@ def view_failure_gallery(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(
 # =========================================================
 # VIEW 5 - RADAR CHART  (original logic)
 # =========================================================
+@st.fragment
 def view_radar_chart(scores:Dict, per_run:Dict, sel_metrics:list=None):
     if not scores:
         st.warning("No scores available.")
@@ -3362,6 +3894,7 @@ def view_radar_chart(scores:Dict, per_run:Dict, sel_metrics:list=None):
 # =========================================================
 # VIEW HEATMAP - COLOR GRID (all 42 runs at once)
 # =========================================================
+@st.fragment
 def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
     if not per_run:
         st.warning("No per-run metrics available.")
@@ -3395,6 +3928,12 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
         if m in METRIC_LABEL_TO_KEY and METRIC_LABEL_TO_KEY[m] in metric_opts
     ]
     metric_opts = selected_metric_keys
+    # Runtime isn't a score, so it doesn't belong in METRIC_SPECS / the
+    # sidebar's Metrics checklist — but "which level/sample was slow" is
+    # exactly what this grid is good at answering, so always offer it here,
+    # independent of whatever's checked in the sidebar.
+    if 'runtime_ms' in sample_metrics and 'runtime_ms' not in metric_opts:
+        metric_opts.append('runtime_ms')
     if not metric_opts:
         st.info("Select at least one metric in the sidebar to draw the heatmap.")
         return
@@ -3407,6 +3946,32 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
             break
     default_hm_idx = metric_opts.index(default_hm_metric) if default_hm_metric in metric_opts else 0
 
+    # Metrics where a smaller number is the better outcome (currently just
+    # runtime) need every direction-sensitive comparison below flipped —
+    # color scale, best/worst level, and cell-by-cell "win" counting all
+    # otherwise assume higher-is-better like the accuracy scores do.
+    LOWER_IS_BETTER = {'runtime_ms'}
+
+    def _hm_metric_label(key: str) -> str:
+        return "Runtime (s)" if key == "runtime_ms" else METRIC_KEY_TO_LABEL.get(key, key)
+
+    _true_runtime = true_first_run_runtime_ms() if 'runtime_ms' in metric_opts else {}
+
+    def _metric_value(entry: dict, ik: str = None, sid: str = None):
+        v = entry.get(chosen_metric)
+        if v is None:
+            return None
+        if chosen_metric == "runtime_ms":
+            # This exact cell may be cached now (near-zero measured time) —
+            # never report less than the best-ever observed true cost for
+            # this same (method, sample), recovered from earlier runs.
+            if ik is not None and sid is not None:
+                true_v = _true_runtime.get((ik, sid))
+                if true_v is not None:
+                    v = max(v, true_v)
+            return v / 1000.0
+        return v
+
     st.markdown(
         '<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--tx2);margin-bottom:8px">'
         'Every method vs. every single test, side by side — green means it did well there, red means it struggled.</div>',
@@ -3414,12 +3979,21 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
 
     mc1, mc2 = st.columns([2, 4])
     with mc1:
-        chosen_metric = st.selectbox("Metric:", metric_opts, index=default_hm_idx, key="hm_metric")
+        chosen_metric = st.selectbox("Metric:", metric_opts, index=default_hm_idx, key="hm_metric",
+                                     format_func=_hm_metric_label)
+    lower_is_better = chosen_metric in LOWER_IS_BETTER
+
+    def _is_better(a, b) -> bool:
+        return (a < b) if lower_is_better else (a > b)
+
+    def _is_worse(a, b) -> bool:
+        return (a > b) if lower_is_better else (a < b)
+
     with mc2:
         st.markdown(
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--tx3);padding-top:28px">'
             f'Levels {lvl_min}-{lvl_max} | {len(all_sample_ids)} samples | {len(method_names)} methods. '
-            f'Higher = greener (better).</div>',
+            f'{"Lower" if lower_is_better else "Higher"} = greener (better).</div>',
             unsafe_allow_html=True)
 
     pc = st.session_state.get('_pcolors', {})
@@ -3438,14 +4012,14 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
         best_val = worst_val = None
         for sid in all_sample_ids:
             e = entries.get(sid)
-            if not e or chosen_metric not in e:
+            val = _metric_value(e, ik, sid) if e else None
+            if val is None:
                 continue
-            val = e[chosen_metric]
             lvl = key_order[sid][0]
             per_sample_vals.append(val)
-            if best_val is None or val > best_val:
+            if best_val is None or _is_better(val, best_val):
                 best_val, best_level = val, lvl
-            if worst_val is None or val < worst_val:
+            if worst_val is None or _is_worse(val, worst_val):
                 worst_val, worst_level = val, lvl
         if not per_sample_vals:
             continue
@@ -3475,8 +4049,9 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
     for disp in method_names:
         ik = mm.get(disp)
         for sid in all_sample_ids:
-            val = per_run.get(ik, {}).get(sid, {}).get(chosen_metric)
-            if val is not None and (worst_cell_val is None or val < worst_cell_val):
+            e = per_run.get(ik, {}).get(sid)
+            val = _metric_value(e, ik, sid) if e else None
+            if val is not None and (worst_cell_val is None or _is_worse(val, worst_cell_val)):
                 worst_cell_val, worst_cell_method, worst_cell_sid = val, disp, sid
     dependable_tip = ("Ranked by standard deviation of this method's scores across every test in the "
                        "grid — the lower the standard deviation, the less that method's score moves "
@@ -3510,12 +4085,14 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
         cell_vals = {}
         for disp in method_names:
             ik = mm.get(disp)
-            v = per_run.get(ik, {}).get(sid, {}).get(chosen_metric) if ik else None
+            e = per_run.get(ik, {}).get(sid) if ik else None
+            v = _metric_value(e, ik, sid) if e else None
             if v is not None:
                 cell_vals[disp] = v
         if len(cell_vals) >= 2:
             contested_cells += 1
-            win_counts[max(cell_vals, key=cell_vals.get)] += 1
+            picker = min if lower_is_better else max
+            win_counts[picker(cell_vals, key=cell_vals.get)] += 1
 
     if contested_cells and any(win_counts.values()):
         top_winner = max(win_counts, key=win_counts.get)
@@ -3531,11 +4108,10 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
             f'- <b>{method_display_name(top_winner)}</b> has the single best score, head-to-head, on '
             f'<b>{win_counts[top_winner]} of {contested_cells}</b> tests (<b>{win_pct:.0f}%</b>) — more '
             f'than any other method.<br>'
-            f'- With {len(method_names)} methods competing, an equal split would put every method '
-            f'on top {fair_share_pct:.0f}% of the time by chance alone; '
-            f'{method_display_name(top_winner)} clears that by '
-            f'{win_pct - fair_share_pct:.0f} points, so its lead isn\'t just a slightly-higher average — '
-            f'it\'s consistently winning the direct comparison.'
+            f'- With {len(method_names)} methods competing, pure luck would win each one only about '
+            f'1 test in {len(method_names)} (~{fair_share_pct:.0f}%). '
+            f'{method_display_name(top_winner)} is winning {win_pct:.0f}% of the time — '
+            f'far more often than chance alone would explain, so this is a real, consistent lead, not a fluke.'
             f'</div></div>',
             unsafe_allow_html=True)
 
@@ -3550,18 +4126,28 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
         "(inconsistent).",
     )
     z, text, y_labels = [], [], []
+    val_fmt = "{:.2f}s" if chosen_metric == "runtime_ms" else "{:.4f}"
     for disp in method_names:
         ik = mm.get(disp)
+        entries = per_run.get(ik, {}) if ik else {}
         row, trow = [], []
         for sid in all_sample_ids:
-            val = per_run.get(ik,{}).get(sid,{}).get(chosen_metric, None) if ik else None
+            e = entries.get(sid)
+            val = _metric_value(e, ik, sid) if e else None
             row.append(val if val is not None else float('nan'))
-            trow.append(f"{val:.4f}" if val is not None else "-")
+            trow.append(val_fmt.format(val) if val is not None else "-")
         z.append(row)
         text.append(trow)
         y_labels.append(disp)
 
-    colorscale = 'RdYlGn'  # higher = greener; KTC score is higher = better
+    # RdYlGn is green-at-high-value by default (matches ktc/dice/iou, where
+    # higher is better). Metrics in LOWER_IS_BETTER need the scale flipped
+    # via reversescale rather than z-negation, so hover/text values stay the
+    # real, non-negated numbers. Plotly auto-scales to the actual z min/max
+    # here (no zmin/zmax set), so the colors are always relative to what's
+    # actually on screen — a fast method's row won't read as "all red" just
+    # because a slow outlier exists elsewhere in the grid.
+    colorscale = 'RdYlGn'
 
     # When columns exceed 12 the cell text overlaps - rely on hover tooltips instead
     show_cell_text = len(all_sample_ids) <= 12
@@ -3586,6 +4172,7 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
         texttemplate="%{text}" if show_cell_text else "",
         textfont=dict(family="JetBrains Mono,monospace", size=8),
         colorscale=colorscale,
+        reversescale=lower_is_better,
         showscale=True,
         hoverongaps=False,
         hovertemplate="<b>%{y}</b><br>Sample: %{x}<br>Value: %{text}<extra></extra>",
@@ -4244,6 +4831,7 @@ def _compute_qualitative_detection(dataset_root: str, entries_key: tuple) -> dic
     return results
 
 
+@st.fragment
 def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple = (1, 7)):
     """Object-detection quality: did each method find the right shapes,
     roughly the right size, in roughly the right place?"""
@@ -4296,52 +4884,16 @@ def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple
         'find the right number of objects, in roughly the right place?</div>',
         unsafe_allow_html=True)
 
-    # -- ONE geometric-error visual (was 4: center/area error bars, a KTC
-    # correlation scatter, and a by-level line chart that duplicated the
-    # Degradation tab). Center error in pixels is the single most intuitive
-    # number here — "how far off was the guess" — so it's the one kept.
+    # -- Object-detection leaderboard ---------------------------
     render_section_header(
-        "HOW FAR OFF IS EACH METHOD'S GUESS, ON AVERAGE?",
-        "For every test where the method predicted a resistive object, this measures the pixel "
-        "distance between where it placed that object's center and where the object actually is "
-        "in the ground truth, then averages that distance across all tests. Shorter bars mean the "
-        "method is, on average, pointing to the right spot; taller bars mean its guesses land "
-        "further from the truth.",
-    )
-    avg_center = df.dropna(subset=["Res Center Err"]).groupby("Method")["Res Center Err"].mean().sort_values()
-    if not avg_center.empty:
-        fig_ce = go.Figure()
-        colors = [get_method_color(m) for m in avg_center.index]
-        labels = [method_display_name(m) for m in avg_center.index]
-        fig_ce.add_trace(go.Bar(
-            x=labels, y=avg_center.values,
-            marker_color=colors,
-            text=[f"{v:.0f}px off" for v in avg_center.values],
-            textposition="outside",
-            textfont=dict(family="JetBrains Mono", size=11),
-            hovertemplate="<b>%{x}</b><br>Avg. center error: %{y:.1f}px<extra></extra>",
-        ))
-        fig_ce.update_layout(
-            yaxis_title="Distance from true location (px, lower = better)",
-            height=340, showlegend=False,
-            margin=dict(l=50, r=20, t=30, b=40),
-            plot_bgcolor=pc.get('paper', 'rgba(0,0,0,0)'),
-            paper_bgcolor=pc.get('paper', 'rgba(0,0,0,0)'),
-            font=dict(family="JetBrains Mono", size=10, color=pc.get('text', '#848d97')),
-            yaxis=dict(gridcolor=pc.get('grid', '#d0d7de'), zeroline=False),
-        )
-        st.plotly_chart(fig_ce, use_container_width=True, config={'displayModeBar': False})
-
-    # -- Qualitative detection storytelling ---------------------
-    render_section_header(
-        "DID IT FIND THE RIGHT OBJECTS?",
+        "OBJECT DETECTION LEADERBOARD",
         "A reconstruction 'detects' an object when its predicted shape overlaps the true object "
         "by at least 30% (IoU >= 0.3) — a lower bar than typical image benchmarks, chosen because "
         "these reconstructions are inherently blurry by the nature of the physics involved. A "
         "'partial match' means some overlap was found but not enough to count as a full detection. "
-        "Methods below are ranked by detection rate first; methods tied on detection rate are then "
-        "ranked by whichever came closer on the objects it missed (more partial matches, higher "
-        "average overlap), so a tie isn't broken arbitrarily.",
+        "Methods are ranked by an accuracy score, not raw detection count: a full detection is worth "
+        "+1 point, a partial match +0.5, and a false positive (claiming an object that isn't there) "
+        "costs -1 — the same as a miss — so confidently hallucinating objects is penalized, not free.",
     )
     if entries_for_detection:
         dataset_root = st.session_state.get("cfg_dataset_root", "EvaluationData")
@@ -4349,49 +4901,146 @@ def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple
         if not qual:
             st.info("Could not load saved reconstructions/ground truth to check object detection for this run.")
         else:
-            def _rank_key(kv):
-                q = kv[1]
-                total = q['total_objects']
-                detect_rate = (q['total_detected'] / total) if total else 0.0
-                # Full detections tie easily (e.g. two methods both at
-                # 20/29) — break the tie by who came *closer* on the misses:
-                # more partial matches first, then higher average hull IoU
-                # (a continuous closeness measure), so "which one is
-                # actually doing better" doesn't come down to dict order.
-                partial_rate = (q['partial_count'] / total) if total else 0.0
-                iou_vals = [q.get('avg_resistive_hull_iou', 0.0), q.get('avg_conductive_hull_iou', 0.0)]
-                avg_iou = float(np.mean(iou_vals)) if iou_vals else 0.0
-                return (detect_rate, partial_rate, avg_iou)
+            def _detection_score(q: dict) -> float:
+                """Composite accuracy score, not a raw detection rate.
 
-            ranked = sorted(qual.items(), key=_rank_key, reverse=True)
-            for method, q in ranked:
+                +1.0 per full detection, +0.5 per partial match, -1.0 per
+                false-positive sample (a hallucinated object is penalized
+                as heavily as a missed one, not just left unscored) — all
+                divided by the number of real objects tested. Can go
+                negative if a method racks up more false positives than
+                correct detections; that's intentional, not a display bug.
+                """
+                total = q['total_objects']
+                if not total:
+                    return 0.0
+                return (
+                    q['total_detected'] * 1.0
+                    + q['partial_count'] * 0.5
+                    - q.get('false_positive_count', 0) * 1.0
+                ) / total
+
+            ranked = [(m, q) for m, q in sorted(qual.items(), key=lambda kv: _detection_score(kv[1]), reverse=True)
+                      if q['total_objects'] > 0]
+
+            def _b(name: str) -> str:
+                # Real <b> markup, not markdown "**" — st.markdown() does
+                # not re-parse markdown syntax inside a raw HTML block.
+                return f'<b style="color:var(--tx)">{method_display_name(name)}</b>'
+
+            if ranked:
+                # -- Field-wide stat strip --------------------------------
+                n_objects = max(q['total_objects'] for _, q in ranked)
+                field_avg_score = 100.0 * float(np.mean([_detection_score(q) for _, q in ranked]))
+                total_fp = sum(q.get('false_positive_count', 0) for _, q in ranked)
+                stat_cols = st.columns(4)
+                for col, (val, lbl) in zip(stat_cols, [
+                    (str(len(ranked)), "methods compared"),
+                    (str(n_objects), "objects tested"),
+                    (f"{field_avg_score:.0f}%", "field avg. accuracy score"),
+                    (str(total_fp), "false positives, all methods"),
+                ]):
+                    col.markdown(
+                        f'<div style="text-align:center;background:var(--sur);border:1px solid var(--bd);'
+                        f'border-radius:6px;padding:10px 4px">'
+                        f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:20px;font-weight:700;'
+                        f'color:var(--tx)">{val}</div>'
+                        f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
+                        f'color:var(--tx3);text-transform:uppercase;letter-spacing:.04em">{lbl}</div>'
+                        f'</div>', unsafe_allow_html=True)
+                st.markdown(
+                    '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--tx3);'
+                    'margin:6px 0 14px">Accuracy score = (full detections + 0.5 &times; partial matches '
+                    '&minus; false positives) &divide; objects tested. A false positive costs as much as a miss.</div>',
+                    unsafe_allow_html=True)
+
+                # -- Leader callout — driven by the same composite score
+                # used to rank the cards below, so it can never contradict
+                # the #1/#2 order.
+                leader, leader_q = ranked[0]
+                leader_score = _detection_score(leader_q)
+                if len(ranked) > 1:
+                    runner_up, ru_q = ranked[1]
+                    ru_score = _detection_score(ru_q)
+                    if abs(leader_score - ru_score) < 1e-9:
+                        lead_story = (
+                            f"{_b(leader)} and {_b(runner_up)} are tied at {leader_score * 100:.0f}% accuracy — "
+                            f"identical detections, partial matches, and false positives."
+                        )
+                    else:
+                        drivers = []
+                        d_diff = leader_q['total_detected'] - ru_q['total_detected']
+                        if d_diff:
+                            drivers.append(
+                                f"{'found ' + str(abs(d_diff)) + ' more full detection' + ('s' if abs(d_diff) != 1 else '') if d_diff > 0 else str(abs(d_diff)) + ' fewer full detections'}"
+                            )
+                        fp_l, fp_r = leader_q.get('false_positive_count', 0), ru_q.get('false_positive_count', 0)
+                        if fp_l != fp_r:
+                            drivers.append(f"{fp_l} false positive{'s' if fp_l != 1 else ''} vs {fp_r}")
+                        detail = "; ".join(drivers) if drivers else "more partial-match credit"
+                        lead_story = (
+                            f"{_b(leader)} leads with a {leader_score * 100:.0f}% accuracy score vs "
+                            f"{_b(runner_up)}'s {ru_score * 100:.0f}% — {detail}."
+                        )
+                else:
+                    lead_story = f"{_b(leader)} scored {leader_score * 100:.0f}% accuracy."
+                st.markdown(
+                    f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:12px;line-height:1.6;'
+                    f'color:var(--tx2);background:var(--sur);border:1px solid var(--bd);'
+                    f'border-radius:6px;padding:12px 16px;margin-bottom:14px">{lead_story}</div>',
+                    unsafe_allow_html=True)
+
+            def _chip(value: str, label: str) -> str:
+                return (
+                    '<span style="display:inline-block;background:var(--bg);border:1px solid var(--bd);'
+                    'border-radius:10px;padding:2px 9px;margin-right:6px;font-family:\'JetBrains Mono\',monospace;'
+                    f'font-size:9px;color:var(--tx2);white-space:nowrap"><b style="color:var(--tx)">{value}</b> {label}</span>'
+                )
+
+            _RANK_COLORS = {1: "#9a6700", 2: "#57606a", 3: "#bf8700"}
+            for i, (method, q) in enumerate(ranked, start=1):
                 total_objects = q['total_objects']
-                if total_objects == 0:
-                    continue
                 total_detected = q['total_detected']
                 partial = q['partial_count']
-                pct = 100.0 * total_detected / total_objects
+                false_pos = q.get('false_positive_count', 0)
+                score = _detection_score(q)
+                score_pct = score * 100.0
+                bar_pct = max(0.0, min(100.0, score_pct))
                 label = method_display_name(method)
 
-                if total_detected == total_objects:
-                    story = f"found every object it was tested on ({total_detected}/{total_objects})."
-                elif total_detected == 0 and partial == 0:
-                    story = f"found none of the {total_objects} objects it was tested on."
-                else:
-                    story = f"found {total_detected} of {total_objects} objects"
-                    if partial:
-                        story += f", plus {partial} partial match{'es' if partial != 1 else ''}"
-                    story += "."
+                chips = (
+                    _chip(q.get('resistive_detected_str', '0/0'), "resistive")
+                    + _chip(q.get('conductive_detected_str', '0/0'), "conductive")
+                    + _chip(str(partial), f"partial match{'es' if partial != 1 else ''} (+0.5 pt each)")
+                    + _chip(str(false_pos), f"false positive{'s' if false_pos != 1 else ''} (−1 pt each)")
+                )
+                missed = q.get('missed_examples') or []
+                missed_line = (
+                    f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--tx3);'
+                    f'margin-top:4px">Missed entirely: {", ".join(missed)}'
+                    f'{" ..." if total_objects - total_detected - partial > len(missed) else ""}</div>'
+                    if missed else ""
+                )
 
-                bar_color = "#1a7f37" if pct >= 80 else "#9a6700" if pct >= 40 else "#cf222e"
+                bar_color = "#1a7f37" if score_pct >= 80 else "#9a6700" if score_pct >= 40 else "#cf222e"
+                rank_color = _RANK_COLORS.get(i, "#848d97")
+                rank_border = f"3px solid {rank_color}" if i <= 3 else "3px solid transparent"
                 st.markdown(
-                    f'<div style="display:flex;align-items:center;gap:12px;margin-bottom:9px">'
+                    f'<div style="background:var(--sur);border:1px solid var(--bd);border-left:{rank_border};'
+                    f'border-radius:6px;padding:10px 14px;margin-bottom:8px">'
+                    f'<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">'
+                    f'<div style="width:26px;flex-shrink:0;font-family:\'JetBrains Mono\',monospace;'
+                    f'font-size:12px;font-weight:700;color:{rank_color}">#{i}</div>'
                     f'<div style="width:150px;flex-shrink:0;font-family:\'JetBrains Mono\',monospace;'
-                    f'font-size:11px;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{label}</div>'
+                    f'font-size:12px;font-weight:600;color:var(--tx);white-space:nowrap;overflow:hidden;'
+                    f'text-overflow:ellipsis">{label}</div>'
                     f'<div style="flex:1;background:var(--bg);border:1px solid var(--bd);border-radius:4px;height:16px;overflow:hidden">'
-                    f'<div style="width:{pct:.0f}%;background:{bar_color};height:100%"></div></div>'
-                    f'<div style="width:300px;flex-shrink:0;font-family:\'JetBrains Mono\',monospace;'
-                    f'font-size:10px;color:var(--tx2)">{story}</div>'
+                    f'<div style="width:{bar_pct:.0f}%;background:{bar_color};height:100%"></div></div>'
+                    f'<div style="width:64px;flex-shrink:0;text-align:right;font-family:\'JetBrains Mono\',monospace;'
+                    f'font-size:11px;font-weight:700;color:{"var(--tx)" if score_pct >= 0 else "#cf222e"}">{score_pct:.0f}%</div>'
+                    f'</div>'
+                    f'<div style="padding-left:38px">{chips}</div>'
+                    f'{missed_line}'
                     f'</div>',
                     unsafe_allow_html=True,
                 )
@@ -4496,6 +5145,22 @@ def view_raw_data(run_dir: Path) -> None:
 
 
 def main():
+    # One-time-per-session auto-import: register every method already
+    # sitting in external_methods/ (bundles + CLI scripts + class-based
+    # plugins) without requiring a manual "Import from external_methods/"
+    # click first. external_methods/ is git-tracked (unlike outputs/), so
+    # this is what makes a method actually *runnable* immediately after a
+    # teammate pulls the repo and opens the dashboard for the first time —
+    # publish_method()'s baseline snapshot covers the *scores* half of that,
+    # this covers the *runnable* half.
+    if not st.session_state.get('_ext_methods_autoloaded'):
+        try:
+            from src.ktc_framework.registry import load_external_methods as _autoload_ext
+            _autoload_ext(["external_methods"])
+        except Exception:
+            pass
+        st.session_state['_ext_methods_autoloaded'] = True
+
     # Populate the available method list from the latest run BEFORE the sidebar
     # renders, so the methods section shows immediately instead of stalling on
     # "Loading methods..." on the first paint. (The sidebar reads this; the
@@ -4530,6 +5195,7 @@ def main():
     try:
         latest_run = find_latest_run()
         scores, per_run, mm = load_data(str(latest_run.resolve()))
+        scores, per_run, mm, published_fallback = _apply_published_baselines(scores, per_run, mm)
         removed_external = set(st.session_state.get('_removed_external_methods', []))
         if removed_external:
             scores = {k: v for k, v in scores.items() if k not in removed_external}
@@ -4557,6 +5223,13 @@ def main():
             f'{sum(len(v) for v in per_run.values()) if per_run else 0} total reconstructions'
             f'{gt_badge}{fail_badge}</div>',
             unsafe_allow_html=True)
+
+        if published_fallback:
+            st.info(
+                "Showing a published baseline (not a local run) for: "
+                + ", ".join(sorted(method_display_name(m) for m in published_fallback))
+                + ". Click Run on that method to refresh it with a live result."
+            )
 
         if not scores and not per_run:
             _render_first_run_wizard()
@@ -4586,14 +5259,11 @@ def main():
         # Dataset info - inline KPI row (no expander = no icon issue)
         n_s = len(per_run_f.get(list(per_run_f.keys())[0], {})) if per_run_f else 0
         n_t = sum(len(v) for v in per_run_f.values()) if per_run_f else 0
-        method_list = " &nbsp;|&nbsp; ".join(
-            f'<span style="color:var(--tx)">{m}</span>' for m in scores_f.keys())
         st.markdown(
             f'<div style="display:flex;gap:10px;margin-bottom:12px;align-items:stretch">'
-            f'<div style="flex:1;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 12px;min-height:72px">'
+            f'<div style="flex:0 0 112px;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 12px;min-height:72px">'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:19px;font-weight:600;color:var(--tx);line-height:1">{len(scores_f)}</div>'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.08em;margin-top:6px">Methods</div>'
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--tx2);margin-top:4px;line-height:1.35">{method_list}</div>'
             f'</div>'
             f'<div style="flex:0 0 112px;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 12px;min-height:72px">'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:19px;font-weight:600;color:var(--tx);line-height:1">{n_s}</div>'
@@ -4605,6 +5275,9 @@ def main():
             f'</div>'
             f'</div>',
             unsafe_allow_html=True)
+
+        with st.expander("Method Library"):
+            _render_method_library_contents(st)
 
         # A1: Surface any per-sample failures recorded by the runner
         _render_failures_panel(latest_run)

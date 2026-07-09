@@ -14,6 +14,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 
 METRICS = [
     ("KTC", "ktc_score"),
@@ -653,6 +655,103 @@ def _grade_meaning(grade: str) -> str:
     }.get(str(grade), "an unclassified result")
 
 
+# ---------------------------------------------------------------------------
+# Scientific narrative computations (5 stats that turn the executive summary
+# from descriptive into scientific — see reporting/html_report.py callers).
+# ---------------------------------------------------------------------------
+
+def _mean_std_by_method(results: list[dict]) -> dict[str, tuple[float, float]]:
+    """Computation 1: per-method (mean, std) of ktc_score across all its runs."""
+    buckets: dict[str, list[float]] = {}
+    for r in results:
+        buckets.setdefault(str(r["method"]), []).append(_metric(r, "ktc_score"))
+    return {m: (float(np.mean(v)), float(np.std(v))) for m, v in buckets.items() if v}
+
+
+def _degradation_slopes(results: list[dict]) -> dict[str, float]:
+    """Computation 2: per-method degradation slope of mean KTC score vs level.
+
+    Mirrors BatchRunner._print_degradation()'s np.polyfit(levels, means, 1)
+    approach, recomputed here rather than read from scores.json: the runner
+    attaches "degradation_slope" to each result dict only *after* _save()
+    has already written scores.json, so that field is never actually
+    persisted to disk.
+    """
+    per_level: dict[str, dict[int, list[float]]] = {}
+    for r in results:
+        m = str(r["method"])
+        lv = int(r.get("level", 1) or 1)
+        per_level.setdefault(m, {}).setdefault(lv, []).append(_metric(r, "ktc_score"))
+
+    slopes: dict[str, float] = {}
+    for m, by_level in per_level.items():
+        levels = sorted(by_level)
+        means = [float(np.mean(by_level[lv])) for lv in levels]
+        slopes[m] = float(np.polyfit(levels, means, 1)[0]) if len(levels) >= 2 else 0.0
+    return slopes
+
+
+def _resistive_conductive_gaps(summary: list[dict]) -> dict[str, float]:
+    """Computation 4: per-method (dice_resistive - dice_conductive) / dice_resistive * 100.
+
+    Positive = conductive is harder for that method; negative = easier.
+    """
+    gaps: dict[str, float] = {}
+    for row in summary:
+        dr, dc = row.get("dice_resistive"), row.get("dice_conductive")
+        if isinstance(dr, (int, float)) and isinstance(dc, (int, float)) and dr:
+            gaps[str(row["method"])] = (dr - dc) / dr * 100.0
+    return gaps
+
+
+def _easy_hard_means(results: list[dict]) -> tuple[dict[str, float], dict[str, float]]:
+    """Computation 5 groundwork: per-method mean KTC for levels 1-4 vs 5-7."""
+    easy: dict[str, list[float]] = {}
+    hard: dict[str, list[float]] = {}
+    for r in results:
+        m = str(r["method"])
+        lv = int(r.get("level", 1) or 1)
+        v = _metric(r, "ktc_score")
+        (easy if 1 <= lv <= 4 else hard if 5 <= lv <= 7 else {}).setdefault(m, []).append(v)
+    easy_means = {m: float(np.mean(v)) for m, v in easy.items() if v}
+    hard_means = {m: float(np.mean(v)) for m, v in hard.items() if v}
+    return easy_means, hard_means
+
+
+def _leaderboard_table_with_stats(
+    summary: list[dict],
+    metric_defs: list[tuple[str, str]],
+    mean_std: dict[str, tuple[float, float]],
+    slopes: dict[str, float],
+) -> str:
+    """Leaderboard table with Computations 1-2 as extra columns (± Std, Slope).
+
+    Deliberately a separate function from _metrics_table(), which the Metric
+    Breakdown section also uses unchanged — adding KTC-score stats columns
+    there would be off-topic for a per-class Dice/IoU table.
+    """
+    headers = ["Method"]
+    for label, key in metric_defs:
+        headers.append(label)
+        if key == "ktc_score":
+            headers.append("± Std")
+    headers.extend(["Runtime", "Grade", "Slope"])
+
+    rows = []
+    for row in summary:
+        method = str(row["method"])
+        cells = [_esc(method)]
+        for label, key in metric_defs:
+            cells.append(f'{row[key]:.3f}')
+            if key == "ktc_score":
+                std = mean_std.get(method, (0.0, 0.0))[1]
+                cells.append(f'&plusmn;{std:.3f}')
+        cells.extend([_runtime_fmt(float(row["runtime"])), _esc(row["grade"])])
+        cells.append(f'{slopes.get(method, 0.0):+.4f}')
+        rows.append(cells)
+    return _table(headers, rows)
+
+
 def _build_narratives(summary: list[dict], results: list[dict]) -> dict:
     """Turn the raw numbers into interpreted, story-telling HTML snippets.
 
@@ -660,7 +759,7 @@ def _build_narratives(summary: list[dict], results: list[dict]) -> dict:
     *what* the reader is looking at, *why* it matters, *which* method wins, and
     *how* to read it — instead of leaving bare tables to interpret themselves.
     """
-    keys = ["exec", "context", "lb", "deg", "metrics", "fail", "recon", "hull", "reco"]
+    keys = ["exec", "context", "lb", "deg", "metrics", "fail", "recon", "hull", "reco", "recommendation"]
     if not summary:
         return {k: "" for k in keys}
 
@@ -738,13 +837,91 @@ def _build_narratives(summary: list[dict], results: list[dict]) -> dict:
         deg_line = (f" Overall accuracy {trend} as the problem gets harder — mean KTC falls by "
                     f"about {drop:.2f} from the easiest levels to the hardest.")
 
+    # ---- 5 scientific computations, each producing one sentence ---------------
+    mean_std = _mean_std_by_method(results)
+    slopes = _degradation_slopes(results)
+    rc_gaps = _resistive_conductive_gaps(summary)
+    easy_means, hard_means = _easy_hard_means(results)
+
+    # Computation 1: confidence — best method's score with its std, in context.
+    best_mean, best_std = mean_std.get(best["method"], (best["ktc_score"], 0.0))
+    best_runs = sum(1 for r in results if str(r["method"]) == best["method"])
+    consistency = "tightly clustered" if (best_mean <= 0 or best_std / best_mean < 0.3) else "notably variable"
+    sent1 = (f"<b>Confidence.</b> {_esc(best['method'])}: {best_mean:.3f} &plusmn; {best_std:.2f} "
+             f"across {best_runs} runs (grade {bg}) — scores are {consistency} run to run.")
+
+    # Computation 2: degradation slope — least vs most steeply degrading method.
+    if len(slopes) >= 2:
+        least_steep = min(slopes, key=lambda m: abs(slopes[m]))
+        most_steep = max(slopes, key=lambda m: abs(slopes[m]))
+        sent2 = (f"<b>Degradation rate.</b> {_esc(least_steep)} degrades least steeply "
+                  f"({slopes[least_steep]:+.3f}/level) while {_esc(most_steep)} degrades fastest "
+                  f"({slopes[most_steep]:+.3f}/level).")
+    elif len(slopes) == 1:
+        only = next(iter(slopes))
+        sent2 = (f"<b>Degradation rate.</b> {_esc(only)}'s score changes by {slopes[only]:+.3f} "
+                  f"per difficulty level.")
+    else:
+        sent2 = ""
+
+    # Computation 3: speed/accuracy trade-off — fastest method vs the top scorer.
+    sent3 = ""
+    if len(summary) >= 2:
+        fastest = min(summary, key=lambda r: r["runtime"])
+        if fastest["method"] == best["method"]:
+            sent3 = (f"<b>Speed vs. accuracy.</b> {_esc(best['method'])} is both the most accurate "
+                      f"and the fastest method here — no trade-off to make.")
+        elif best["ktc_score"] > 0 and best["runtime"] > 0:
+            accuracy_pct = 100.0 * fastest["ktc_score"] / best["ktc_score"]
+            cost_pct = 100.0 * fastest["runtime"] / best["runtime"]
+            sent3 = (f"<b>Speed vs. accuracy.</b> {_esc(fastest['method'])} achieves {accuracy_pct:.0f}% "
+                      f"of {_esc(best['method'])}'s accuracy at {cost_pct:.2f}% of its compute cost "
+                      f"({_runtime_fmt(fastest['runtime'])} vs {_runtime_fmt(best['runtime'])} per run).")
+
+    # Computation 4: resistive vs conductive difficulty gap, across all methods.
+    sent4 = ""
+    if rc_gaps:
+        min_gap, max_gap = min(rc_gaps.values()), max(rc_gaps.values())
+        if max_gap >= 0:
+            sent4 = (f"<b>Resistive vs. conductive.</b> Conductive recovery is "
+                      f"{min_gap:.0f}&ndash;{max_gap:.0f}% harder than resistive across all methods.")
+        else:
+            sent4 = (f"<b>Resistive vs. conductive.</b> Conductive recovery is actually "
+                      f"{abs(max_gap):.0f}&ndash;{abs(min_gap):.0f}% <i>easier</i> than resistive "
+                      f"across all methods.")
+
+    # Computation 5: conditional recommendation — best method for easy vs hard levels.
+    reco_sentence = ""
+    if easy_means and hard_means:
+        best_easy = max(easy_means, key=easy_means.get)
+        best_hard = max(hard_means, key=hard_means.get)
+        if best_easy == best_hard:
+            reco_sentence = f"{_esc(best_easy)} dominates across all difficulty levels."
+        else:
+            slope_easy, slope_hard = slopes.get(best_easy), slopes.get(best_hard)
+            if slope_easy and abs(slope_hard or 0) < abs(slope_easy):
+                pct_less = (1 - abs(slope_hard) / abs(slope_easy)) * 100.0
+                reco_sentence = (
+                    f"For levels 1&ndash;4, use {_esc(best_easy)}; for levels 5&ndash;7, "
+                    f"{_esc(best_hard)} degrades {pct_less:.0f}% less steeply and pulls ahead.")
+            else:
+                reco_sentence = (
+                    f"For levels 1&ndash;4, use {_esc(best_easy)}; for levels 5&ndash;7, switch to "
+                    f"{_esc(best_hard)}, which scores higher in that harder range.")
+    sent5 = f"<b>Recommendation.</b> {reco_sentence}" if reco_sentence else ""
+
     N = {}
     N["exec"] = box(
         f"<b>Executive summary.</b> This report evaluates <b>{n}</b> reconstruction methods across "
         f"<b>{total}</b> test cases (difficulty levels &times; samples). "
         f"<b>{_esc(best['method'])}</b> performs best, with a mean KTC of "
         f"<b>{best['ktc_score']:.3f}</b> (grade {bg}) — {_grade_meaning(bg)}. "
-        f"The weakest method, {_esc(worst['method'])}, averages {worst['ktc_score']:.3f}.{deg_line}")
+        f"The weakest method, {_esc(worst['method'])}, averages {worst['ktc_score']:.3f}.{deg_line} "
+        f"{sent1} {sent2} {sent3} {sent4} {sent5}")
+    N["recommendation"] = box(
+        f"<b>Recommendation.</b> {reco_sentence}" if reco_sentence else
+        "<b>Recommendation.</b> Not enough level coverage in this run to split easy vs. hard "
+        "difficulty levels (need results across both levels 1&ndash;4 and 5&ndash;7).")
     N["context"] = box(
         "<b>How to read this report.</b> EIT reconstructs what is inside a 32-electrode tank from "
         "boundary voltage measurements — an <i>ill-posed</i> problem where noise easily corrupts the "
@@ -1078,7 +1255,9 @@ def generate_html_report(scores_json_path, figures_dir, output_path=None) -> str
     project_background = _project_background()
     statistics = _statistics_section(summary, results)
     method_deepdive = _method_deepdive_section(summary, results)
-    leaderboard_table = _metrics_table(summary, metric_defs)
+    leaderboard_table = _leaderboard_table_with_stats(
+        summary, metric_defs, _mean_std_by_method(results), _degradation_slopes(results)
+    )
     degradation_table = _degradation_table(results)
     radar = _radar_svg(summary, metric_defs)
     metrics_table = _metrics_table(summary, metric_defs)
@@ -1231,6 +1410,7 @@ figcaption {{ color:#57606a; font-size:10px; margin-top:4px; overflow-wrap:anywh
   <div class="card"><b>{best_ktc}</b><span class="muted">Best Mean KTC</span></div>
 </section>
 {nar['exec']}
+{nar['recommendation']}
 {nar['reco']}
 {project_background}
 {statistics}

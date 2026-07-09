@@ -219,3 +219,44 @@ class MyNewCNN(MethodPlugin):
 4. **Update upload flow** to accept `.tar.gz` bundles + manifest validation
 5. **Test with ABC1** — wrap existing ABC1 wrapper with manifest (verify it works)
 
+---
+
+## Future Work: Unified Upload Pipeline (deliberately deferred)
+
+Sprint 7 shipped three small, independently-mergeable patches instead of a
+real fix for the underlying split:
+
+- `prepare_isolated_input()` in `subprocess_wrapper.py` — isolates one
+  sample's `.mat` file per subprocess call (symlink, falls back to copy).
+- `detect_entry_point()` in `entry_detector.py` — a fallback scan for a
+  usable entry script when an uploaded zip has no `method.yaml`, used only
+  when the existing `_find_zip_cli_entry()` check in `app.py` comes up empty.
+- `env_resolver.resolve(manifest)` — a thin, best-effort wrapper around the
+  existing (previously unused) `env_resolver.py` that resolves a conda
+  python interpreter for a bundle, or falls back to the prior interpreter
+  discovery (`... or python`) if conda/the match isn't available.
+
+Each is additive, independently testable, and independently revertible —
+right for shipping this sprint without touching working code paths. But
+they patch around a real architectural split rather than closing it:
+
+**`.py` uploads and `.zip` uploads still go through two unrelated code
+paths** (`_handle_py_plugin_upload` vs. `_handle_zip_plugin_upload` in
+`app.py`), each with its own entry-point detection (`plugin_detector.py`'s
+`detect_contract` vs. `entry_detector.py`'s `detect_entry_point`, which now
+overlap but don't share code), its own registration flow, and its own
+validation. A correct long-term fix is one upload pipeline with:
+
+- a single detection step (delete the duplication between
+  `plugin_detector.py` and `entry_detector.py`),
+- a single registration path that produces a `MethodManifest` regardless of
+  whether the input was a loose `.py` file or a `.zip`,
+  and
+- shared validation/error messaging for both.
+
+This is correct engineering, but it's a multi-file refactor touching the
+upload UI, both detectors, and the registry — real merge-conflict and
+regression risk if bundled into the same sprint as the three bug fixes
+above. Scope it as its own ticket once the individual fixes have been in
+production for a sprint and haven't needed to be reverted.
+

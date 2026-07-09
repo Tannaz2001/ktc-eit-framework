@@ -26,6 +26,7 @@ import numpy as np
 from src.ktc_framework.methods._opcache import load as cache_load, save as cache_save
 from src.ktc_framework.methods.manifest_loader import MethodManifest
 from src.ktc_framework.methods.method_plugin import MethodPlugin
+from src.ktc_framework.runner import env_resolver
 
 _logger = logging.getLogger(__name__)
 
@@ -161,6 +162,53 @@ def _prepare_single_sample_input(data_file: Path) -> str:
     return tmp_input
 
 
+def _link_or_copy(src: Path, dst: Path) -> None:
+    """Symlink src at dst, falling back to a copy if symlinking isn't possible.
+
+    Symlinks require admin rights / Developer Mode on Windows, so
+    ``os.symlink`` there routinely raises ``OSError``. Any failure falls
+    back to a plain copy.
+    """
+    try:
+        os.symlink(src, dst)
+    except (OSError, NotImplementedError):
+        shutil.copy2(src, dst)
+
+
+def prepare_isolated_input(data_file: Path, level: int) -> Path:
+    """Create a temp input folder containing ONLY the selected sample.
+
+    Many KTC CLI scripts glob every ``data*.mat`` file in whatever
+    directory they're pointed at. Handing them the shared level directory
+    (which holds data1.mat/data2.mat/data3.mat for samples A/B/C) makes
+    them reconstruct all three samples, and the caller then risks reading
+    back the wrong one. This isolates the requested data file (kept under
+    its original name, e.g. ``data2.mat``) plus ``ref.mat`` into a fresh,
+    empty directory so the subprocess has nothing else to find.
+
+    Args:
+        data_file: The single data{n}.mat file for the sample to run.
+        level: KTC difficulty level (1-7); used only to namespace the temp
+            directory name for easier debugging.
+
+    Returns:
+        Path to the new temp directory containing just the isolated files.
+    """
+    tmp_dir = Path(tempfile.mkdtemp(prefix=f"ktc_input_L{level}_"))
+    _link_or_copy(data_file.resolve(), tmp_dir / data_file.name)
+
+    ref_file = _find_ref_file(data_file)
+    if ref_file is not None:
+        _link_or_copy(ref_file.resolve(), tmp_dir / "ref.mat")
+    else:
+        _logger.warning(
+            "No ref.mat found for %s. The subprocess may fail or use its own fallback.",
+            data_file,
+        )
+
+    return tmp_dir
+
+
 def _build_command_args(
     args_order: list[str],
     input_dir: str,
@@ -222,6 +270,7 @@ def create_wrapper_class(manifest: MethodManifest) -> type:
     python = _find_python_for_package(
         manifest.python_versions, manifest.check_import, manifest.env_override,
     )
+    python = env_resolver.resolve(manifest) or python
     bundle_dir = manifest.bundle_dir.resolve()
     model_fp = _compute_model_fingerprint(bundle_dir, manifest.weights)
     entry_point = str((bundle_dir / manifest.entry_point).resolve())
@@ -267,7 +316,8 @@ def create_wrapper_class(manifest: MethodManifest) -> type:
             try:
                 # Give the subprocess only the selected sample. Many KTC
                 # scripts process every data*.mat file in their input folder.
-                input_dir = _prepare_single_sample_input(data_file)
+                tmp_input = str(prepare_isolated_input(data_file, level))
+                input_dir = tmp_input
                 tmp_output = tempfile.mkdtemp(prefix=f"{manifest.name}_out_")
 
                 cmd = [

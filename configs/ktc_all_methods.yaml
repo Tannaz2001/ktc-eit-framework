@@ -18,10 +18,11 @@ levels: [1, 2, 3, 4, 5, 6, 7]
 samples: [A, B, C]
 
 methods:
+  - ktc2023_postprocessing_master
+  - KTC2023_CUQI2_main
   - ml_inverse_method_2
  
-  - main
-  - DampedLeastSquaresReconstruction
+  - KTC2023_CUQI1
   - RegularizedFEMReconstruction
   - ReferenceFEM
   - LinearDifferenceReconstruction

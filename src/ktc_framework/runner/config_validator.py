@@ -226,11 +226,22 @@ def _resolve_dataset_root(config: dict[str, Any]) -> str:
 
 def _check_ref_mat_soft(dataset_root: str) -> None:
     """Step 9: soft check for ref.mat (search multiple locations) — warns,
-    does not raise, since BackProjection/GaussNewton have a fallback."""
+    does not raise, since BackProjection/GaussNewton have a fallback.
+
+    Real KTC evaluation archives ship one ref.mat per level, nested under
+    the eval folder (e.g. ``evaluation_datasets/level3/ref.mat``), not one
+    global file at the dataset root — checked here too so this warning
+    doesn't fire spuriously for a correctly laid-out evaluation dataset.
+    """
     ref_candidates = [
         os.path.join(dataset_root, "ref.mat"),
         os.path.join(dataset_root, "TrainingData", "ref.mat"),
     ]
+    for eval_folder in ("evaluation_datasets", "EvaluationData"):
+        for level in range(1, 8):
+            ref_candidates.append(
+                os.path.join(dataset_root, eval_folder, f"level{level}", "ref.mat")
+            )
     ref_found = any(os.path.isfile(r) for r in ref_candidates)
     if not ref_found:
         warnings.warn(

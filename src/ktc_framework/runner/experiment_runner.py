@@ -203,10 +203,17 @@ class BatchRunner:
         Checks these locations in order:
           1. ``<dataset_root>/ref.mat``          (evaluation layout)
           2. ``<dataset_root>/TrainingData/ref.mat``  (training layout)
+          3. ``<dataset_root>/{evaluation_datasets,EvaluationData}/level{1-7}/ref.mat``
+             (real KTC evaluation archives ship one ref.mat per level,
+             nested under the eval folder, not one global file at the root —
+             KTCDataPlugin/TrainingDataPlugin already load their own correct
+             per-sample ref.mat, so this level-agnostic value is only used
+             as the fallback for data plugins — e.g. MockDataPlugin — that
+             don't supply their own)
 
         Tries multiple key names: ``Uelref``, ``Uel``, ``Uref``, ``ref``.
         Returns a flat float32 array of shape ``(N,)`` on success, or
-        ``None`` if the file is absent at both locations.
+        ``None`` if the file is absent at every location.
         """
         if not dataset_root:
             return None
@@ -215,6 +222,11 @@ class BatchRunner:
             os.path.join(dataset_root, "ref.mat"),
             os.path.join(dataset_root, "TrainingData", "ref.mat"),
         ]
+        for eval_folder in ("evaluation_datasets", "EvaluationData"):
+            for level in range(1, 8):
+                candidates.append(
+                    os.path.join(dataset_root, eval_folder, f"level{level}", "ref.mat")
+                )
         ref_keys = ["Uelref", "Uel", "Uref", "ref"]
 
         ref_path = next((p for p in candidates if os.path.exists(p)), None)
