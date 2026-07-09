@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List
 
+import yaml
 import pandas as pd
 import streamlit as st
 
@@ -125,7 +126,7 @@ def _read_run_failures(run_dir: Path) -> list[dict]:
         return []
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    except (ValueError, OSError):
         return []
 
 
@@ -136,7 +137,7 @@ def _run_label(run_dir: Path) -> str:
     try:
         per_run = json.loads((run_dir / "per_run_metrics.json").read_text(encoding="utf-8"))
         n_total = sum(len(v) for v in per_run.values()) if isinstance(per_run, dict) else 0
-    except Exception:
+    except (ValueError, OSError):
         n_total = 0
     if n_fail:
         status = f"ERR:{n_fail}"
@@ -302,16 +303,15 @@ def _render_bench_progress_fragment() -> None:
 
     if total == 0:
         try:
-            import yaml as _yaml
             cfg_name = st.session_state.get('bench_config', 'ktc_all_methods')
             cfg_path = Path("configs") / f"{cfg_name}.yaml"
             if not cfg_path.exists():
                 cfg_path = Path("configs/ktc_all_methods.yaml")
-            cfg = _yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+            cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
             total = (len(cfg.get("methods", [])) *
                      len(cfg.get("levels", [])) *
                      len(cfg.get("samples", [])))
-        except Exception:
+        except (OSError, yaml.YAMLError, AttributeError):
             total = 126
 
     pct = min(completed / total, 1.0) if total > 0 else 0.0

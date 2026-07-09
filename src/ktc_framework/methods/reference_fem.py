@@ -80,7 +80,7 @@ def _convert_element(element):
             if nodes.size and nodes.min() >= 1:
                 nodes = nodes - 1
             electrode = [electrode_id, nodes]
-    except Exception:
+    except (ValueError, IndexError, AttributeError):
         electrode = []
 
     return KTCMeshing.ELEMENT(topology, electrode)

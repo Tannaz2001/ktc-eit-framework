@@ -67,7 +67,7 @@ def true_first_run_runtime_ms(_cache_bust: str = "") -> dict:
             continue
         try:
             data = json.loads(f.read_text(encoding="utf-8"))
-        except Exception:
+        except (ValueError, OSError):
             continue
         for method, entries in data.items():
             for sid, e in entries.items():
@@ -137,7 +137,7 @@ def apply_dashboard_filters(
         for run_key, entry in source_entries.items():
             try:
                 level_ok = lvl_min <= int(entry.get("level", 1)) <= lvl_max
-            except Exception:
+            except (ValueError, TypeError):
                 level_ok = True
             sample_val = str(entry.get("sample", run_key)).strip().lower()
             sample_key = str(run_key).split("_")[-1].strip().lower()
