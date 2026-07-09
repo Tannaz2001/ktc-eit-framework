@@ -52,3 +52,5 @@ external_methods/abc1/MiscCodes/__pycache__/
 
 # Claude Code
 .claude/
+# Packaging build artifacts
+*.egg-info/
