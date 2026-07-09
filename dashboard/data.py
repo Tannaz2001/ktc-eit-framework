@@ -10,6 +10,7 @@ import numpy as np
 import streamlit as st
 from PIL import Image
 
+from ktc_framework.reporting.constants import METRIC_SPECS
 from ktc_framework.reporting.data_layer import (
     create_method_mapping,
     filter_by_level,
@@ -29,13 +30,6 @@ BUILTIN_METHODS = {
     "RegularizedFEMReconstruction",
 }
 
-METRIC_SPECS = [
-    ("KTC Score", "ktc_score"),
-    ("Dice Resistive", "dice_resistive"),
-    ("Dice Conductive", "dice_conductive"),
-    ("IoU Resistive", "iou_resistive"),
-    ("IoU Conductive", "iou_conductive"),
-]
 METRIC_LABEL_TO_KEY = dict(METRIC_SPECS)
 METRIC_KEY_TO_LABEL = {key: label for label, key in METRIC_SPECS}
 ALL_METRICS_SIDEBAR = [label for label, _ in METRIC_SPECS]

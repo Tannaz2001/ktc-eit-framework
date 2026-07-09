@@ -16,20 +16,16 @@ from typing import Any
 
 import numpy as np
 
+from ktc_framework.reporting.constants import (
+    METRIC_SHORT_LABELS,
+    METRIC_SPECS,
+    get_method_color,
+    letter_grade as _letter_grade,
+)
 
-METRICS = [
-    ("KTC", "ktc_score"),
-    ("Dice R", "dice_resistive"),
-    ("Dice C", "dice_conductive"),
-    ("IoU R", "iou_resistive"),
-    ("IoU C", "iou_conductive"),
-]
+# Short-label metric list used for dense tables in this report.
+METRICS = [(METRIC_SHORT_LABELS[key], key) for _, key in METRIC_SPECS]
 METRIC_BY_KEY = {key: (label, key) for label, key in METRICS}
-
-PALETTE = [
-    "#2da44e", "#8250df", "#0969da", "#bf8700", "#cf222e",
-    "#1a7f37", "#d4a72c", "#0550ae", "#9a3ece", "#068a39",
-]
 
 
 def _embed_png(path: str | Path) -> str:
@@ -52,13 +48,7 @@ def _avg(values: list[float]) -> float:
 
 
 def _grade(ktc: float) -> str:
-    if ktc >= 0.60:
-        return "A"
-    if ktc >= 0.30:
-        return "B"
-    if ktc >= 0.10:
-        return "C"
-    return "D"
+    return _letter_grade(ktc)
 
 
 def _runtime_fmt(ms: float) -> str:
@@ -139,7 +129,7 @@ def _chart_img_any(figures_dir: Path, filenames: list[str], title: str) -> str:
 
 
 def _method_colors(methods: list[str]) -> dict[str, str]:
-    return {method: PALETTE[idx % len(PALETTE)] for idx, method in enumerate(sorted(methods))}
+    return {method: get_method_color(method) for method in methods}
 
 
 def _leaderboard_svg(summary: list[dict]) -> str:

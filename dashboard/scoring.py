@@ -10,19 +10,15 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from ktc_framework.reporting.constants import (
+    METHOD_COLORS,
+    METHOD_COLOR_FALLBACK as _METHOD_COLOR_FALLBACK,
+    get_method_color,
+    letter_grade as _canonical_letter_grade,
+)
 from ktc_framework.reporting.data_layer import filter_by_level
 
 from dashboard.data import METRIC_SPECS, METRIC_KEY_TO_LABEL
-
-METHOD_COLORS: dict[str, str] = {
-    "main": "#0072B2",
-    "CompetitionCNN": "#D55E00",
-    "BackProjection": "#009E73",
-    "GaussNewton": "#E69F00",
-    "LinearDifferenceReconstruction": "#CC79A7",
-    "DampedLeastSquaresReconstruction": "#56B4E9",
-}
-_METHOD_COLOR_FALLBACK = "#64748B"
 
 
 def calculate_composite_score(metrics: Dict[str, float], weights: Dict[str, float] = None) -> float:
@@ -31,7 +27,8 @@ def calculate_composite_score(metrics: Dict[str, float], weights: Dict[str, floa
 
 
 def letter_grade(score: float) -> str:
-    return 'A' if score >= 60 else 'B' if score >= 30 else 'C' if score >= 10 else 'D'
+    # Dashboard uses composite score (0–100); canonical function uses raw KTC (0–1).
+    return _canonical_letter_grade(score / 100)
 
 
 def all_methods(scores: Dict) -> List[str]:
@@ -50,16 +47,6 @@ def method_display_name(method_name: str) -> str:
     label = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", label)
     label = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", " ", label)
     return " ".join(label.split()) or method_name
-
-
-def get_method_color(name: str) -> str:
-    """Return the fixed color for a method name.
-
-    Falls back to a fixed grey for any method not in METHOD_COLORS (custom
-    or future uploads aren't guaranteed a unique color, only a consistent
-    one across every chart that calls this).
-    """
-    return METHOD_COLORS.get(name, _METHOD_COLOR_FALLBACK)
 
 
 def render_empty_bar(fig: go.Figure, method_name: str, x_position) -> None:
