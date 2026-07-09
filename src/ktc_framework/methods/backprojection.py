@@ -83,8 +83,8 @@ class BackProjection(MethodPlugin):
         self._mesh: Optional[dict] = None
         try:
             self._mesh = _load_mesh_cached(mesh_path)
-        except Exception:
-            self._mesh = None
+        except (OSError, ValueError, RuntimeError) as exc:
+            warnings.warn(f"BackProjection: mesh load failed ({exc}); will retry on first reconstruct()", stacklevel=2)
 
     def _ensure_mesh(self) -> dict:
         if self._mesh is None:

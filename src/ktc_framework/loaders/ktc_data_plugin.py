@@ -311,7 +311,7 @@ class KTCDataPlugin:
         try:
             protocol_for_ref = protocol or self._load_protocol_from_ref(path)
             ref_voltages = protocol_for_ref.get("Uelref")
-        except Exception:
+        except (OSError, ValueError, AttributeError):
             ref_voltages = None
 
         return voltages, injection, mpat, ref_voltages

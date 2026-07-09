@@ -572,7 +572,7 @@ def _has_flat_mesh_keys(mat_path: Path) -> bool:
 
     try:
         names = {entry[0] for entry in scipy.io.whosmat(str(mat_path))}
-    except Exception:
+    except (OSError, ValueError):
         return False
     return "g" in names
 

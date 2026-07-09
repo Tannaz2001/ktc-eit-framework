@@ -35,7 +35,7 @@ def _run_has_data(run_dir: Path) -> bool:
             per_run = json.load(f)
         total_runs = sum(len(v) for v in per_run.values()) if isinstance(per_run, dict) else 0
         return bool(scores) and bool(per_run) and total_runs > 0
-    except Exception:
+    except (ValueError, OSError):
         return False
 
 

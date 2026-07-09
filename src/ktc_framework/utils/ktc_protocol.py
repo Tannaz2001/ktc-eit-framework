@@ -258,7 +258,7 @@ def segment_ktc(img: np.ndarray) -> np.ndarray:
 
     try:
         t1, t2 = threshold_multiotsu(x.ravel(), classes=3)
-    except Exception:
+    except (ValueError, RuntimeError):
         return np.zeros(x.shape, dtype=int)
 
     low = x < t1

@@ -205,8 +205,8 @@ class GaussNewton(MethodPlugin):
 
         try:
             self._mesh = self._load_mesh_cached(mesh_path)
-        except Exception:
-            self._mesh = None
+        except (OSError, ValueError, RuntimeError) as exc:
+            warnings.warn(f"GaussNewton: mesh load failed ({exc}); will retry on first reconstruct()", stacklevel=2)
 
     @staticmethod
     def _load_mesh_cached(mesh_path: str) -> dict:

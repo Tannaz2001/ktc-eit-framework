@@ -8,6 +8,7 @@ import ast
 import io
 import json
 import shutil
+import yaml
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -83,7 +84,7 @@ def _load_published_manifest() -> dict:
         return {}
     try:
         return json.loads(_PUBLISHED_MANIFEST.read_text(encoding="utf-8"))
-    except Exception:
+    except (ValueError, OSError):
         return {}
 
 
@@ -176,7 +177,7 @@ def _apply_published_baselines(scores: Dict, per_run: Dict, mm: Dict) -> Tuple[D
             continue
         try:
             snap = json.loads(snap_path.read_text(encoding="utf-8"))
-        except Exception:
+        except (ValueError, OSError):
             continue
         scores[name] = snap.get("scores", {})
         per_run[name] = snap.get("per_run", {})
@@ -407,7 +408,7 @@ def _methods_discovery_fingerprint() -> tuple:
     try:
         lt = Path("outputs/latest.txt")
         parts.append(lt.read_text(encoding="utf-8").strip() if lt.exists() else "")
-    except Exception:
+    except OSError:
         parts.append("")
     ext_dir = Path("external_methods")
     if ext_dir.exists():
@@ -417,7 +418,7 @@ def _methods_discovery_fingerprint() -> tuple:
             for d in sorted(ext_dir.iterdir()):
                 if d.is_dir() and not d.name.startswith("_") and (d / "method.yaml").exists():
                     parts.append((d.name, int((d / "method.yaml").stat().st_mtime)))
-        except Exception:
+        except OSError:
             pass
     parts.append(tuple(sorted(st.session_state.get('uploaded_methods', {}).keys())))
     parts.append(tuple(sorted(st.session_state.get('_removed_external_methods', []))))
@@ -436,10 +437,9 @@ def discover_available_methods() -> List[str]:
     cfg_path = Path("configs/ktc_all_methods.yaml")
     if cfg_path.exists():
         try:
-            import yaml as _yaml
-            cfg = _yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+            cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
             configured_methods = {str(name) for name in cfg.get("methods", [])}
-        except Exception:
+        except (OSError, yaml.YAMLError):
             configured_methods = set()
     _prune_missing_external_methods(configured_methods)
 
@@ -461,10 +461,9 @@ def _discover_available_methods_impl() -> List[str]:
     cfg_path = Path("configs/ktc_all_methods.yaml")
     if cfg_path.exists():
         try:
-            import yaml as _yaml
-            cfg = _yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+            cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
             configured_methods = {str(name) for name in cfg.get("methods", [])}
-        except Exception:
+        except (OSError, yaml.YAMLError):
             configured_methods = set()
 
     _, external_methods_on_disk = _prune_missing_external_methods(configured_methods)
@@ -629,12 +628,11 @@ def _render_sidebar_run_benchmark():
     st.sidebar.markdown("## Run Benchmark")
     # Estimate runtime: read method count from YAML (~4 min per method on real data)
     try:
-        import yaml as _yaml
         _cfg_path = Path("configs/ktc_all_methods.yaml")
-        _n_methods = len(_yaml.safe_load(_cfg_path.read_text()).get("methods", []))
+        _n_methods = len(yaml.safe_load(_cfg_path.read_text()).get("methods", []))
         _eta = f"~{_n_methods * 4} min"
         _n_str = str(_n_methods)
-    except Exception:
+    except (OSError, yaml.YAMLError):
         _eta = "several min"
         _n_str = "all"
     st.sidebar.markdown(
@@ -1373,7 +1371,7 @@ def _render_sidebar_run_history():
                 per_run_data = json.load(f)
             total = sum(len(v) for v in per_run_data.values()) if isinstance(per_run_data, dict) else 0
             return bool(scores_data) and bool(per_run_data) and total > 0
-        except Exception:
+        except (ValueError, OSError):
             return False
 
     run_dirs = [
@@ -3476,7 +3474,7 @@ def _compute_qualitative_detection(dataset_root: str, entries_key: tuple) -> dic
         try:
             mat = scipy.io.loadmat(mat_path, squeeze_me=True)
             pred = np.asarray(mat["reconstruction"], dtype=np.uint8)
-        except Exception:
+        except (OSError, ValueError, KeyError):
             continue
         if pred.shape != (256, 256):
             continue
