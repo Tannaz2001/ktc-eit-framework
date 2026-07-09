@@ -10,7 +10,7 @@ Colour map (matches KTC convention):
 
 Usage
 -----
-from src.ktc_framework.visualization import save_panel
+from ktc_framework.visualization import save_panel
 
 path = save_panel(
     gt=batch.ground_truth,

@@ -14,8 +14,8 @@ import numpy as np
 import pytest
 from skimage.draw import disk
 
-from src.ktc_framework.plugins.hull_plugin import HullAnalyzer, HullDescriptor
-from src.ktc_framework.metrics.qualitative_metrics import (
+from ktc_framework.plugins.hull_plugin import HullAnalyzer, HullDescriptor
+from ktc_framework.metrics.qualitative_metrics import (
     aggregate_qualitative,
     compute_qualitative_sample,
 )

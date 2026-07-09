@@ -34,8 +34,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from src.ktc_framework.runner.config_validator import load_config, ConfigError
-from src.ktc_framework.runner.experiment_runner import BatchRunner
+from ktc_framework.runner.config_validator import load_config, ConfigError
+from ktc_framework.runner.experiment_runner import BatchRunner
 
 
 def run_benchmark(config_path: Path) -> dict:

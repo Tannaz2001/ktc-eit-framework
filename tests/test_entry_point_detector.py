@@ -1,6 +1,6 @@
 import pytest
 
-from src.ktc_framework.methods.entry_detector import (
+from ktc_framework.methods.entry_detector import (
     CONTRACT_CLI_SCRIPT,
     CONTRACT_METHOD_PLUGIN,
     detect_entry_point,

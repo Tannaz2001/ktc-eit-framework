@@ -5,7 +5,7 @@ Provides:
   - KTCValidator    : static validation helpers for KTC DataBatch objects
   - KTCLoader       : loads KTC .mat files (v5 and v7.3) and returns DataBatch
 
-PluginRegistry has moved to src.ktc_framework.registry — import it from there.
+PluginRegistry has moved to ktc_framework.registry — import it from there.
 """
 
 from __future__ import annotations
@@ -18,8 +18,8 @@ from typing import List
 import numpy as np
 import scipy.io
 
-from src.ktc_framework.registry import PluginRegistry  # re-exported for backward compat
-from src.ktc_framework.types import DataBatch
+from ktc_framework.registry import PluginRegistry  # re-exported for backward compat
+from ktc_framework.types import DataBatch
 
 try:
     import h5py as _h5py

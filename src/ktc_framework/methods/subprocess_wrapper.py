@@ -23,10 +23,10 @@ from typing import Optional
 
 import numpy as np
 
-from src.ktc_framework.methods._opcache import load as cache_load, save as cache_save
-from src.ktc_framework.methods.manifest_loader import MethodManifest
-from src.ktc_framework.methods.method_plugin import MethodPlugin
-from src.ktc_framework.runner import env_resolver
+from ktc_framework.methods._opcache import load as cache_load, save as cache_save
+from ktc_framework.methods.manifest_loader import MethodManifest
+from ktc_framework.methods.method_plugin import MethodPlugin
+from ktc_framework.runner import env_resolver
 
 _logger = logging.getLogger(__name__)
 

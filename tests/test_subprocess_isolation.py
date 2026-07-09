@@ -3,7 +3,7 @@ import shutil
 import numpy as np
 import scipy.io
 
-from src.ktc_framework.methods.subprocess_wrapper import prepare_isolated_input
+from ktc_framework.methods.subprocess_wrapper import prepare_isolated_input
 
 
 def test_prepare_isolated_input_only_contains_selected_sample(tmp_path):

@@ -5,7 +5,7 @@ MethodPlugin.reconstruct() and is not registered in the MethodRegistry.
 
 Use it after reconstruction to extract object boundaries::
 
-    from src.ktc_framework.methods.level_set_plugin import LevelSetPlugin
+    from ktc_framework.methods.level_set_plugin import LevelSetPlugin
     result = LevelSetPlugin().run(reconstruction)
     # result = {'contours': [...], 'n_objects': N}
 """

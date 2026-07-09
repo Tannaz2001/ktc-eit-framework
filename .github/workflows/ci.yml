@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main, final-sprint]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      # Gate on real errors only (syntax errors, undefined names).
+      # Full style enforcement is deferred until the legacy violations
+      # (~1200 as of Phase 0) are cleaned up.
+      - name: Lint (flake8, errors only)
+        run: |
+          pip install flake8
+          flake8 --select=E9,F63,F7,F82 src tests app.py run.py scripts
+
+      - name: Run tests
+        run: pytest tests/ -q --ignore=tests/test_app_smoke.py
+
+      - name: Dashboard smoke test
+        run: pytest tests/test_app_smoke.py -q

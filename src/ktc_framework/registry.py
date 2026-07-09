@@ -9,7 +9,7 @@ HOW TO ADD A NEW RECONSTRUCTION METHOD
 1. Create your class in src/ktc_framework/methods/your_method.py
 2. Decorate it::
 
-       from src.ktc_framework.registry import register_method
+       from ktc_framework.registry import register_method
 
        @register_method
        class YourMethod(MethodPlugin):
@@ -18,14 +18,14 @@ HOW TO ADD A NEW RECONSTRUCTION METHOD
 
 3. Add one import line to src/ktc_framework/methods/__init__.py::
 
-       from src.ktc_framework.methods.your_method import YourMethod  # noqa: F401
+       from ktc_framework.methods.your_method import YourMethod  # noqa: F401
 
 HOW TO ADD A NEW DATA PLUGIN
 ------------------------------
 1. Create your class in src/ktc_framework/loaders/your_plugin.py
 2. Decorate it::
 
-       from src.ktc_framework.registry import DataPluginRegistry
+       from ktc_framework.registry import DataPluginRegistry
 
        @DataPluginRegistry.register("YourPluginName")
        class YourPlugin:
@@ -34,7 +34,7 @@ HOW TO ADD A NEW DATA PLUGIN
 
 3. Add one import line to src/ktc_framework/loaders/__init__.py::
 
-       from src.ktc_framework.loaders.your_plugin import YourPlugin  # noqa: F401
+       from ktc_framework.loaders.your_plugin import YourPlugin  # noqa: F401
 """
 
 from __future__ import annotations
@@ -180,10 +180,10 @@ def load_cli_scripts(plugin_paths: list[str]) -> None:
     file — see that function's docstring for why the two must agree.
     """
     try:
-        from src.ktc_framework.adapters.plugin_detector import (
+        from ktc_framework.adapters.plugin_detector import (
             CONTRACT_CLI, PluginDetectionError, detect_contract,
         )
-        from src.ktc_framework.adapters.cli_plugin_wrapper import (
+        from ktc_framework.adapters.cli_plugin_wrapper import (
             create_cli_wrapper_class, derive_cli_method_name,
         )
     except ImportError as e:
@@ -230,7 +230,7 @@ def _is_cli_contract_script(file_path: Path) -> bool:
     (pre-existing) import attempt rather than silently dropping the file.
     """
     try:
-        from src.ktc_framework.adapters.plugin_detector import (
+        from ktc_framework.adapters.plugin_detector import (
             CONTRACT_CLI, PluginDetectionError, detect_contract,
         )
     except ImportError:
@@ -245,8 +245,8 @@ def _is_cli_contract_script(file_path: Path) -> bool:
 def load_bundle_methods(plugin_paths: list[str]) -> None:
     """Discover method.yaml bundles in plugin directories and register them."""
     try:
-        from src.ktc_framework.methods.manifest_loader import load_manifest, ManifestError
-        from src.ktc_framework.methods.subprocess_wrapper import create_wrapper_class
+        from ktc_framework.methods.manifest_loader import load_manifest, ManifestError
+        from ktc_framework.methods.subprocess_wrapper import create_wrapper_class
     except ImportError as e:
         import warnings
         warnings.warn(f"Could not import bundle system: {e}", RuntimeWarning, stacklevel=2)

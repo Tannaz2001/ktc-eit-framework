@@ -17,8 +17,8 @@ from pathlib import Path
 import numpy as np
 import scipy.io
 
-from src.ktc_framework.registry import PluginRegistry
-from src.ktc_framework.types import DataBatch
+from ktc_framework.registry import PluginRegistry
+from ktc_framework.types import DataBatch
 
 
 @PluginRegistry.register('TrainingDataPlugin')

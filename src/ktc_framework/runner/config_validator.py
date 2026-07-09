@@ -2,7 +2,7 @@
 
 Usage
 -----
-    from src.ktc_framework.runner.config_validator import load_config, ConfigError
+    from ktc_framework.runner.config_validator import load_config, ConfigError
 
     try:
         config = load_config("configs/experiment.yaml")

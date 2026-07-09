@@ -41,8 +41,8 @@ import warnings
 
 import numpy as np
 
-from src.ktc_framework.adapters.method_registry import register
-from src.ktc_framework.methods.eit_utils import (
+from ktc_framework.adapters.method_registry import register
+from ktc_framework.methods.eit_utils import (
     N_MEAS_TOTAL,
     adaptive_segment,
     build_ktc_jacobian,
@@ -50,9 +50,9 @@ from src.ktc_framework.methods.eit_utils import (
     load_ktc_mesh,
     rasterize,
 )
-from src.ktc_framework.methods.method_plugin import MethodPlugin
-from src.ktc_framework.methods import _opcache
-from src.ktc_framework.types import DataBatch
+from ktc_framework.methods.method_plugin import MethodPlugin
+from ktc_framework.methods import _opcache
+from ktc_framework.types import DataBatch
 
 
 # Module-level mesh + operator caches.  experiment_runner.py instantiates a

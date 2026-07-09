@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from src.ktc_framework.types import DataBatch
+from ktc_framework.types import DataBatch
 
 
 class MethodAdapter:

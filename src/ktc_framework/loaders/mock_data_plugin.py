@@ -18,8 +18,8 @@ from typing import Generator, Optional
 
 import numpy as np
 
-from src.ktc_framework.registry import PluginRegistry
-from src.ktc_framework.types import DataBatch
+from ktc_framework.registry import PluginRegistry
+from ktc_framework.types import DataBatch
 
 
 # ---------------------------------------------------------------------------

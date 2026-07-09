@@ -1,7 +1,7 @@
 import numpy as np
 
-from src.ktc_framework.adapters.method_adapter import MethodAdapter
-from src.ktc_framework.registry import get_method, load_external_methods
+from ktc_framework.adapters.method_adapter import MethodAdapter
+from ktc_framework.registry import get_method, load_external_methods
 
 
 class DictReturningMethod:

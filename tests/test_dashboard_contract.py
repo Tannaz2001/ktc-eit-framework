@@ -20,8 +20,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from src.ktc_framework.runner.experiment_runner import BatchRunner
-from src.ktc_framework.reporting.data_layer import (
+from ktc_framework.runner.experiment_runner import BatchRunner
+from ktc_framework.reporting.data_layer import (
     create_method_mapping,
     count_gt_missing,
     filter_by_level,

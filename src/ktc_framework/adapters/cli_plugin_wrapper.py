@@ -77,9 +77,9 @@ from typing import Optional
 
 import numpy as np
 
-from src.ktc_framework.methods._opcache import load as cache_load, save as cache_save
-from src.ktc_framework.methods.method_plugin import MethodPlugin
-from src.ktc_framework.types import DataBatch
+from ktc_framework.methods._opcache import load as cache_load, save as cache_save
+from ktc_framework.methods.method_plugin import MethodPlugin
+from ktc_framework.types import DataBatch
 
 _logger = logging.getLogger(__name__)
 
@@ -175,7 +175,7 @@ def create_cli_wrapper_class(
 ) -> type:
     """Build a zero-argument-constructible ``CLIScriptPlugin`` subclass.
 
-    The method registry (``src.ktc_framework.registry``) stores classes and
+    The method registry (``ktc_framework.registry``) stores classes and
     instantiates them with no arguments — ``registry_get(name)()`` — the
     same way it instantiates every other method. ``CLIScriptPlugin`` itself
     needs a ``script_path`` at construction time, so this factory closes

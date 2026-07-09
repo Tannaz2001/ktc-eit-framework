@@ -2,9 +2,9 @@
 
 import numpy as np
 import pytest
-from src.ktc_framework.loaders.phantom_data_plugin import PhantomDataPlugin
-from src.ktc_framework.methods.backprojection import BackProjection
-from src.ktc_framework.methods.gauss_newton import GaussNewton
+from ktc_framework.loaders.phantom_data_plugin import PhantomDataPlugin
+from ktc_framework.methods.backprojection import BackProjection
+from ktc_framework.methods.gauss_newton import GaussNewton
 
 
 class TestPhantomBasic:

@@ -19,8 +19,8 @@ from typing import Optional
 import numpy as np
 from scipy.interpolate import griddata
 
-from src.ktc_framework.registry import PluginRegistry
-from src.ktc_framework.types import DataBatch
+from ktc_framework.registry import PluginRegistry
+from ktc_framework.types import DataBatch
 
 try:
     import pyeit
@@ -331,7 +331,7 @@ if __name__ == "__main__":
     print()
 
     # Test on BackProjection
-    from src.ktc_framework.methods.backprojection import BackProjection
+    from ktc_framework.methods.backprojection import BackProjection
 
     bp = BackProjection()
     try:

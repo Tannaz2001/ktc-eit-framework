@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ktc-framework"
+version = "0.1.0"
+description = "EIT benchmarking framework for the Kuopio Tomography Challenge (KTC) 2023"
+requires-python = ">=3.10"
+# Runtime dependencies are managed in requirements.txt (manifest) and
+# requirements.lock.txt (pinned snapshot of a known-good venv).
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

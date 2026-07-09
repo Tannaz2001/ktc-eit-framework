@@ -577,7 +577,7 @@ def hex_to_rgba(hex_color: str, alpha: float = 0.1) -> str:
 # =========================================================
 # DATA LOADING - all schema knowledge lives in the framework data layer
 # =========================================================
-from src.ktc_framework.reporting.data_layer import (
+from ktc_framework.reporting.data_layer import (
     find_latest_run,
     load_run_data,
     load_merged_run_data,
@@ -1507,7 +1507,7 @@ def _discover_external_method_artifacts(ext_dir: Path = Path("external_methods")
                 found[name] = file_path.name
             if is_cli_contract_script(file_path):
                 try:
-                    from src.ktc_framework.adapters.cli_plugin_wrapper import derive_cli_method_name
+                    from ktc_framework.adapters.cli_plugin_wrapper import derive_cli_method_name
                     found.setdefault(derive_cli_method_name(file_path.stem), file_path.name)
                 except Exception:
                     found.setdefault(file_path.stem, file_path.name)
@@ -1521,7 +1521,7 @@ def _discover_external_method_artifacts(ext_dir: Path = Path("external_methods")
         if not manifest_path.exists():
             continue
         try:
-            from src.ktc_framework.methods.manifest_loader import load_manifest
+            from ktc_framework.methods.manifest_loader import load_manifest
             manifest = load_manifest(manifest_path)
             found[manifest.name] = bundle_dir.name
         except Exception:
@@ -1604,7 +1604,7 @@ def ensure_method_plugin_registered(plugin_path: Path) -> List[str]:
         return []
 
     lines = text.splitlines(keepends=True)
-    has_import = "register_method" in text and "src.ktc_framework.registry" in text
+    has_import = "register_method" in text and "ktc_framework.registry" in text
     if not has_import:
         insert_at = 0
         if (tree.body and isinstance(tree.body[0], ast.Expr)
@@ -1615,7 +1615,7 @@ def ensure_method_plugin_registered(plugin_path: Path) -> List[str]:
             stripped = line.strip()
             if stripped.startswith(("import ", "from ")) or not stripped:
                 insert_at = idx + 1
-        lines.insert(insert_at, "from src.ktc_framework.registry import register_method\n")
+        lines.insert(insert_at, "from ktc_framework.registry import register_method\n")
 
     for cls in sorted(candidates, key=lambda item: item.lineno, reverse=True):
         line_no = min([d.lineno for d in cls.decorator_list] + [cls.lineno]) - 1
@@ -1662,7 +1662,7 @@ def is_cli_contract_script(plugin_path: Path) -> bool:
     instead of an opaque failure here.
     """
     try:
-        from src.ktc_framework.adapters.plugin_detector import (
+        from ktc_framework.adapters.plugin_detector import (
             CONTRACT_CLI, PluginDetectionError, detect_contract,
         )
     except ImportError:
@@ -1692,11 +1692,11 @@ def register_cli_script(script_path: Path) -> str:
     config's ``methods:`` list is guaranteed to resolve to the same
     wrapper at run time instead of failing with "not registered".
     """
-    from src.ktc_framework.adapters.cli_plugin_wrapper import (
+    from ktc_framework.adapters.cli_plugin_wrapper import (
         create_cli_wrapper_class, derive_cli_method_name,
     )
-    from src.ktc_framework.registry import list_methods as _list_methods_
-    from src.ktc_framework.registry import register_method as _register_method_
+    from ktc_framework.registry import list_methods as _list_methods_
+    from ktc_framework.registry import register_method as _register_method_
 
     name = derive_cli_method_name(script_path.stem, existing=set(_list_methods_()))
 
@@ -1812,7 +1812,7 @@ def _discover_available_methods_impl() -> List[str]:
 
     if ext_dir.exists():
         try:
-            from src.ktc_framework.registry import (
+            from ktc_framework.registry import (
                 list_methods as _list_methods,
                 load_external_methods as _load_ext,
             )
@@ -1832,7 +1832,7 @@ def _discover_available_methods_impl() -> List[str]:
                         # find which bundle dir this name came from
                         for bd in bundle_dirs_da:
                             try:
-                                from src.ktc_framework.methods.manifest_loader import load_manifest
+                                from ktc_framework.methods.manifest_loader import load_manifest
                                 _m = load_manifest(bd / "method.yaml")
                                 if _m.name == name:
                                     fname = bd.name
@@ -2071,7 +2071,7 @@ def _render_sidebar_method_selector():
                     if st.button("✕", key=f"mdel_{m}", help="Remove plugin"):
                         _fname = _uploaded.get(m, m)
                         try:
-                            from src.ktc_framework.registry import unregister_method as _unreg
+                            from ktc_framework.registry import unregister_method as _unreg
                             _unreg(m)
                         except Exception:
                             pass
@@ -2133,7 +2133,7 @@ def _render_scan_external_methods_button():
     """Scan button - always visible. Picks up any .py already in
     external_methods/ so the user doesn't have to re-upload files that
     are already on disk."""
-    from src.ktc_framework.registry import (
+    from ktc_framework.registry import (
         list_methods as _list_methods,
         load_external_methods as _load_ext,
     )
@@ -2225,7 +2225,7 @@ def _render_scan_external_methods_button():
                 bundle_found = []
                 for bd in bundle_dirs:
                     try:
-                        from src.ktc_framework.methods.manifest_loader import load_manifest, ManifestError
+                        from ktc_framework.methods.manifest_loader import load_manifest, ManifestError
                         manifest = load_manifest(bd / "method.yaml")
                         if manifest.name in available_after:
                             st.session_state.uploaded_methods[manifest.name] = bd.name
@@ -2297,7 +2297,7 @@ def _render_scan_external_methods_button():
             if cc.button("Remove", key=f"rm_up_{nm}", use_container_width=True,
                          help="Unregister and delete the plugin file from disk"):
                 try:
-                    from src.ktc_framework.registry import unregister_method as _unregister_method
+                    from ktc_framework.registry import unregister_method as _unregister_method
                     _unregister_method(nm)
                 except Exception:
                     pass
@@ -2330,11 +2330,11 @@ def _handle_zip_plugin_upload(up, dest_dir: Path, sig: str) -> None:
     (success or a caught rejection) — see the caller for why.
     """
     try:
-        from src.ktc_framework.methods.manifest_loader import (
+        from ktc_framework.methods.manifest_loader import (
             extract_archive, extract_bundle, load_manifest, ManifestError,
         )
-        from src.ktc_framework.methods.subprocess_wrapper import create_wrapper_class
-        from src.ktc_framework.registry import (
+        from ktc_framework.methods.subprocess_wrapper import create_wrapper_class
+        from ktc_framework.registry import (
             list_methods as _list_methods,
             register_method as _register_method,
         )
@@ -2400,7 +2400,7 @@ def _generate_manifest_for_raw_zip(
 ) -> Path:
     entry = _find_zip_cli_entry(bundle_dir)
     if entry is None:
-        from src.ktc_framework.methods.entry_detector import CONTRACT_CLI_SCRIPT, detect_entry_point
+        from ktc_framework.methods.entry_detector import CONTRACT_CLI_SCRIPT, detect_entry_point
         try:
             candidate, contract = detect_entry_point(bundle_dir)
             entry = candidate if contract == CONTRACT_CLI_SCRIPT else None
@@ -2450,7 +2450,7 @@ def _generate_manifest_for_raw_zip(
 
 
 def _find_zip_cli_entry(bundle_dir: Path) -> Path | None:
-    from src.ktc_framework.adapters.plugin_detector import (
+    from ktc_framework.adapters.plugin_detector import (
         CONTRACT_CLI, PluginDetectionError, detect_contract, has_argparse_signature,
     )
 
@@ -2530,7 +2530,7 @@ def _handle_py_plugin_upload(up, dest_dir: Path, before: set, sig: str) -> None:
     ``sig`` is only recorded in session_state at a definitive outcome
     (success or a caught rejection) — see the caller for why.
     """
-    from src.ktc_framework.registry import (
+    from ktc_framework.registry import (
         get_method as _get_method, list_methods as _list_methods,
         load_external_methods as _load_ext,
     )
@@ -2617,7 +2617,7 @@ def _handle_py_plugin_upload(up, dest_dir: Path, before: set, sig: str) -> None:
 def _render_upload_new_plugin_widget():
     """Upload new plugin widget: accepts .py (in-process class or raw CLI
     script) or .zip (method.yaml bundle)."""
-    from src.ktc_framework.registry import list_methods as _list_methods
+    from ktc_framework.registry import list_methods as _list_methods
 
     st.sidebar.markdown(
         '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
@@ -2788,7 +2788,7 @@ def _render_method_library_contents(container) -> None:
     (``st`` for the main area, ``st.sidebar`` for the sidebar) so this one
     body can be reused from either location.
     """
-    from src.ktc_framework.registry import list_methods as _list_methods_lib
+    from ktc_framework.registry import list_methods as _list_methods_lib
 
     uploaded = st.session_state.get('uploaded_methods', {})
     published = _load_published_manifest()
@@ -2859,7 +2859,7 @@ def _render_method_library_contents(container) -> None:
                     continue
                 try:
                     if is_cli_contract_script(p):
-                        from src.ktc_framework.adapters.cli_plugin_wrapper import derive_cli_method_name
+                        from ktc_framework.adapters.cli_plugin_wrapper import derive_cli_method_name
                         if derive_cli_method_name(p.stem) not in registered:
                             unregistered.append((p.name, "not imported — click Import from external_methods/"))
                 except Exception:
@@ -2868,7 +2868,7 @@ def _render_method_library_contents(container) -> None:
                 unregistered.append((p.name, "zip — upload it, or extract then Import"))
             elif p.is_dir() and (p / "method.yaml").exists():
                 try:
-                    from src.ktc_framework.methods.manifest_loader import load_manifest
+                    from ktc_framework.methods.manifest_loader import load_manifest
                     manifest_name = load_manifest(p / "method.yaml").name
                 except Exception:
                     manifest_name = None
@@ -4625,7 +4625,7 @@ def _render_html_report_export(scores:Dict, per_run:Dict, mm:Dict, run_name:str,
     """Generate/download the framework HTML report from filtered dashboard data."""
     target = target or st
     try:
-        from src.ktc_framework.reporting.html_report import generate_html_report
+        from ktc_framework.reporting.html_report import generate_html_report
 
         run_dir = Path("outputs") / run_name
         results = []
@@ -4755,8 +4755,8 @@ def _compute_qualitative_detection(dataset_root: str, entries_key: tuple) -> dic
     entries_key: tuple of (method, mat_path, level, sample) — passed as a
     plain tuple (not the per_run dict) so st.cache_data can hash it.
     """
-    from src.ktc_framework.plugins.hull_plugin import HullAnalyzer
-    from src.ktc_framework.metrics.qualitative_metrics import compute_qualitative_sample, aggregate_qualitative
+    from ktc_framework.plugins.hull_plugin import HullAnalyzer
+    from ktc_framework.metrics.qualitative_metrics import compute_qualitative_sample, aggregate_qualitative
     import scipy.io
 
     sample_to_num = {"A": "1", "B": "2", "C": "3"}
@@ -4873,7 +4873,7 @@ def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple
                 entries_for_detection.append((method, mat_path, lv, entry.get("sample", "A")))
 
     if not hull_rows:
-        st.info("No hull data available. Run the benchmark or `python compute_hull_data.py` to generate hull analysis.")
+        st.info("No hull data available. Run the benchmark or `python scripts/compute_hull_data.py` to generate hull analysis.")
         return
 
     df = pd.DataFrame(hull_rows)
@@ -5155,7 +5155,7 @@ def main():
     # this covers the *runnable* half.
     if not st.session_state.get('_ext_methods_autoloaded'):
         try:
-            from src.ktc_framework.registry import load_external_methods as _autoload_ext
+            from ktc_framework.registry import load_external_methods as _autoload_ext
             _autoload_ext(["external_methods"])
         except Exception:
             pass

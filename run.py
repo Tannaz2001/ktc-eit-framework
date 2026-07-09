@@ -14,8 +14,8 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 
-from src.ktc_framework.runner.config_validator import load_config, ConfigError
-from src.ktc_framework.runner.experiment_runner import BatchRunner
+from ktc_framework.runner.config_validator import load_config, ConfigError
+from ktc_framework.runner.experiment_runner import BatchRunner
 from example_usage import project_to_dashboard
 
 

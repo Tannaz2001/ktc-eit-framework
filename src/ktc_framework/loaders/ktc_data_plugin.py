@@ -23,8 +23,8 @@ from typing import Optional
 import numpy as np
 import scipy.io
 
-from src.ktc_framework.registry import PluginRegistry
-from src.ktc_framework.types import DataBatch
+from ktc_framework.registry import PluginRegistry
+from ktc_framework.types import DataBatch
 
 try:
     import h5py as _h5py
