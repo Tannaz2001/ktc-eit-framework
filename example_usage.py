@@ -34,6 +34,11 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+# ktc_framework lives under src/, so src/ must be on the path for
+# `import ktc_framework` to work when this script is launched as a
+# subprocess (e.g. from the dashboard's "Run all methods") by an
+# interpreter that doesn't have the package pip-installed.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 # Route framework logger warnings/errors to stderr so they appear in the
 # benchmark log (outputs/benchmark_log.txt captures both stdout and stderr).
