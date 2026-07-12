@@ -1634,17 +1634,6 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
         mm = {}
     lvl_min, lvl_max = level_range
 
-    if False:
-        render_what_why_how(
-        what="Every method was run on the same set of tests, so this is a direct, "
-             "apples-to-apples ranking — from the strongest overall result to the weakest.",
-        why="With 6+ methods and dozens of metrics each, you need one trustworthy number "
-            "to answer \"which method should I actually use?\" before digging into the details.",
-        how="Each method's per-test KTC scores are averaged, then rescaled to a 0-100 "
-            "Composite Score and assigned a letter grade (A-D) using the bands shown "
-            "under the chart below.",
-    )
-
     if lvl_min != 1 or lvl_max != 7:
         st.markdown(
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--amb);'
