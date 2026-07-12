@@ -534,6 +534,7 @@ def resolve_env(
     raise EnvError("\n".join(lines))
 
 
+
 def resolve(manifest) -> Optional[str]:
     """Resolve a python interpreter path for a MethodManifest's bundle.
 

@@ -2,6 +2,7 @@
 # pinned snapshot instead:  pip install -r requirements.lock.txt
 # (regenerate after dependency changes with:  pip freeze > requirements.lock.txt)
 
+
 # Core dependencies (original)
 numpy
 pytest

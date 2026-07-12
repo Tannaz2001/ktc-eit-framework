@@ -27,6 +27,10 @@ from ktc_framework.reporting.constants import (
 METRICS = [(METRIC_SHORT_LABELS[key], key) for _, key in METRIC_SPECS]
 METRIC_BY_KEY = {key: (label, key) for label, key in METRICS}
 
+PALETTE = [
+    "#2da44e", "#8250df", "#0969da", "#bf8700", "#cf222e",
+    "#1a7f37", "#d4a72c", "#0550ae", "#9a3ece", "#068a39",
+]
 
 def _embed_png(path: str | Path) -> str:
     p = Path(path)
@@ -899,6 +903,7 @@ def _build_narratives(summary: list[dict], results: list[dict]) -> dict:
                     f"For levels 1&ndash;4, use {_esc(best_easy)}; for levels 5&ndash;7, switch to "
                     f"{_esc(best_hard)}, which scores higher in that harder range.")
     sent5 = f"<b>Recommendation.</b> {reco_sentence}" if reco_sentence else ""
+
 
     N = {}
     N["exec"] = box(

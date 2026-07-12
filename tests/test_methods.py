@@ -1,5 +1,12 @@
+import sys
+import os
 import pytest
 import numpy as np
+
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(BASE_DIR, "src"))
+sys.path.insert(0, BASE_DIR)
+
 
 from ktc_framework.loaders.mock_data_plugin import MockDataPlugin
 from ktc_framework.methods.backprojection import BackProjection

@@ -209,6 +209,7 @@ def prepare_isolated_input(data_file: Path, level: int) -> Path:
     return tmp_dir
 
 
+
 def _build_command_args(
     args_order: list[str],
     input_dir: str,

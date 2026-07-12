@@ -221,6 +221,7 @@ def create_cli_wrapper_class(
         _fp.update(str(int(_script_file.stat().st_mtime)).encode("utf-8"))
     _cache_fingerprint = _fp.hexdigest()[:16]
 
+
     class _CLIWrapper(CLIScriptPlugin):
         def __init__(self) -> None:
             super().__init__(
@@ -308,6 +309,7 @@ class CLIScriptPlugin(MethodPlugin):
             cached = cache_load(cache_key)
             if cached is not None:
                 return cached
+
 
         tmp_in: Optional[str] = None
         tmp_out: Optional[str] = None
