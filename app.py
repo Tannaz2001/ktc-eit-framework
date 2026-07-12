@@ -19,6 +19,10 @@ import html
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+try:
+    pd.options.future.infer_string = False
+except AttributeError:
+    pass
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
