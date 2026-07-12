@@ -55,6 +55,48 @@ def method_display_name(method_name: str) -> str:
     return " ".join(label.split()) or method_name
 
 
+def _stable_axis_label(label: str, max_chars: int = 14) -> str:
+    """Wrap long Plotly tick labels without letting Plotly rotate them."""
+    words = str(label).split()
+    if not words:
+        return str(label)
+    lines = []
+    current = words[0]
+    for word in words[1:]:
+        if len(current) + 1 + len(word) <= max_chars:
+            current += f" {word}"
+        else:
+            lines.append(current)
+            current = word
+    lines.append(current)
+    return "<br>".join(lines)
+
+
+def stabilize_method_axis(
+    fig: go.Figure,
+    methods,
+    axis: str = "x",
+    labels=None,
+    max_chars: int = 14,
+) -> None:
+    """Keep method-name tick labels fixed, horizontal, and readable on resize."""
+    tickvals = list(methods)
+    ticklabels = list(labels) if labels is not None else [method_display_name(m) for m in tickvals]
+    ticktext = [_stable_axis_label(label, max_chars=max_chars) for label in ticklabels]
+    axis_kwargs = dict(
+        type="category",
+        tickmode="array",
+        tickvals=tickvals,
+        ticktext=ticktext,
+        tickangle=0,
+        automargin=True,
+    )
+    if axis == "y":
+        fig.update_yaxes(**axis_kwargs)
+    else:
+        fig.update_xaxes(**axis_kwargs)
+
+
 def render_empty_bar(fig: go.Figure, method_name: str, x_position) -> None:
     """Add a zero-height 'No data' placeholder bar to *fig* at *x_position*."""
     fig.add_trace(go.Bar(
@@ -166,5 +208,6 @@ def build_leaderboard_figure(scores: Dict, df: pd.DataFrame) -> go.Figure:
         yaxis=dict(gridcolor='#d0d7de', linecolor='#d0d7de', tickfont=dict(size=9)),
         margin=dict(l=150, r=50, t=20, b=38),
     )
+    stabilize_method_axis(fig, df['Method'].tolist(), axis="y", max_chars=18)
     fig.update_yaxes(autorange="reversed")
     return fig
