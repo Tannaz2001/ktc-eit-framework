@@ -10,6 +10,11 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+try:
+    pd.options.future.infer_string = False
+except AttributeError:
+    pass
+
 from ktc_framework.reporting.constants import (
     METHOD_COLORS,
     METHOD_COLOR_FALLBACK as _METHOD_COLOR_FALLBACK,
