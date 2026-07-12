@@ -23,7 +23,6 @@ methods:
   - ml_inverse_method_2
   - KTC2023_CUQI1
   - main
-  - DampedLeastSquaresReconstruction
   - RegularizedFEMReconstruction
   - ReferenceFEM
   - LinearDifferenceReconstruction
