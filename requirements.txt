@@ -14,6 +14,7 @@ streamlit>=1.28.0
 plotly>=5.17.0
 kaleido==0.2.1
 pandas>=2.0.0
+pyarrow>=14.0,<18.0
 reportlab>=4.0.0
 
 # Visualization dependencies (from README)
