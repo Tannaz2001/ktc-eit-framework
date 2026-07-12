@@ -13,8 +13,8 @@ and a downloadable **explanatory report**.
 
 ## Contents
 1. [Background — the problem](#1-background--the-problem)
-2. [Quick Start](#-quick-start)
-3. [What you'll see](#-what-youll-see)
+2. [Quick Start](#quick-start)
+3. [What you'll see](#what-youll-see)
 4. [The data](#2-the-data)
 5. [How scoring works](#3-how-scoring-works)
 6. [Reconstruction methods & example results](#4-reconstruction-methods--example-results)
@@ -44,7 +44,7 @@ measured and compared fairly.
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 Requires **Python 3.10+**. From a terminal in the project root:
 
@@ -69,17 +69,17 @@ python run.py --config configs/ktc_all_methods.yaml
 python -m streamlit run app.py
 ```
 
-> ⚠️ **Step 3 is required.** Without `pip install -e .` you will see
+> **Note — Step 3 is required.** Without `pip install -e .` you will see
 > `ModuleNotFoundError: No module named 'ktc_framework'`. See [Troubleshooting](#8-troubleshooting).
 
-> ⚠️ **Step 4 needs the dataset present** under `EvaluationData/` (see [The data](#2-the-data)).
+> **Note — Step 4 needs the dataset present** under `EvaluationData/` (see [The data](#2-the-data)).
 > If it is missing, the benchmark reports `FileNotFoundError` for every sample.
 
 Everyday use afterwards is just steps 4–5 (and re-runs of step 4 are fast thanks to caching).
 
 ---
 
-## 👀 What you'll see
+## What you'll see
 
 - **Dashboard** — a leaderboard of methods by KTC score, degradation curves across the 7
   difficulty levels, per-class (resistive/conductive) metric breakdowns, a geometric
@@ -248,4 +248,8 @@ Developed as a summer research project on EIT reconstruction benchmarking, using
 **Kuopio Tomography Challenge (KTC) 2023** dataset.
 
 - **Dataset & challenge:** <https://www.fips.fi/KTC2023.php>
-- **Author:** Tannaz Inamdar
+- **Team (4 members):**
+  - Tannaz Inamdar
+  - Areeba Masood
+  - Sahil Khan
+  - Syeda Ulya Seerat
