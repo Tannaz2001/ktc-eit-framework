@@ -239,15 +239,9 @@ def render_benchmark_status() -> None:
                     st.sidebar.error(f"Config error: {config_err}")
                 if BENCH_LOG.exists():
                     with st.sidebar.expander("View full benchmark log"):
-                        raw = BENCH_LOG.read_text(encoding="utf-8", errors="replace")
-                        safe = raw.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                        st.markdown(
-                            f'<pre style="font-family:\'JetBrains Mono\',monospace;'
-                            f'font-size:8.5px;line-height:1.5;color:var(--tx2);background:var(--bg);'
-                            f'border:1px solid var(--bd);border-radius:6px;padding:8px 10px;'
-                            f'max-height:340px;overflow-y:auto;white-space:pre-wrap;word-break:break-all">'
-                            f'{safe}</pre>',
-                            unsafe_allow_html=True,
+                        st.code(
+                            BENCH_LOG.read_text(encoding="utf-8", errors="replace"),
+                            language="text",
                         )
     if proc is not None and proc.poll() is None and BENCH_LOG.exists():
         tail = BENCH_LOG.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -266,19 +260,6 @@ def render_benchmark_status() -> None:
                 f'letter-spacing:.1em;color:var(--tx3);margin-bottom:5px">Benchmark log (last 8 lines)</div>'
                 f'{log_html}</div>',
                 unsafe_allow_html=True)
-        with st.sidebar.expander("View full log"):
-            raw = BENCH_LOG.read_text(encoding="utf-8", errors="replace")
-            safe = raw.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-            st.markdown(
-                f'<pre id="bench-full-log" style="font-family:\'JetBrains Mono\',monospace;'
-                f'font-size:8.5px;line-height:1.5;color:var(--tx2);background:var(--bg);'
-                f'border:1px solid var(--bd);border-radius:6px;padding:8px 10px;'
-                f'max-height:340px;overflow-y:auto;white-space:pre-wrap;word-break:break-all">'
-                f'{safe}</pre>'
-                f'<script>var el=document.getElementById("bench-full-log");'
-                f'if(el)el.scrollTop=el.scrollHeight;</script>',
-                unsafe_allow_html=True,
-            )
 
 
 def render_bench_progress() -> None:
@@ -370,39 +351,11 @@ def _render_bench_progress_fragment() -> None:
                 st.info("Benchmark aborted. Previous completed dashboard data is still active.")
             st.rerun()
 
-    # ── Live log viewer ───────────────────────────────────────────────────
     if BENCH_LOG.exists():
-        log_text = BENCH_LOG.read_text(encoding="utf-8", errors="replace")
-        log_lines = [ln for ln in log_text.splitlines() if ln.strip()]
-
-        # Recent lines — always visible, no click required
-        tail = log_lines[-20:]
-        tail_safe = "\n".join(
-            ln.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-            for ln in tail
-        )
-        st.markdown(
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
-            f'font-weight:700;text-transform:uppercase;letter-spacing:.08em;'
-            f'color:var(--tx3);margin:10px 0 4px">Benchmark log — last {len(tail)} lines</div>'
-            f'<pre style="font-family:\'JetBrains Mono\',monospace;font-size:9.5px;'
-            f'line-height:1.55;color:var(--tx2);background:var(--bg);'
-            f'border:1px solid var(--bd);border-radius:6px;padding:10px 14px;'
-            f'max-height:260px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;'
-            f'margin:0 0 8px">{tail_safe}</pre>',
-            unsafe_allow_html=True,
-        )
-
-        # Full log behind expander
-        with st.expander(f"Full log ({len(log_lines)} lines)"):
-            full_safe = log_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-            st.markdown(
-                f'<pre style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
-                f'line-height:1.5;color:var(--tx2);background:var(--bg);'
-                f'border:1px solid var(--bd);border-radius:6px;padding:10px 14px;'
-                f'max-height:400px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;'
-                f'margin:0">{full_safe}</pre>',
-                unsafe_allow_html=True,
+        with st.sidebar.expander("View full log"):
+            st.code(
+                BENCH_LOG.read_text(encoding="utf-8", errors="replace"),
+                language="text",
             )
 
     st.markdown(

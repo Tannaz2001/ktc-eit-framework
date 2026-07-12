@@ -1,0 +1,27 @@
+# KTC2023_PNPmasked benchmark — Plug-and-Play + Graph U-Net denoiser.
+# Run: python example_usage.py --config configs/ktc_pnpmasked.yaml
+#
+# Prerequisites:
+#   pip install torch_geometric
+#   pip install torch_scatter torch_sparse -f https://data.pyg.org/whl/torch-2.10.0+cpu.html
+#
+# Bundled assets:
+#   weights_denoiser.pth   (163 KB denoiser weights)
+#   Mesh_sparse.mat        (FEM mesh)
+#   Mask_Synthetic/        (boundary masks for levels 2-7)
+
+data_plugin: KTCDataPlugin
+dataset_root: EvaluationData
+mesh_path: Codes_Matlab/Mesh_sparse.mat
+
+levels: [1, 2, 3, 4, 5, 6, 7]
+samples: [A, B, C]
+
+methods:
+  - ktc2023_pnpmasked
+
+method_plugin_paths:
+  - external_methods
+include_external_methods: true
+
+output_dir: outputs/

@@ -1,0 +1,17 @@
+name: ktc2023_abc2
+description: >
+  KTC 2023 submission — Deep Image Prior (DIP) with Total Variation regularization.
+  Optimizes a randomly-initialised convolutional network to fit EIT voltage measurements;
+  interpolates the reconstruction to a 256×256 grid and segments into {0,1,2}.
+  No pre-trained weights required — runs from scratch on each sample (slow: ~3000 iterations).
+
+runtime:
+  python_versions: ["3.12", "3.11", "3.10"]
+  env_override: KTC2023_ABC2_PYTHON
+  check_import: torchmetrics
+
+solver:
+  entry_point: run_method.py
+  working_dir: .
+  timeout: 1800
+  args: ["input_dir", "output_dir", "level"]

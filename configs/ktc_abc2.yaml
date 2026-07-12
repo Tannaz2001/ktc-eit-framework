@@ -1,0 +1,21 @@
+# KTC2023-ABC2 benchmark — DIP + TV method.
+# Run: python example_usage.py --config configs/ktc_abc2.yaml
+#
+# NOTE: DIP optimises from scratch per sample; expect ~10-30 min per sample
+# on CPU (3000 iterations). Set levels/samples accordingly.
+
+data_plugin: KTCDataPlugin
+dataset_root: EvaluationData
+mesh_path: Codes_Matlab/Mesh_sparse.mat
+
+levels: [1, 2, 3, 4, 5, 6, 7]
+samples: [A, B, C]
+
+methods:
+  - ktc2023_abc2
+
+method_plugin_paths:
+  - external_methods
+include_external_methods: true
+
+output_dir: outputs/

@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import shutil
 import subprocess
 import sys
@@ -33,6 +34,14 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+# Route framework logger warnings/errors to stderr so they appear in the
+# benchmark log (outputs/benchmark_log.txt captures both stdout and stderr).
+logging.basicConfig(
+    level=logging.WARNING,
+    format="[%(levelname)s] %(name)s: %(message)s",
+    stream=sys.stderr,
+)
 
 from ktc_framework.runner.config_validator import load_config, ConfigError
 from ktc_framework.runner.experiment_runner import BatchRunner

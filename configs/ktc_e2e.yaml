@@ -1,0 +1,23 @@
+# KTC2023_E2E benchmark — end-to-end UNet method.
+# Run: python example_usage.py --config configs/ktc_e2e.yaml
+#
+# Prerequisites:
+#   pip install deepinv
+#
+# Model weights are bundled: models/difficulty_{1-7}_learnedlinear.pth.tar
+
+data_plugin: KTCDataPlugin
+dataset_root: EvaluationData
+mesh_path: Codes_Matlab/Mesh_sparse.mat
+
+levels: [1, 2, 3, 4, 5, 6, 7]
+samples: [A, B, C]
+
+methods:
+  - ktc2023_e2e
+
+method_plugin_paths:
+  - external_methods
+include_external_methods: true
+
+output_dir: outputs/
