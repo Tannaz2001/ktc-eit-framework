@@ -497,6 +497,60 @@ section[data-testid="stSidebar"] [data-baseweb="select"] *{
 [data-baseweb="menu"] li *{color:var(--tx)!important;opacity:1!important;}
 .stSlider,.stSelectbox,.stMultiSelect{margin-bottom:8px!important;}
 .stCheckbox{margin-bottom:2px!important;}
+
+/* Stable equal sizing for sidebar action/run buttons. */
+section[data-testid="stSidebar"] [data-testid="stButton"],
+section[data-testid="stSidebar"] [data-testid="stDownloadButton"]{
+  width:100%!important;
+  min-width:0!important;
+  margin:0 0 6px!important;
+}
+section[data-testid="stSidebar"] [data-testid="stButton"] button,
+section[data-testid="stSidebar"] [data-testid="stDownloadButton"] button{
+  width:100%!important;
+  min-width:0!important;
+  height:34px!important;
+  min-height:34px!important;
+  max-height:34px!important;
+  padding:0 8px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  box-sizing:border-box!important;
+}
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]{
+  align-items:stretch!important;
+}
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid^="stColumn"]{
+  min-width:0!important;
+  display:flex!important;
+}
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid^="stColumn"] > div,
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid^="stColumn"] [data-testid="stButton"]{
+  width:100%!important;
+}
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid^="stColumn"] button[kind],
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] [data-testid^="stColumn"] [data-testid^="stBaseButton"]{
+  width:100%!important;
+  min-width:0!important;
+  height:34px!important;
+  min-height:34px!important;
+  max-height:34px!important;
+  padding:0 8px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  line-height:1!important;
+  font-size:11px!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  box-sizing:border-box!important;
+}
 </style>
 <script>
 (function(){
@@ -720,6 +774,40 @@ def method_display_name(method_name: str) -> str:
     label = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", " ", label)
     return " ".join(label.split()) or method_name
 
+def _stable_axis_label(label: str, max_chars: int = 14) -> str:
+    """Wrap long axis labels with Plotly line breaks while keeping them horizontal."""
+    words = str(label).split()
+    if not words:
+        return str(label)
+    lines = []
+    current = words[0]
+    for word in words[1:]:
+        if len(current) + 1 + len(word) <= max_chars:
+            current += f" {word}"
+        else:
+            lines.append(current)
+            current = word
+    lines.append(current)
+    return "<br>".join(lines)
+
+def stabilize_method_axis(fig: go.Figure, methods, axis: str = "x", labels=None, max_chars: int = 14) -> None:
+    """Keep method-name tick labels fixed, horizontal, and readable during resize."""
+    tickvals = list(methods)
+    ticklabels = list(labels) if labels is not None else [method_display_name(m) for m in tickvals]
+    ticktext = [_stable_axis_label(label, max_chars=max_chars) for label in ticklabels]
+    axis_kwargs = dict(
+        type="category",
+        tickmode="array",
+        tickvals=tickvals,
+        ticktext=ticktext,
+        tickangle=0,
+        automargin=True,
+    )
+    if axis == "y":
+        fig.update_yaxes(**axis_kwargs)
+    else:
+        fig.update_xaxes(**axis_kwargs)
+
 # Single source of truth for method color across the whole dashboard —
 # leaderboard bars, method chips, radar chart, degradation curve, and
 # report exports must all look this dict up instead of deriving a color
@@ -880,6 +968,7 @@ def build_leaderboard_figure(scores: Dict, df: pd.DataFrame) -> go.Figure:
         yaxis=dict(gridcolor='#d0d7de', linecolor='#d0d7de', tickfont=dict(size=9)),
         margin=dict(l=150, r=50, t=20, b=38),
     )
+    stabilize_method_axis(fig, df['Method'].tolist(), axis="y", max_chars=18)
     fig.update_yaxes(autorange="reversed")
     return fig
 
@@ -2371,43 +2460,39 @@ def _render_sidebar_run_history():
 
         default_idx = run_names.index(current_run) if current_run in run_names else 0
         # C1: rich labels with status icon + failure count
+        selected_run_key = f"selected_run_{current_run}"
         chosen_run = st.sidebar.selectbox(
-            "Load run:", run_names, index=default_idx, key="selected_run",
+            "Load run:", run_names, index=default_idx, key=selected_run_key,
             label_visibility="collapsed",
             format_func=lambda name: _run_label(runs_root / name))
 
-        c_load, c_del = st.sidebar.columns(2)
-        with c_load:
-            if st.button("Load", key="load_run_btn", use_container_width=True):
-                selected_path = runs_root / chosen_run
-                (runs_root / "latest.txt").write_text(str(selected_path.resolve()))
-                st.session_state.pop("_confirm_delete_run", None)
-                st.cache_data.clear()
-                st.rerun()
-        with c_del:
-            # C2: delete run with confirmation
-            _active_is_chosen = chosen_run == current_run
-            if st.button(
-                "Delete", key="delete_run_btn", use_container_width=True,
-                disabled=_active_is_chosen,
-                help="Cannot delete the currently active run" if _active_is_chosen else "Delete this run from disk",
-            ):
-                st.session_state["_confirm_delete_run"] = chosen_run
+        if st.sidebar.button("Load", key="load_run_btn", use_container_width=True):
+            selected_path = runs_root / chosen_run
+            (runs_root / "latest.txt").write_text(str(selected_path.resolve()))
+            st.session_state.pop("_confirm_delete_run", None)
+            st.cache_data.clear()
+            st.rerun()
+
+        # C2: delete run with confirmation
+        _active_is_chosen = chosen_run == current_run
+        if st.sidebar.button(
+            "Delete", key="delete_run_btn", use_container_width=True,
+            disabled=_active_is_chosen,
+            help="Cannot delete the currently active run" if _active_is_chosen else "Delete this run from disk",
+        ):
+            st.session_state["_confirm_delete_run"] = chosen_run
 
         _pending_del = st.session_state.get("_confirm_delete_run")
         if _pending_del and _pending_del == chosen_run:
             st.sidebar.warning(f"Delete **{_pending_del}**? This cannot be undone.")
-            c_yes, c_no = st.sidebar.columns(2)
-            with c_yes:
-                if st.button("Yes", key="confirm_del_yes", use_container_width=True):
-                    shutil.rmtree(runs_root / _pending_del, ignore_errors=True)
-                    st.session_state.pop("_confirm_delete_run", None)
-                    st.cache_data.clear()
-                    st.rerun()
-            with c_no:
-                if st.button("No", key="confirm_del_no", use_container_width=True):
-                    st.session_state.pop("_confirm_delete_run", None)
-                    st.rerun()
+            if st.sidebar.button("Yes, delete run", key="confirm_del_yes", use_container_width=True):
+                shutil.rmtree(runs_root / _pending_del, ignore_errors=True)
+                st.session_state.pop("_confirm_delete_run", None)
+                st.cache_data.clear()
+                st.rerun()
+            if st.sidebar.button("Cancel", key="confirm_del_no", use_container_width=True):
+                st.session_state.pop("_confirm_delete_run", None)
+                st.rerun()
 
         # C3: re-run failed only — visible when active run has failures
         _active_failures = _read_run_failures(runs_root / current_run)
@@ -2492,16 +2577,6 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
     if mm is None:
         mm = {}
     lvl_min, lvl_max = level_range
-
-    render_what_why_how(
-        what="Every method was run on the same set of tests, so this is a direct, "
-             "apples-to-apples ranking — from the strongest overall result to the weakest.",
-        why="With 6+ methods and dozens of metrics each, you need one trustworthy number "
-            "to answer \"which method should I actually use?\" before digging into the details.",
-        how="Each method's per-test KTC scores are averaged, then rescaled to a 0-100 "
-            "Composite Score and assigned a letter grade (A-D) using the bands shown "
-            "under the chart below.",
-    )
 
     if lvl_min != 1 or lvl_max != 7:
         st.markdown(
@@ -2619,8 +2694,9 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
         xaxis=dict(gridcolor='#d0d7de', linecolor='#d0d7de', tickfont=dict(size=9)),
         yaxis=dict(gridcolor='#d0d7de', linecolor='#d0d7de', tickfont=dict(size=9),
                    zeroline=True, zerolinecolor='#57606a', zerolinewidth=1.5),
-        margin=dict(l=0, r=10, t=20, b=30),
+        margin=dict(l=0, r=10, t=20, b=86),
     )
+    stabilize_method_axis(fig, df['Method'].tolist(), axis="x")
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
     st.caption(
         "X-axis: method under test. Y-axis: Composite Score, a 0-100 rescaling of the raw KTC "
@@ -3232,8 +3308,9 @@ def view_radar_chart(scores:Dict, per_run:Dict, sel_metrics:list=None):
             font=dict(family="JetBrains Mono,monospace", color=pc2.get('text', '#848d97'), size=9),
             xaxis=dict(gridcolor=pc2.get('grid', '#d0d7de'), linecolor=pc2.get('grid', '#d0d7de')),
             yaxis=dict(gridcolor=pc2.get('grid', '#d0d7de'), linecolor=pc2.get('grid', '#d0d7de')),
-            margin=dict(l=0, r=10, t=20, b=30),
+            margin=dict(l=0, r=10, t=20, b=86),
         )
+        stabilize_method_axis(fig2, [name for name, _ in bar_data], axis="x")
         st.plotly_chart(fig2, use_container_width=True, config={'displayModeBar': False})
         return
 
@@ -3884,6 +3961,7 @@ def _write_dashboard_hull_charts(scores: Dict, per_run: Dict, mm: Dict, export_f
             yaxis=dict(gridcolor=pc["grid"], zeroline=False),
             xaxis=dict(gridcolor=pc["grid"]),
         )
+        stabilize_method_axis(fig, avg_center.index.tolist(), axis="x")
         fig.write_image(str(export_figures / "hull_center_error.png"), scale=2)
 
     avg_area = df.dropna(subset=["Res Area Err"]).groupby("Method")["Res Area Err"].mean().sort_values()
@@ -3910,6 +3988,7 @@ def _write_dashboard_hull_charts(scores: Dict, per_run: Dict, mm: Dict, export_f
             yaxis=dict(gridcolor=pc["grid"], zeroline=False),
             xaxis=dict(gridcolor=pc["grid"]),
         )
+        stabilize_method_axis(fig, avg_area.index.tolist(), axis="x")
         fig.write_image(str(export_figures / "hull_area_error.png"), scale=2)
 
     scatter_df = df.dropna(subset=["Res Center Err", "KTC"])
@@ -4265,12 +4344,14 @@ def view_hull_analysis(scores: Dict, per_run: Dict, mm: Dict, level_range: tuple
         fig_ce.update_layout(
             yaxis_title="Distance from true location (px, lower = better)",
             height=340, showlegend=False,
-            margin=dict(l=50, r=20, t=30, b=40),
+            margin=dict(l=50, r=20, t=30, b=86),
             plot_bgcolor=pc.get('paper', 'rgba(0,0,0,0)'),
             paper_bgcolor=pc.get('paper', 'rgba(0,0,0,0)'),
             font=dict(family="JetBrains Mono", size=10, color=pc.get('text', '#848d97')),
             yaxis=dict(gridcolor=pc.get('grid', '#d0d7de'), zeroline=False),
+            xaxis=dict(gridcolor=pc.get('grid', '#d0d7de'), linecolor=pc.get('grid', '#d0d7de')),
         )
+        stabilize_method_axis(fig_ce, labels, axis="x", labels=labels)
         st.plotly_chart(fig_ce, use_container_width=True, config={'displayModeBar': False})
 
     # -- Qualitative detection storytelling ---------------------
