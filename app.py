@@ -15,6 +15,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+ROOT = Path(__file__).resolve().parent
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
 import html
 import matplotlib.pyplot as plt
 import numpy as np
@@ -42,7 +47,7 @@ from dashboard.scoring import (
     METHOD_COLORS,
     calculate_composite_score, letter_grade, all_methods, method_display_name,
     get_method_color, render_empty_bar, render_grade_key,
-    render_section_header, render_what_why_how,
+    render_section_header, stabilize_method_axis,
     build_leaderboard_df, build_leaderboard_figure,
 )
 from dashboard import state as SS
@@ -1402,38 +1407,33 @@ def _render_sidebar_run_history():
             label_visibility="collapsed",
             format_func=lambda name: _run_label(runs_root / name))
 
-        c_load, c_del = st.sidebar.columns(2)
-        with c_load:
-            if st.button("Load", key="load_run_btn", use_container_width=True):
-                selected_path = runs_root / chosen_run
-                (runs_root / "latest.txt").write_text(str(selected_path.resolve()))
-                st.session_state.pop(K.CONFIRM_DELETE_RUN, None)
-                st.cache_data.clear()
-                st.rerun()
-        with c_del:
-            # C2: delete run with confirmation
-            _active_is_chosen = chosen_run == current_run
-            if st.button(
-                "Delete", key="delete_run_btn", use_container_width=True,
-                disabled=_active_is_chosen,
-                help="Cannot delete the currently active run" if _active_is_chosen else "Delete this run from disk",
-            ):
-                st.session_state[K.CONFIRM_DELETE_RUN] = chosen_run
+        if st.sidebar.button("Load", key="load_run_btn", use_container_width=True):
+            selected_path = runs_root / chosen_run
+            (runs_root / "latest.txt").write_text(str(selected_path.resolve()))
+            st.session_state.pop(K.CONFIRM_DELETE_RUN, None)
+            st.cache_data.clear()
+            st.rerun()
+
+        # C2: delete run with confirmation
+        _active_is_chosen = chosen_run == current_run
+        if st.sidebar.button(
+            "Delete", key="delete_run_btn", use_container_width=True,
+            disabled=_active_is_chosen,
+            help="Cannot delete the currently active run" if _active_is_chosen else "Delete this run from disk",
+        ):
+            st.session_state[K.CONFIRM_DELETE_RUN] = chosen_run
 
         _pending_del = st.session_state.get(K.CONFIRM_DELETE_RUN)
         if _pending_del and _pending_del == chosen_run:
             st.sidebar.warning(f"Delete **{_pending_del}**? This cannot be undone.")
-            c_yes, c_no = st.sidebar.columns(2)
-            with c_yes:
-                if st.button("Yes", key="confirm_del_yes", use_container_width=True):
-                    shutil.rmtree(runs_root / _pending_del, ignore_errors=True)
-                    st.session_state.pop(K.CONFIRM_DELETE_RUN, None)
-                    st.cache_data.clear()
-                    st.rerun()
-            with c_no:
-                if st.button("No", key="confirm_del_no", use_container_width=True):
-                    st.session_state.pop(K.CONFIRM_DELETE_RUN, None)
-                    st.rerun()
+            if st.sidebar.button("Yes, delete run", key="confirm_del_yes", use_container_width=True):
+                shutil.rmtree(runs_root / _pending_del, ignore_errors=True)
+                st.session_state.pop(K.CONFIRM_DELETE_RUN, None)
+                st.cache_data.clear()
+                st.rerun()
+            if st.sidebar.button("Cancel", key="confirm_del_no", use_container_width=True):
+                st.session_state.pop(K.CONFIRM_DELETE_RUN, None)
+                st.rerun()
 
         # C3: re-run failed only — visible when active run has failures
         _active_failures = _read_run_failures(runs_root / current_run)
@@ -1634,16 +1634,6 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
         mm = {}
     lvl_min, lvl_max = level_range
 
-    render_what_why_how(
-        what="Every method was run on the same set of tests, so this is a direct, "
-             "apples-to-apples ranking — from the strongest overall result to the weakest.",
-        why="With 6+ methods and dozens of metrics each, you need one trustworthy number "
-            "to answer \"which method should I actually use?\" before digging into the details.",
-        how="Each method's per-test KTC scores are averaged, then rescaled to a 0-100 "
-            "Composite Score and assigned a letter grade (A-D) using the bands shown "
-            "under the chart below.",
-    )
-
     if lvl_min != 1 or lvl_max != 7:
         st.markdown(
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--amb);'
@@ -1760,8 +1750,9 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
         xaxis=dict(gridcolor='#d0d7de', linecolor='#d0d7de', tickfont=dict(size=9)),
         yaxis=dict(gridcolor='#d0d7de', linecolor='#d0d7de', tickfont=dict(size=9),
                    zeroline=True, zerolinecolor='#57606a', zerolinewidth=1.5),
-        margin=dict(l=0, r=10, t=20, b=30),
+        margin=dict(l=0, r=10, t=20, b=86),
     )
+    stabilize_method_axis(fig, df['Method'].tolist(), axis="x")
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
     st.caption(
         "X-axis: method under test. Y-axis: Composite Score, a 0-100 rescaling of the raw KTC "
@@ -1804,8 +1795,9 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
             font=dict(family="JetBrains Mono,monospace", color="#848d97", size=9),
             xaxis=dict(gridcolor='#d0d7de', linecolor='#d0d7de', tickfont=dict(size=9)),
             yaxis=dict(gridcolor='#d0d7de', linecolor='#d0d7de', tickfont=dict(size=9), range=[0, 210]),
-            margin=dict(l=0, r=10, t=20, b=30),
+            margin=dict(l=0, r=10, t=20, b=86),
         )
+        stabilize_method_axis(fig_shape, df['Method'].tolist(), axis="x")
         st.plotly_chart(fig_shape, use_container_width=True, config={'displayModeBar': False})
         st.caption(
             "Stacked height = Dice Resistive x100 + Dice Conductive x100 (a perfect method "
@@ -2519,8 +2511,9 @@ def view_radar_chart(scores:Dict, per_run:Dict, sel_metrics:list=None):
             font=dict(family="JetBrains Mono,monospace", color=pc2.get('text', '#848d97'), size=9),
             xaxis=dict(gridcolor=pc2.get('grid', '#d0d7de'), linecolor=pc2.get('grid', '#d0d7de')),
             yaxis=dict(gridcolor=pc2.get('grid', '#d0d7de'), linecolor=pc2.get('grid', '#d0d7de')),
-            margin=dict(l=0, r=10, t=20, b=30),
+            margin=dict(l=0, r=10, t=20, b=86),
         )
+        stabilize_method_axis(fig2, [name for name, _ in bar_data], axis="x")
         st.plotly_chart(fig2, use_container_width=True, config={'displayModeBar': False})
         return
 
@@ -3226,6 +3219,7 @@ def _write_dashboard_hull_charts(scores: Dict, per_run: Dict, mm: Dict, export_f
             yaxis=dict(gridcolor=pc["grid"], zeroline=False),
             xaxis=dict(gridcolor=pc["grid"]),
         )
+        stabilize_method_axis(fig, avg_center.index.tolist(), axis="x")
         fig.write_image(str(export_figures / "hull_center_error.png"), scale=2)
 
     avg_area = df.dropna(subset=["Res Area Err"]).groupby("Method")["Res Area Err"].mean().sort_values()
@@ -3252,6 +3246,7 @@ def _write_dashboard_hull_charts(scores: Dict, per_run: Dict, mm: Dict, export_f
             yaxis=dict(gridcolor=pc["grid"], zeroline=False),
             xaxis=dict(gridcolor=pc["grid"]),
         )
+        stabilize_method_axis(fig, avg_area.index.tolist(), axis="x")
         fig.write_image(str(export_figures / "hull_area_error.png"), scale=2)
 
     scatter_df = df.dropna(subset=["Res Center Err", "KTC"])
@@ -3956,16 +3951,20 @@ def main():
         n_s = len(per_run_f.get(list(per_run_f.keys())[0], {})) if per_run_f else 0
         n_t = sum(len(v) for v in per_run_f.values()) if per_run_f else 0
         st.markdown(
-            f'<div style="display:flex;gap:10px;margin-bottom:12px;align-items:stretch">'
-            f'<div style="flex:0 0 112px;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 12px;min-height:72px">'
+            f'<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));'
+            f'gap:10px;margin-bottom:12px;align-items:stretch;width:100%">'
+            f'<div style="background:var(--sur);border:1px solid var(--bd);border-radius:7px;'
+            f'padding:10px 12px;min-height:72px;text-align:center">'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:19px;font-weight:600;color:var(--tx);line-height:1">{len(scores_f)}</div>'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.08em;margin-top:6px">Methods</div>'
             f'</div>'
-            f'<div style="flex:0 0 112px;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 12px;min-height:72px">'
+            f'<div style="background:var(--sur);border:1px solid var(--bd);border-radius:7px;'
+            f'padding:10px 12px;min-height:72px;text-align:center">'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:19px;font-weight:600;color:var(--tx);line-height:1">{n_s}</div>'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.08em;margin-top:6px">Runs / method</div>'
             f'</div>'
-            f'<div style="flex:0 0 112px;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:10px 12px;min-height:72px">'
+            f'<div style="background:var(--sur);border:1px solid var(--bd);border-radius:7px;'
+            f'padding:10px 12px;min-height:72px;text-align:center">'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:19px;font-weight:600;color:var(--tx);line-height:1">{n_t}</div>'
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.08em;margin-top:6px">Total recons</div>'
             f'</div>'
