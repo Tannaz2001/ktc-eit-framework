@@ -1140,11 +1140,57 @@ _METHOD_PROFILES: list[tuple[tuple[str, ...], str, str]] = [
      "to suppress noise amplification.",
      "Truncation controls noise well, but the discarded components carry the fine spatial detail, so "
      "it trades sharpness for stability — steady, but rarely the highest-scoring."),
+
+    # ---- KTC 2023 competition submissions (run as external plugins) ----------
+    (("cuqi",),
+     "A DTU (Denmark) &lsquo;CUQI&rsquo; competition submission &mdash; a regularized linear "
+     "difference reconstruction built on the official KTC solver, refined with Chan&ndash;Vese "
+     "segmentation and extra Tikhonov regularization that penalizes regions near the removed "
+     "electrodes.",
+     "Because it is a carefully tuned physics-based difference method with electrode-aware "
+     "regularization, it reconstructs typical cases accurately and is one of the stronger methods "
+     "here; its accuracy still falls at the hardest levels, where the most electrode data is "
+     "missing."),
+    (("abc2",),
+     "The UFABC (Brazil) &lsquo;ABC2&rsquo; submission &mdash; <i>Deep Image Prior</i> with Total "
+     "Variation: an untrained convolutional network whose weights are optimized <i>per image</i> to "
+     "fit the measured voltages, regularized by total variation.",
+     "It is a deep-learning method that requires PyTorch and fits a fresh network to each sample. "
+     "When its dependencies are available it recovers the conductivity change directly; a score of "
+     "~0 in this run means it did not run to completion in this environment."),
+    (("e2e", "end_to_end", "endtoend"),
+     "An <i>end-to-end</i> deep-learning submission &mdash; a neural network trained on synthetic "
+     "random-polygon phantoms that maps the boundary measurements directly to the reconstructed "
+     "image in one learned step.",
+     "As a trained network it needs PyTorch and its model weights; when available it predicts the "
+     "image directly from the measurements, but it can generalize poorly to shapes unlike its "
+     "training data. A score of ~0 here means it did not run in this environment."),
+    (("pnp", "plugandplay", "pnpmasked"),
+     "A <i>Plug-and-Play</i> (PnP) submission &mdash; iterative reconstruction that uses a learned "
+     "image denoiser as its prior, followed by a post-processing step that overlays synthetic masks "
+     "to sharpen the result.",
+     "It alternates a data-fitting step with a neural-network denoiser, so it relies on PyTorch; "
+     "when available it produces regularized reconstructions, but a score of ~0 here means the "
+     "dependency was missing and it produced no output."),
+    (("postprocessing", "post_processing", "unet"),
+     "The Bremen post-processing <i>U-Net</i> submission &mdash; a neural network trained on "
+     "synthetic phantoms that takes an initial physics reconstruction and cleans it up and segments "
+     "it into the final image.",
+     "As a trained U-Net it needs PyTorch and its model weights; when available it refines an "
+     "initial reconstruction, but a score of ~0 here means those were unavailable so it produced no "
+     "reconstruction."),
+    (("ml_inverse", "mlinverse", "toyml"),
+     "A lightweight &lsquo;toy&rsquo; machine-learning inverse method &mdash; a small demonstration "
+     "plugin that maps the measurements to a 256&times;256 image.",
+     "It is a minimal test method rather than a competitive algorithm &mdash; included mainly to "
+     "show that new plugins can be added and benchmarked &mdash; so its scores are expectedly low."),
 ]
 
 
 def _method_profile(name: str) -> tuple[str, str]:
-    key = name.lower().replace(" ", "")
+    # Normalize by also removing separators so names like "ml_inverse_method_2"
+    # or "KTC2023_CUQI2_main" match short aliases ("ml_inverse", "cuqi").
+    key = name.lower().replace(" ", "").replace("_", "").replace("-", "")
     for aliases, definition, why in _METHOD_PROFILES:
         if any(a.replace("_", "").replace("-", "") in key for a in aliases):
             return definition, why
@@ -1175,28 +1221,45 @@ def _method_deepdive_section(summary: list[dict], results: list[dict]) -> str:
         worst_lv = min(lv_mean, key=lv_mean.get) if lv_mean else None
         drop = (lv_mean[best_lv] - lv_mean[worst_lv]) if lv_mean else 0.0
         dr = row.get("dice_resistive"); dc = row.get("dice_conductive")
+        ktc = float(row.get("ktc_score", 0.0) or 0.0)
+        grade = str(row.get("grade", "?"))
+        # A method that scores ~0 with no object overlap did not actually
+        # produce a reconstruction (e.g. a deep-learning method whose PyTorch
+        # dependency/model was unavailable). Report that honestly instead of
+        # pretending it "recovers conductive regions least well".
+        no_output = abs(ktc) < 0.005 and (
+            not isinstance(dc, (int, float)) or dc < 0.02
+        )
+
         weak_cls = ""
-        if isinstance(dr, (int, float)) and isinstance(dc, (int, float)):
+        if not no_output and isinstance(dr, (int, float)) and isinstance(dc, (int, float)):
             weak_cls = ("conductive" if dc < dr else "resistive")
             weak_val = min(dr, dc)
 
-        grade = str(row.get("grade", "?"))
-        stat_bits = [f"mean KTC <b>{row['ktc_score']:.3f}</b> (grade {grade})"]
-        if best_lv is not None and worst_lv is not None and best_lv != worst_lv:
-            stat_bits.append(f"strongest at level {best_lv} ({lv_mean[best_lv]:.3f}), "
-                             f"weakest at level {worst_lv} ({lv_mean[worst_lv]:.3f})")
-        if weak_cls:
-            stat_bits.append(f"recovers {weak_cls} regions least well (Dice {weak_val:.2f})")
+        if no_output:
+            stat_bits = ["produced <b>no usable reconstruction</b> in this run (mean KTC 0.000)"]
+        else:
+            stat_bits = [f"mean KTC <b>{row['ktc_score']:.3f}</b> (grade {grade})"]
+            if best_lv is not None and worst_lv is not None and best_lv != worst_lv:
+                stat_bits.append(f"strongest at level {best_lv} ({lv_mean[best_lv]:.3f}), "
+                                 f"weakest at level {worst_lv} ({lv_mean[worst_lv]:.3f})")
+            if weak_cls:
+                stat_bits.append(f"recovers {weak_cls} regions least well (Dice {weak_val:.2f})")
 
         # A data-tied closing sentence that connects mechanism to this run.
         tie = ""
-        if drop > 0.15:
+        if no_output:
+            tie = (" A mean score of essentially zero with no conductive-object overlap means the "
+                   "method did not produce a usable reconstruction in this run — commonly because a "
+                   "required dependency (e.g. PyTorch) or trained model file was unavailable in this "
+                   "environment, so this is not a reflection of the method's true quality.")
+        elif drop > 0.15:
             tie = (f" In this run that shows up as a steep {drop:.2f} KTC fall from its best to its "
                    f"worst difficulty level — the instability described above.")
         elif drop > 0.0:
             tie = (f" Here it holds up fairly well, losing only {drop:.2f} KTC from its easiest to "
                    f"hardest level.")
-        if row["ktc_score"] < 0:
+        if not no_output and row["ktc_score"] < 0:
             tie += (" Its negative mean confirms it is, on average, not beating the empty-tank "
                     "baseline on this data.")
 
