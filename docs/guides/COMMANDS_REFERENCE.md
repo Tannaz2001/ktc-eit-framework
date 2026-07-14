@@ -470,9 +470,9 @@ python -c "import json; d=json.load(open('outputs/scores_nested.json'));
 ```bash
 # Read guides
 cat README.md
-cat RUN_GUIDE.md
-cat FRICTION_REPORT.md
-cat PLUGINS.md
+cat docs/guides/RUN_GUIDE.md
+cat docs/project/FRICTION_REPORT.md
+cat docs/guides/PLUGINS.md
 
 # View constraints
 cat constraint.txt

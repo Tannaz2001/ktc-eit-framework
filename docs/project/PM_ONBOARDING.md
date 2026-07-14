@@ -55,7 +55,7 @@ then reads.
 large, and it's the official competition dataset with its own license). New
 team members have to download it separately and drop it into the right
 folder. This is the single biggest "why isn't this working" cause for
-anyone new — see [RUN_GUIDE.md](RUN_GUIDE.md).
+anyone new — see [RUN_GUIDE.md](../guides/RUN_GUIDE.md).
 
 ---
 
@@ -81,7 +81,7 @@ anyone new — see [RUN_GUIDE.md](RUN_GUIDE.md).
   competition-winning CNN) are external programs in a different Python
   environment that we call as a subprocess — much more fragile to wire up.
   This distinction is the source of most "adding a new method is hard"
-  complaints. Full writeup: [ARCHITECTURE_GAP.md](ARCHITECTURE_GAP.md).
+  complaints. Full writeup: [ARCHITECTURE_GAP.md](../architecture/ARCHITECTURE_GAP.md).
 - **Runner / BatchRunner** — the internal component that loops over every
   method × level × sample combination and executes them.
 - **`external_methods/`** — folder where new/experimental methods get
@@ -105,7 +105,7 @@ anyone new — see [RUN_GUIDE.md](RUN_GUIDE.md).
   still requires manual engineering work** — hardcoded subprocess glue,
   path detection, Python-version juggling. There's an agreed design
   (manifest-based method bundles, described in
-  [ARCHITECTURE_GAP.md](ARCHITECTURE_GAP.md)) to fix this, tracked as a
+  [ARCHITECTURE_GAP.md](../architecture/ARCHITECTURE_GAP.md)) to fix this, tracked as a
   multi-sprint roadmap item. If a stakeholder asks "why can't we just drag
   and drop any ML model in," this is the honest answer — it's on the
   roadmap, not yet built.
@@ -146,7 +146,7 @@ dev team right now.
   green check = tests pass, that's your merge gate signal.
 - The best low-effort way for you to see "is it working right now": run
   the dashboard locally (`streamlit run app.py`, or see
-  [RUN_GUIDE.md](RUN_GUIDE.md)) and look at the leaderboard tab — it's the
+  [RUN_GUIDE.md](../guides/RUN_GUIDE.md)) and look at the leaderboard tab — it's the
   single view that answers "which method is winning and by how much."
 
 ---
@@ -158,12 +158,12 @@ docs from scratch, just know where to point people:
 
 | Doc | Read this when you need to... |
 |---|---|
-| [README.md](README.md) | Get the overall project layout and quick setup |
-| [RUN_GUIDE.md](RUN_GUIDE.md) | Actually run the pipeline/dashboard yourself, including dataset download |
-| [PLUGINS.md](PLUGINS.md) | Understand how someone adds a new reconstruction method |
-| [ARCHITECTURE_GAP.md](ARCHITECTURE_GAP.md) | Understand the ML-method-upload roadmap/gap mentioned above |
+| [README.md](../../README.md) | Get the overall project layout and quick setup |
+| [RUN_GUIDE.md](../guides/RUN_GUIDE.md) | Actually run the pipeline/dashboard yourself, including dataset download |
+| [PLUGINS.md](../guides/PLUGINS.md) | Understand how someone adds a new reconstruction method |
+| [ARCHITECTURE_GAP.md](../architecture/ARCHITECTURE_GAP.md) | Understand the ML-method-upload roadmap/gap mentioned above |
 | [FRICTION_REPORT.md](FRICTION_REPORT.md) | See what pain points new devs hit and what's already fixed |
-| [COMMANDS_REFERENCE.md](COMMANDS_REFERENCE.md) | Look up a specific CLI command |
+| [COMMANDS_REFERENCE.md](../guides/COMMANDS_REFERENCE.md) | Look up a specific CLI command |
 | `docs/` folder | Deep-dive technical specs (method adapters, hull plugin, dashboard internals) |
 
 ---

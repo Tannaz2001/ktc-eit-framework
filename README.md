@@ -161,7 +161,8 @@ as plugins; some need extra dependencies (see the table).
 | 6 | BackProjection | −0.02 |
 
 You can add your own method as a plugin without touching the core — see
-[PLUGINS.md](PLUGINS.md) and [EXTERNAL_METHODS.md](EXTERNAL_METHODS.md).
+[PLUGINS.md](docs/guides/PLUGINS.md) and
+[EXTERNAL_METHODS.md](docs/guides/EXTERNAL_METHODS.md).
 
 ---
 
@@ -225,8 +226,10 @@ ktc-eit-framework/
 └── docs/                      # dashboard, plugin, and adapter documentation
 ```
 
-More docs: [RUN_GUIDE.md](RUN_GUIDE.md) · [COMMANDS_REFERENCE.md](COMMANDS_REFERENCE.md) ·
-[PLUGINS.md](PLUGINS.md) · [docs/README_DASHBOARD.md](docs/README_DASHBOARD.md)
+More docs: [RUN_GUIDE.md](docs/guides/RUN_GUIDE.md) ·
+[COMMANDS_REFERENCE.md](docs/guides/COMMANDS_REFERENCE.md) ·
+[PLUGINS.md](docs/guides/PLUGINS.md) ·
+[README_DASHBOARD.md](docs/guides/README_DASHBOARD.md)
 
 ---
 

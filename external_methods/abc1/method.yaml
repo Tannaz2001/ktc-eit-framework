@@ -1,0 +1,16 @@
+name: abc1
+description: Auto-generated wrapper for uploaded ML/KTC zip.
+
+runtime:
+  python_versions: ["3.12", "3.11", "3.10"]
+  env_override: ABC1_PYTHON
+  check_import: tensorflow
+
+solver:
+  entry_point: main_python.py
+  working_dir: .
+  timeout: 900
+  args: ["input_dir", "output_dir", "level"]
+
+weights:
+  - ultimate_cnn1.h5
