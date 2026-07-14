@@ -30,7 +30,7 @@ jobs:
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
+          username: sahil2705
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Extract version from git tag or commit
@@ -51,11 +51,11 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ secrets.DOCKER_USERNAME }}/ktc-dashboard:${{ steps.meta.outputs.VERSION }}
-            ${{ secrets.DOCKER_USERNAME }}/ktc-dashboard:${{ steps.meta.outputs.SHORT_SHA || 'latest' }}
-            ${{ secrets.DOCKER_USERNAME }}/ktc-dashboard:latest
-          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/ktc-dashboard:buildcache
-          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/ktc-dashboard:buildcache,mode=max
+            sahil2705/ktc-dashboard:${{ steps.meta.outputs.VERSION }}
+            sahil2705/ktc-dashboard:${{ steps.meta.outputs.SHORT_SHA || 'latest' }}
+            sahil2705/ktc-dashboard:latest
+          cache-from: type=registry,ref=sahil2705/ktc-dashboard:buildcache
+          cache-to: type=registry,ref=sahil2705/ktc-dashboard:buildcache,mode=max
 
       - name: Docker image digest
         run: echo "Image pushed with digest ${{ steps.docker_build.outputs.digest }}"
@@ -63,9 +63,9 @@ jobs:
       - name: Update Docker Hub description
         uses: peter-evans/dockerhub-description@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
+          username: sahil2705
           password: ${{ secrets.DOCKER_PASSWORD }}
-          repository: ${{ secrets.DOCKER_USERNAME }}/ktc-dashboard
+          repository: sahil2705/ktc-dashboard
           short-description: "KTC EIT Benchmarking Framework - Interactive Streamlit dashboard"
           description: |
             # KTC EIT Reconstruction Framework - Docker Image

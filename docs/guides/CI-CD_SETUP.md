@@ -18,17 +18,18 @@ Three GitHub Actions workflows are configured:
 
 ### Step 1: Add GitHub Secrets
 
-GitHub needs your Docker Hub credentials to push images. Add them as **repository secrets**:
+GitHub needs your Docker Hub authentication to push images. Add **one secret**:
 
-1. Go to your repo: `https://github.com/Sahil-exe/ktc-eit-framework`
+1. Go to: `https://github.com/Tannaz2001/ktc-eit-framework` (upstream)
 2. Click **Settings** → **Secrets and variables** → **Actions**
 3. Click **New repository secret**
-4. Add two secrets:
+4. Add one secret:
 
 | Name | Value |
 |------|-------|
-| `DOCKER_USERNAME` | Your Docker Hub username (e.g., `sahil2705`) |
-| `DOCKER_PASSWORD` | Docker Hub Personal Access Token (NOT password) |
+| `DOCKER_PASSWORD` | Docker Hub Personal Access Token (from sahil2705's account) |
+
+Note: The username is hardcoded as `sahil2705` in the workflow, so only the token is needed.
 
 ### Step 2: Create Docker Hub Personal Access Token
 
