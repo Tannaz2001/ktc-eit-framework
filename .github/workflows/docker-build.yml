@@ -1,0 +1,96 @@
+name: Docker Build & Push
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Dockerfile'
+      - 'docker-compose.yml'
+      - '.dockerignore'
+      - 'requirements.txt'
+      - 'app.py'
+      - 'src/**'
+      - 'dashboard/**'
+      - '.github/workflows/docker-build.yml'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract version from git tag or commit
+        id: meta
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          else
+            VERSION="latest"
+            SHORT_SHA=$(git rev-parse --short HEAD)
+            echo "SHORT_SHA=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          fi
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/ktc-dashboard:${{ steps.meta.outputs.VERSION }}
+            ${{ secrets.DOCKER_USERNAME }}/ktc-dashboard:${{ steps.meta.outputs.SHORT_SHA || 'latest' }}
+            ${{ secrets.DOCKER_USERNAME }}/ktc-dashboard:latest
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/ktc-dashboard:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/ktc-dashboard:buildcache,mode=max
+
+      - name: Docker image digest
+        run: echo "Image pushed with digest ${{ steps.docker_build.outputs.digest }}"
+
+      - name: Update Docker Hub description
+        uses: peter-evans/dockerhub-description@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          repository: ${{ secrets.DOCKER_USERNAME }}/ktc-dashboard
+          short-description: "KTC EIT Benchmarking Framework - Interactive Streamlit dashboard"
+          description: |
+            # KTC EIT Reconstruction Framework - Docker Image
+
+            A benchmarking and analysis platform for Electrical Impedance Tomography (EIT)
+            image-reconstruction methods, built on the Kuopio Tomography Challenge (KTC) 2023 dataset.
+
+            ## Quick Start
+
+            ```bash
+            docker run -p 8501:8501 sahil2705/ktc-dashboard:latest
+            ```
+
+            Visit http://localhost:8501
+
+            ## Documentation
+
+            - [GitHub Repository](https://github.com/Sahil-exe/ktc-eit-framework)
+            - [Deployment Guide](https://github.com/Sahil-exe/ktc-eit-framework/blob/main/docs/guides/DEPLOYMENT.md)
+            - [Setup Guide](https://github.com/Sahil-exe/ktc-eit-framework/blob/main/docs/guides/RUN_GUIDE.md)
+
+            ## Features
+
+            - Interactive Streamlit dashboard
+            - Benchmark multiple EIT reconstruction methods
+            - Degradation analysis across 7 difficulty levels
+            - Exportable HTML reports with explanations
+            - Docker Compose support for easy deployment
