@@ -164,7 +164,7 @@ docs from scratch, just know where to point people:
 | [ARCHITECTURE_GAP.md](../architecture/ARCHITECTURE_GAP.md) | Understand the ML-method-upload roadmap/gap mentioned above |
 | [FRICTION_REPORT.md](FRICTION_REPORT.md) | See what pain points new devs hit and what's already fixed |
 | [COMMANDS_REFERENCE.md](../guides/COMMANDS_REFERENCE.md) | Look up a specific CLI command |
-| `docs/` folder | Deep-dive technical specs (method adapters, hull plugin, dashboard internals) |
+| other guides in [docs/guides/](../guides/) ([METHOD_ADAPTER.md](../guides/METHOD_ADAPTER.md), [HULL_PLUGIN.md](../guides/HULL_PLUGIN.md), [README_DASHBOARD.md](../guides/README_DASHBOARD.md), …) | Deep-dive technical specs (method adapters, hull plugin, dashboard internals) |
 
 ---
 

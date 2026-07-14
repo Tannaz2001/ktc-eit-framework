@@ -46,6 +46,20 @@ measured and compared fairly.
 
 ## Quick Start
 
+### Option 1: Docker (Recommended)
+
+**Fastest setup — no Python or dependencies needed:**
+
+```bash
+docker run -p 8501:8501 sahil2705/ktc-dashboard:latest
+```
+
+Then visit **http://localhost:8501** in your browser.
+
+> Dashboard will load sample data from included training set. To run full benchmarks on evaluation data, see [Docker Deployment Guide](docs/guides/DEPLOYMENT.md).
+
+### Option 2: Local Python
+
 Requires **Python 3.10+**. From a terminal in the project root:
 
 ```bash
@@ -105,10 +119,11 @@ EvaluationData/
 - `data1/2/3.mat` correspond to samples **A / B / C**.
 - The ground truth is the same physical object at every level (higher levels only remove
   electrodes), so each level folder holds the same `*_true.mat` masks.
-- These `.mat` files are **not stored in git** (they are large). If your checkout is missing
-  them, obtain the KTC 2023 challenge data (see [About](#9-about)) and place it in the layout
-  above. A copy of the challenge voltage data and ground truths also ships inside
-  `external_methods/ktc2023_postprocessing-master/` and can be arranged into this structure.
+- These `.mat` files are **not stored in git** (they are large). To download:
+  - **Run:** `bash scripts/download_ktc_dataset.sh` (macOS/Linux) or `scripts\download_ktc_dataset.bat` (Windows)
+  - Or follow manual instructions at [docs/guides/RUN_GUIDE.md](docs/guides/RUN_GUIDE.md#-data-setup)
+  - Challenge data: https://ktc2023.uta.fi/
+  - Alternatively, a copy ships in `external_methods/ktc2023_postprocessing-master/` that can be arranged into the layout above.
 
 Four real **training** samples are also included under `Codes_Matlab/TrainingData/` for quick
 experiments via `configs/training_experiment.yaml`.

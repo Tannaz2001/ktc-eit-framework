@@ -11,6 +11,12 @@ requires-python = ">=3.10"
 # requirements.lock.txt (pinned snapshot of a known-good venv).
 dependencies = []
 
+[project.optional-dependencies]
+# GPU/ML method variants (optional, not needed for core framework)
+gpu = ["torch>=2.0", "torch-geometric>=2.3", "deepinv>=0.1.0"]
+tensorflow = ["tensorflow>=2.12", "opencv-python>=4.8"]
+all-methods = ["torch>=2.0", "torch-geometric>=2.3", "deepinv>=0.1.0", "tensorflow>=2.12", "opencv-python>=4.8"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

@@ -1,0 +1,21 @@
+# Environments and caches
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+src/*.egg-info/
+.git/
+
+# Large data/results — mounted as volumes at runtime instead (see docker-compose.yml)
+outputs/
+
+# External solver repos — not needed by the dashboard image
+external_methods/
+KTC2023_E2E/
+KTC2023_PNPmasked/
+Codes_Matlab/
+
+# Docker files themselves
+Dockerfile
+docker-compose.yml
+.dockerignore

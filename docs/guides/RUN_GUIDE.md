@@ -36,6 +36,27 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
+### (Optional) Install GPU/ML methods
+By default, only core methods (BackProjection, GaussNewton, LinearDifference) are installed. 
+To enable external ML methods that require PyTorch, TensorFlow, or DeepInv, install optional dependencies:
+
+**For PyTorch-based methods (ABC2, E2E, PNPMasked):**
+```bash
+pip install -e ".[gpu]"
+```
+
+**For TensorFlow-based CompetitionCNN:**
+```bash
+pip install -e ".[tensorflow]"
+```
+
+**For all methods:**
+```bash
+pip install -e ".[all-methods]"
+```
+
+> ⚠️ **Note:** These are large dependencies (2-3 GB total). Only install what you need.
+
 ---
 
 ## 2️⃣ DATA SETUP
