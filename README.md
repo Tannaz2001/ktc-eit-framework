@@ -46,6 +46,20 @@ measured and compared fairly.
 
 ## Quick Start
 
+### Option 1: Docker (Recommended)
+
+**Fastest setup — no Python or dependencies needed:**
+
+```bash
+docker run -p 8501:8501 sahil2705/ktc-dashboard:latest
+```
+
+Then visit **http://localhost:8501** in your browser.
+
+> Dashboard will load sample data from included training set. To run full benchmarks on evaluation data, see [Docker Deployment Guide](docs/guides/DEPLOYMENT.md).
+
+### Option 2: Local Python
+
 Requires **Python 3.10+**. From a terminal in the project root:
 
 ```bash
