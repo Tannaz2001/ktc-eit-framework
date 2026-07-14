@@ -4,5 +4,19 @@ services:
     ports:
       - "8501:8501"
     volumes:
+      # Dataset (required for benchmark runs)
+      - ./EvaluationData:/app/EvaluationData
       # Reconstruction results (2.7 GB) live outside the image
       - ./outputs:/app/outputs
+      # Training data for quick tests
+      - ./Codes_Matlab:/app/Codes_Matlab
+    environment:
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_HEADLESS=true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
