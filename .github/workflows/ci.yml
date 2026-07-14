@@ -2,19 +2,36 @@ name: CI
 
 on:
   push:
-    branches: [main, final-sprint]
+    branches: [main]
   pull_request:
+    branches: [main]
+  workflow_dispatch:   # lets us run it manually from the Actions tab
+
+# If two pushes land close together, cancel the older run instead of paying for both.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Don't cancel the Windows job just because Linux failed (and vice versa) —
+      # on a red build we want to see every platform's result.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
 
-      - uses: actions/setup-python@v5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
+          cache: pip          # cache wheels between runs -> much faster CI
 
       - name: Install dependencies
         run: |
@@ -25,10 +42,10 @@ jobs:
       # Gate on real errors only (syntax errors, undefined names).
       # Full style enforcement is deferred until the legacy violations
       # (~1200 as of Phase 0) are cleaned up.
-      - name: Lint (flake8, errors only)
+      - name: Lint (flake8 — errors only)
         run: |
           pip install flake8
           flake8 --select=E9,F63,F7,F82 src tests app.py run.py scripts
 
       - name: Run tests (including dashboard smoke test)
-        run: pytest tests/ -q
+        run: pytest tests/ -q --tb=short

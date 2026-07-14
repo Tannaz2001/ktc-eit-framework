@@ -1,5 +1,9 @@
 # KTC EIT Reconstruction Framework
 
+[![CI](https://github.com/Tannaz2001/ktc-eit-framework/actions/workflows/ci.yml/badge.svg)](https://github.com/Tannaz2001/ktc-eit-framework/actions/workflows/ci.yml)
+[![Docker Build](https://github.com/Tannaz2001/ktc-eit-framework/actions/workflows/docker-build.yml/badge.svg)](https://github.com/Tannaz2001/ktc-eit-framework/actions/workflows/docker-build.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
+
 A benchmarking and analysis platform for **Electrical Impedance Tomography (EIT)**
 image-reconstruction methods, built on the **Kuopio Tomography Challenge (KTC) 2023**
 dataset. It runs many reconstruction algorithms on the same data, scores them with the

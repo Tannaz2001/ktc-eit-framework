@@ -46,6 +46,7 @@ jobs:
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image
+        id: docker_build          # needed so the digest step below can read this step's outputs
         uses: docker/build-push-action@v5
         with:
           context: .
