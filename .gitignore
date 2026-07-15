@@ -1,5 +1,5 @@
-# Dataset (download from Zenodo)
-EvaluationData/
+# Note: EvaluationData/ is intentionally tracked (584 KB — real KTC 2023
+# voltage measurements, not images, so it's small enough to ship in git).
 
 # MATLAB generated files
 Codes_Matlab/Output/

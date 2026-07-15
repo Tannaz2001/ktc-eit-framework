@@ -1,0 +1,28 @@
+# Full dependency set — enables every method in configs/ktc_all_methods.yaml
+# (the project's own definition of "all methods"), not just the 4 core
+# in-process ones. Layers on top of requirements.txt.
+#
+# Deliberately CPU-only, no CUDA:
+#   - tensorflow / opencv-python -> CompetitionCNN (ABC1 CNN post-processor)
+#   - torch (CPU wheel)         -> ktc2023_postprocessing_master
+# CUQI1, CUQI2_main and ml_inverse_method_2 need nothing beyond requirements.txt
+# (pure numpy/scipy/scikit-image).
+#
+# NOT included: ktc2023_abc2 (torchmetrics), ktc2023_e2e (deepinv),
+# ktc2023_pnpmasked (torch_geometric) — these are commented out of
+# configs/ktc_all_methods.yaml by the project itself because they pull in
+# a much heavier PyTorch-ecosystem stack for methods with no confirmed
+# leaderboard scores yet. Add torch_geometric/deepinv/torchmetrics
+# yourself (all have CPU wheels) if you want them too.
+
+-r requirements.txt
+
+# CompetitionCNN (ABC1) — plain "tensorflow" runs fine with no GPU present,
+# it simply won't try to use one. Avoids relying on the separately-packaged
+# "tensorflow-cpu" wheel, which has been on-again/off-again across releases.
+tensorflow>=2.15,<2.19
+opencv-python-headless>=4.8
+
+# ktc2023_postprocessing_master
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.1,<2.4

@@ -1,0 +1,29 @@
+# Override for `docker build -f Dockerfile.full` — unlike the lightweight
+# Dockerfile, this build needs external_methods/, Codes_Matlab/ and
+# EvaluationData/ so all 11 methods in configs/ktc_all_methods.yaml work.
+
+# Environments and caches
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+src/*.egg-info/
+.git/
+
+# Large data/results — mounted as volumes at runtime instead (see docker-compose.yml)
+outputs/
+
+# Redundant archives (already extracted as folders alongside them)
+external_methods/*.zip
+
+# Belongs only to ktc2023_e2e, which needs deepinv/torch_geometric and is
+# out of scope for this image — 849 MB of model weights, dead weight here.
+external_methods/KTC2023_E2E/models/
+
+# Docker files themselves
+Dockerfile
+Dockerfile.data
+Dockerfile.full
+docker-compose.yml
+.dockerignore
+Dockerfile.full.dockerignore

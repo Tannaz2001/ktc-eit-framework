@@ -35,6 +35,12 @@ def _find_submission_dir() -> Optional[Path]:
     2. Sibling of framework root: Framework/../KTC2023-ABC1/KTC2023_Python_A01+
     3. Environment variable: $ABC1_SUBMISSION_PATH
     4. CWD variants (for docker/alternate layouts)
+
+    Note: parents[3] assumes this file is at src/ktc_framework/methods/ under
+    the repo root. That only holds for an editable/source install — a real
+    `pip install .` (e.g. in Docker) puts this file under site-packages/, so
+    the CWD-relative candidates below are what actually resolve in that case
+    (run.py / streamlit always run with CWD == repo root).
     """
     # Framework root is 3 levels up from this file
     # src/ktc_framework/methods/competition_cnn.py -> parents[3] = KTC_WORK_HIS/
@@ -45,6 +51,7 @@ def _find_submission_dir() -> Optional[Path]:
         framework_root.parent / "KTC2023-ABC1" / "KTC2023_Python_A01+",
         framework_root / "KTC2023-ABC1" / "KTC2023_Python_A01+",
         Path(os.environ.get("ABC1_SUBMISSION_PATH", "")),
+        Path.cwd() / "external_methods" / "abc1",                  # ← non-editable installs (Docker)
         Path.cwd() / "KTC2023-ABC1" / "KTC2023_Python_A01+",
     ]
 
