@@ -3,11 +3,6 @@
 #
 # Build: docker build -f Dockerfile.full -t tannaz2001/ktc-dashboard:full .
 # Run:   docker run -p 8501:8501 tannaz2001/ktc-dashboard:full
-#
-# Does NOT include ktc2023_abc2 / ktc2023_e2e / ktc2023_pnpmasked — these
-# need torchmetrics/deepinv/torch_geometric and have no confirmed leaderboard
-# scores yet (see configs/ktc_all_methods.yaml, where the project itself
-# comments them out of the default run).
 
 FROM python:3.12-slim
 

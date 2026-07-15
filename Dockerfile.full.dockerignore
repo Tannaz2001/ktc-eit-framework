@@ -16,10 +16,6 @@ outputs/
 # Redundant archives (already extracted as folders alongside them)
 external_methods/*.zip
 
-# Belongs only to ktc2023_e2e, which needs deepinv/torch_geometric and is
-# out of scope for this image — 849 MB of model weights, dead weight here.
-external_methods/KTC2023_E2E/models/
-
 # Docker files themselves
 Dockerfile
 Dockerfile.data

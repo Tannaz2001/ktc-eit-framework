@@ -29,11 +29,6 @@ methods:
   - BackProjection
   - GaussNewton
   - CompetitionCNN
-  # New methods (separate configs: configs/ktc_abc2.yaml, ktc_e2e.yaml, ktc_pnpmasked.yaml)
-  # Uncomment after verifying dependencies with: pip install torchmetrics deepinv torch_geometric
-  # - ktc2023_abc2       # DIP+TV: slow (~30min/sample on CPU), no weights needed
-  # - ktc2023_e2e        # End-to-end UNet: requires deepinv; models bundled (847MB)
-  # - ktc2023_pnpmasked  # PnP+Graph UNet: requires torch_geometric; weights bundled (163KB)
 
 method_plugin_paths:
   - external_methods

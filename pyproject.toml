@@ -12,10 +12,10 @@ requires-python = ">=3.10"
 dependencies = []
 
 [project.optional-dependencies]
-# GPU/ML method variants (optional, not needed for core framework)
-gpu = ["torch>=2.0", "torch-geometric>=2.3", "deepinv>=0.1.0"]
-tensorflow = ["tensorflow>=2.12", "opencv-python>=4.8"]
-all-methods = ["torch>=2.0", "torch-geometric>=2.3", "deepinv>=0.1.0", "tensorflow>=2.12", "opencv-python>=4.8"]
+# Extra methods beyond the 4 core in-process ones (not needed for the core framework)
+tensorflow = ["tensorflow>=2.12", "opencv-python>=4.8"]  # CompetitionCNN
+torch = ["torch>=2.1"]                                   # ktc2023_postprocessing_master
+all-methods = ["tensorflow>=2.12", "opencv-python>=4.8", "torch>=2.1"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

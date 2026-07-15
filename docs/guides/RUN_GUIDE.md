@@ -36,26 +36,29 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### (Optional) Install GPU/ML methods
-By default, only core methods (BackProjection, GaussNewton, LinearDifference) are installed. 
-To enable external ML methods that require PyTorch, TensorFlow, or DeepInv, install optional dependencies:
-
-**For PyTorch-based methods (ABC2, E2E, PNPMasked):**
-```bash
-pip install -e ".[gpu]"
-```
+### (Optional) Install CompetitionCNN / postprocessing_master
+By default, only the 4 core in-process methods (BackProjection, GaussNewton,
+LinearDifference, ReferenceFEM/RegularizedFEM) plus CUQI1/CUQI2/ml_inverse_method_2
+(no extra deps) are runnable. Two more methods need extra packages:
 
 **For TensorFlow-based CompetitionCNN:**
 ```bash
 pip install -e ".[tensorflow]"
 ```
 
-**For all methods:**
+**For PyTorch-based ktc2023_postprocessing_master:**
+```bash
+pip install -e ".[torch]"
+```
+
+**For both:**
 ```bash
 pip install -e ".[all-methods]"
 ```
 
-> ⚠️ **Note:** These are large dependencies (2-3 GB total). Only install what you need.
+> Note: `ktc2023_postprocessing_master` also needs external model assets from a
+> university file-share (see its `method.yaml`) — without them it runs but
+> returns an all-zero score.
 
 ---
 

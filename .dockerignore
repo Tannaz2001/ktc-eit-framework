@@ -11,8 +11,6 @@ outputs/
 
 # External solver repos — not needed by the dashboard image
 external_methods/
-KTC2023_E2E/
-KTC2023_PNPmasked/
 Codes_Matlab/
 
 # Docker files themselves

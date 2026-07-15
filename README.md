@@ -79,14 +79,11 @@ docker-compose down        # stop when done
 ```
 
 **What this does:**
-- Runs all 7 levels × 11 methods (2 more than before: `CompetitionCNN` and
-  `ktc2023_postprocessing_master`, both previously skipped for missing deps)
+- Runs all 7 levels × 11 methods (2 more than the lightweight image:
+  `CompetitionCNN` and `ktc2023_postprocessing_master`, both previously
+  skipped for missing deps)
 - Visualizes results live on dashboard
 - Exports HTML report when done
-
-> Three methods (`ktc2023_abc2`, `ktc2023_e2e`, `ktc2023_pnpmasked`) are deliberately excluded —
-> they need three mutually incompatible CUDA/PyTorch versions and can't share one image. See
-> `configs/ktc_all_methods.yaml`.
 
 > For detailed Docker options and troubleshooting, see [Docker Deployment Guide](docs/guides/DEPLOYMENT.md).
 

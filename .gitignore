@@ -55,12 +55,3 @@ external_methods/abc1/MiscCodes/__pycache__/
 # Packaging build artifacts
 *.egg-info/
 
-# External method model weights and data (too large for git)
-external_methods/KTC2023_E2E/models/
-external_methods/KTC2023-ABC2/inputs/
-external_methods/KTC2023-ABC2/outputs/
-external_methods/KTC2023-ABC2/groundTruths/
-
-# Stray root-level clones (real code lives under external_methods/)
-/KTC2023_E2E/
-/KTC2023_PNPmasked/
