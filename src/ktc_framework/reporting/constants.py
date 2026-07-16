@@ -11,12 +11,11 @@ from __future__ import annotations
 # Keys are the canonical internal method names used in scores.json / per_run_metrics.json.
 # Any method not listed gets _METHOD_COLOR_FALLBACK (a neutral grey).
 METHOD_COLORS: dict[str, str] = {
-    "main": "#0072B2",
     "CompetitionCNN": "#D55E00",
     "BackProjection": "#009E73",
-    "GaussNewton": "#E69F00",
     "LinearDifferenceReconstruction": "#CC79A7",
-    "DampedLeastSquaresReconstruction": "#56B4E9",
+    "KTC2023_CUQI2_main": "#0072B2",
+    "KTC2023_CUQI1": "#56B4E9",
 }
 METHOD_COLOR_FALLBACK = "#64748B"
 

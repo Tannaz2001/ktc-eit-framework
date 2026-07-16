@@ -10,14 +10,12 @@ sys.path.insert(0, BASE_DIR)
 
 from ktc_framework.loaders.mock_data_plugin import MockDataPlugin
 from ktc_framework.methods.backprojection import BackProjection
-from ktc_framework.methods.gauss_newton import GaussNewton
 from ktc_framework.methods.level_set_plugin import LevelSetPlugin
 from ktc_framework.plugins.hull_plugin import HullAnalyzer
 from ktc_framework.methods.segment import segment
 
 @pytest.mark.parametrize("plugin_class", [
-    BackProjection,
-    GaussNewton
+    BackProjection
 ])
 def test_method_plugins_with_mock_data(plugin_class):
     batch = MockDataPlugin("").load_sample(level=1, sample="A")
