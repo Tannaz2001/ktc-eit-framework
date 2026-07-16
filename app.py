@@ -81,6 +81,16 @@ st.set_page_config(
 apply_theme()
 
 
+# Auto-load the latest run on startup (when container starts)
+try:
+    latest_run = find_latest_run()
+    outputs_dir = Path("outputs")
+    if latest_run and outputs_dir.exists():
+        (outputs_dir / "latest.txt").write_text(str(latest_run.resolve()))
+except Exception:
+    pass
+
+
 # =========================================================
 # Publish / Unpublish — promote an external method's current scores into a
 # small, per-method snapshot that IS git-tracked (unlike outputs/, which is

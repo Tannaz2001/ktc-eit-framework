@@ -97,14 +97,17 @@ TOTAL:                          1.61 GB
 
 ### 3️⃣ OPTIONAL DEPENDENCIES
 
-#### GPU/ML Methods (can be added via `pip install -e ".[gpu]"`)
-- [ ] `torch>=2.0` — PyTorch (for ABC2, E2E, PNPMasked)
-- [ ] `torch-geometric>=2.3` — Graph neural networks
-- [ ] `deepinv>=0.1.0` — Deep inverse models
-- [ ] `tensorflow>=2.12` — TensorFlow (for CompetitionCNN)
-- [ ] `opencv-python>=4.8` — Computer vision
+#### CPU-only extras (requirements-full.txt, used by Dockerfile.full)
+- [x] `tensorflow` — for CompetitionCNN
+- [x] `opencv-python-headless` — for CompetitionCNN
+- [x] `torch` (CPU wheel) — for ktc2023_postprocessing_master
 
-**Size impact:** +2-3 GB if all installed
+**Size impact:** ~+4.7 GB (6.28 GB full image vs 1.61 GB lightweight)
+
+Note: `ktc2023_abc2`, `ktc2023_e2e`, `ktc2023_pnpmasked` (which needed
+torchmetrics/deepinv/torch_geometric on three mutually incompatible CUDA
+versions) have been removed from the project entirely — not just excluded
+from this image.
 
 ---
 
@@ -178,16 +181,13 @@ dashboard/
 #### Experiment Configs (configs/)
 ```
 configs/
-├── ktc_all_methods.yaml        # ✅ Full benchmark (7 levels × 6 methods)
+├── ktc_all_methods.yaml        # ✅ Full benchmark (7 levels × 11 methods)
 ├── training_experiment.yaml    # ✅ Quick test (1 level, 4 samples)
 ├── phantom_test.yaml           # ✅ Phantom data test
-├── ktc_abc2.yaml              # ✅ ABC2 method config
-├── ktc_e2e.yaml               # ✅ E2E method config
-├── ktc_pnpmasked.yaml         # ✅ PNP method config
 ├── runtime_*.yaml             # ✅ Runtime configs (various)
 └── experiment.yaml            # ✅ Template config
 ```
-**Status:** ✅ All present (10 configs)
+**Status:** ✅ All present
 
 #### Streamlit Config
 - [x] `.streamlit/config.toml` — Streamlit settings
@@ -300,17 +300,19 @@ tests/
 
 ---
 
-### 🔟 EXTERNAL METHODS (Optional)
+### 🔟 EXTERNAL METHODS
 
 Located in `external_methods/`:
-- [ ] `abc1/` — ABC1 competition method
-- [ ] `KTC2023-ABC2/` — ABC2 with DIP+TV
-- [ ] `KTC2023-CUQI2-main/` — CUQI2 method
-- [ ] `KTC2023_E2E/` — End-to-end UNet
-- [ ] `KTC2023_PNPmasked/` — PnP+Graph method
-- [ ] `ktc2023_postprocessing-master/` — Postprocessing utilities
+- [x] `abc1/` — ABC1 competition method (needs tensorflow)
+- [x] `KTC2023-CUQI2-main/` — CUQI2 method (no extra deps)
+- [x] `ktc2023_postprocessing-master/` — Postprocessing (needs torch; also needs
+      external model assets from a university file-share not bundled here)
 
-**Status:** ✅ Present but optional (needs extra dependencies)
+**Status:** ✅ Present, CPU-only, all in `requirements-full.txt`
+
+Removed entirely (not just excluded): `KTC2023-ABC2`, `KTC2023_E2E`,
+`KTC2023_PNPmasked` — needed torchmetrics/deepinv/torch_geometric on three
+mutually incompatible CUDA versions.
 
 ---
 
