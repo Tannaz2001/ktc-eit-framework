@@ -18,17 +18,11 @@ levels: [1, 2, 3, 4, 5, 6, 7]
 samples: [A, B, C]
 
 methods:
-  - ktc2023_postprocessing_master
-  - KTC2023_CUQI2_main
-  - ml_inverse_method_2
-  - KTC2023_CUQI1
-  - main
-  - RegularizedFEMReconstruction
-  - ReferenceFEM
-  - LinearDifferenceReconstruction
   - BackProjection
-  - GaussNewton
   - CompetitionCNN
+  - LinearDifferenceReconstruction
+  - KTC2023_CUQI2_main
+  - KTC2023_CUQI1
 
 method_plugin_paths:
   - external_methods

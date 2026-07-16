@@ -21,14 +21,11 @@ from ktc_framework.reporting.data_layer import (
     load_run_data,
 )
 
-HIDDEN_METHODS = {"ReferenceFEM", "RegularizedFEMReconstruction"}
+HIDDEN_METHODS = set()
 BUILTIN_METHODS = {
     "BackProjection",
     "CompetitionCNN",
-    "GaussNewton",
     "LinearDifferenceReconstruction",
-    "ReferenceFEM",
-    "RegularizedFEMReconstruction",
 }
 
 METRIC_LABEL_TO_KEY = dict(METRIC_SPECS)

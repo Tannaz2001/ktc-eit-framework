@@ -4,7 +4,6 @@ import numpy as np
 import pytest
 from ktc_framework.loaders.phantom_data_plugin import PhantomDataPlugin
 from ktc_framework.methods.backprojection import BackProjection
-from ktc_framework.methods.gauss_newton import GaussNewton
 
 
 class TestPhantomBasic:
@@ -115,27 +114,6 @@ class TestPhantomWithMethods:
         # dtype may be int64 or uint8 depending on backend
         assert pred.dtype in (np.uint8, np.int64, int)
         assert set(np.unique(pred)) <= {0, 1, 2}
-
-    def test_phantom_with_gauss_newton(self):
-        """Test that phantom data works with GaussNewton.
-
-        Note: GaussNewton may fail on synthetic data due to numerical precision,
-        so we allow exceptions and just check that it doesn't crash badly.
-        """
-        plugin = PhantomDataPlugin()
-        batch = plugin.load_sample(level=1, sample="A")
-
-        gn = GaussNewton()
-        try:
-            pred = gn.reconstruct(batch)
-            assert pred.shape == (256, 256)
-            # dtype may be int64 or uint8
-            assert pred.dtype in (np.uint8, np.int64, int)
-            assert set(np.unique(pred)) <= {0, 1, 2}
-        except Exception:
-            # Synthetic data may cause numerical errors in GaussNewton
-            # This is acceptable as long as it doesn't crash ungracefully
-            pass
 
     def test_phantom_produces_non_trivial_reconstructions(self):
         """Test that reconstructions aren't all-water."""

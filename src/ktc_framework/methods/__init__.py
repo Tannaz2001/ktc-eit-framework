@@ -12,11 +12,6 @@ To add a new method:
 
 # fmt: off
 from ktc_framework.methods.backprojection import BackProjection                # noqa: F401
-from ktc_framework.methods.gauss_newton import GaussNewton                    # noqa: F401
-from ktc_framework.methods.reference_fem import (                             # noqa: F401
-    LinearDifferenceReconstruction,
-    RegularizedFEMReconstruction,
-    ReferenceFEM,
-)
+from ktc_framework.methods.reference_fem import LinearDifferenceReconstruction # noqa: F401
 from ktc_framework.methods.competition_cnn import CompetitionCNN              # noqa: F401
 # fmt: on
