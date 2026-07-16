@@ -7,7 +7,10 @@ from typing import Optional
 import json
 from datetime import datetime
 
-from dashboard.config import get_config
+try:
+    from dashboard.config import get_config
+except ImportError:
+    from src.dashboard.config import get_config
 
 
 class JsonFormatter(logging.Formatter):
