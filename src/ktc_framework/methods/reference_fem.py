@@ -352,13 +352,3 @@ class LinearDifferenceReconstruction(MethodPlugin):
                 f"LinearDifferenceReconstruction failed ({exc!r}); returning zeros."
             )
             return np.zeros((256, 256), dtype=np.uint8)
-
-
-@register
-class RegularizedFEMReconstruction(LinearDifferenceReconstruction):
-    """Backward-compatible alias for the same inverse reconstruction."""
-
-
-@register
-class ReferenceFEM(LinearDifferenceReconstruction):
-    """Backward-compatible alias for older configs."""

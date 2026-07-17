@@ -210,6 +210,14 @@ class CompetitionCNN(MethodPlugin):
     so the benchmark can continue.
     """
 
+    # The framework's per-result cache (experiment_runner._result_cache_key)
+    # keys on this class's own source code, which never changes when the
+    # *external* abc1/ submission directory is added, removed, or its model
+    # weights are replaced. Without this hook, a run that hit the "submission
+    # not found" / "TensorFlow missing" zero-fallback keeps replaying that
+    # cached zero forever, even after the external dependency is fixed.
+    __cache_fingerprint__ = f"abc1={_ABC1_CWD}|tf={_TF_AVAILABLE}|model={_MODEL_FP}"
+
     def reconstruct(self, batch: DataBatch) -> np.ndarray:  # noqa: C901
         tmp_input: Optional[str] = None
         tmp_output: Optional[str] = None
