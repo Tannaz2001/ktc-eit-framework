@@ -23,12 +23,17 @@ services:
       # Benchmark results only. These are multi-GB and machine-specific, so
       # they live on the host and outlive the container.
       #
-      # EvaluationData/ and Codes_Matlab/ are deliberately NOT mounted: the
-      # image already bundles them (~42 MB). Bind-mounting them would make
-      # Docker create empty directories on any machine that lacks the
-      # folders, masking the bundled copies and leaving the dashboard with
-      # no data.
+      # EvaluationData/ is deliberately NOT mounted: the image already
+      # bundles it (~42 MB). Bind-mounting it would make Docker create an
+      # empty directory on any machine that lacks the folder, masking the
+      # bundled copy and leaving the dashboard with no data.
       - ./outputs:/app/outputs
+      # Jacobian matrix cache (shared across team)
+      - ./outputs/opcache/jacobians:/app/cache/jacobians
+      # Training data for quick tests. Note: on a machine with no local
+      # Codes_Matlab/ folder, this mount creates an empty dir and masks the
+      # image's bundled copy.
+      - ./Codes_Matlab:/app/Codes_Matlab
       # Runtime-generated benchmark configs (dashboard writes here; root-owned
       # image copy isn't writable by the non-root container user otherwise)
       - ./configs:/app/configs

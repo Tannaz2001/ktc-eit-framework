@@ -9,7 +9,6 @@ import KTCScoring
 import KTCAux
 import matplotlib.pyplot as plt
 import glob
-from skimage.segmentation import chan_vese
 
 def main():
 
@@ -120,26 +119,22 @@ def main():
         Uel = mat_dict2["Uel"]
         Mpat = mat_dict2["Mpat"]
         deltaU = Uel - Uelref
-        #############################  Changed code
-        reg1 = 0.75
-        reg2 = 1e15
-        smprior.L = reg1*smprior.L
-        radius = np.max(np.linalg.norm(Mesh.g, axis = 1))
-        m = Mesh.g.shape[0]
-        num_el =  32 - (2*categoryNbr - 1)
-        electrodes = np.zeros((num_el, 2))
-        angle = 2*np.pi/Nel
-        for i in range(num_el):
-            electrodes[i] = radius*np.array([np.sin(i*angle), np.cos(i*angle)])
 
+        #############################  Changed code
+        reg1 = 0.6
+        reg2 = 6*1e6
+        smprior.L = reg1*smprior.L
+        m = Mesh.g.shape[0]
+        radius = np.max(np.linalg.norm(Mesh.g, axis = 1))
+        top = np.array([0, radius])
+        angle = 2*np.pi*(categoryNbr - 1)/Nel
+        mid = radius*np.array([np.sin(-angle), np.cos(-angle)])
+        small_radius = np.linalg.norm(top-mid)
 
         D = np.zeros(m)
         for i in range(m):
-            v = Mesh.g[i]
-            dist = np.zeros(num_el)
-            for k, e in enumerate(electrodes):
-                dist[k] = np.linalg.norm(v - e)
-            D[i] = (np.linalg.norm(dist, ord = 3)**3)*np.linalg.norm(v)**4
+            if np.linalg.norm(Mesh.g[i] - mid) <= small_radius:
+                D[i] = np.linalg.norm(Mesh.g[i])**2
 
         D = np.diag(D)
 
@@ -149,34 +144,48 @@ def main():
         J = solver.Jacobian(sigma0, z)
         deltareco = np.linalg.solve(J.T @ solver.InvGamma_n[np.ix_(mask,mask)] @ J + smprior.L.T @ smprior.L + reg2*D.T@D,
                                     J.T @ solver.InvGamma_n[np.ix_(mask,mask)] @ deltaU[vincl])
+        ###################################  End of changed code
 
         # interpolate the reconstruction into a pixel image
         deltareco_pixgrid = KTCAux.interpolateRecoToPixGrid(deltareco, Mesh)
+        # fig, ax = plt.subplots()
+        # cax = ax.imshow(deltareco_pixgrid, cmap="jet")
+        # plt.colorbar(cax)
+        # plt.axis('image')
 
-        # Do Chan-Vese segmentation
-        mu = np.mean(deltareco_pixgrid)
-        # Feel free to play around with the parameters to see how they impact the result
-        cv = chan_vese(abs(deltareco_pixgrid), mu=0.1, lambda1=1, lambda2=1, tol=1e-6,
-                    max_num_iter=1000, dt=2.5, init_level_set="checkerboard",
-                    extended_output=True)
+        # threshold the image histogram using Otsu's method
+        level, x = KTCScoring.Otsu2(deltareco_pixgrid.flatten(), 256, 7)
 
-        labeled_array, num_features = sp.ndimage.label(cv[0])
-        # Initialize a list to store masks for each region
-        region_masks = []
+        deltareco_pixgrid_segmented = np.zeros_like(deltareco_pixgrid)
 
-        # Loop through each labeled region
-        deltareco_pixgrid_segmented = np.zeros((256,256))
+        ind0 = deltareco_pixgrid < x[level[0]]
+        ind1 = np.logical_and(deltareco_pixgrid >= x[level[0]],deltareco_pixgrid <= x[level[1]])
+        ind2 = deltareco_pixgrid > x[level[1]]
+        inds = [np.count_nonzero(ind0),np.count_nonzero(ind1),np.count_nonzero(ind2)]
+        bgclass = inds.index(max(inds)) #background class
 
-        for label in range(1, num_features + 1):
-            # Create a mask for the current region
-            region_mask = labeled_array == label
-            region_masks.append(region_mask)
-            if np.mean(deltareco_pixgrid[region_mask]) < mu:
-                deltareco_pixgrid_segmented[region_mask] = 1
-            else:
-                deltareco_pixgrid_segmented[region_mask] = 2
+        match bgclass:
+            case 0:
+                deltareco_pixgrid_segmented[ind1] = 2
+                deltareco_pixgrid_segmented[ind2] = 2
+            case 1:
+                deltareco_pixgrid_segmented[ind0] = 1
+                deltareco_pixgrid_segmented[ind2] = 2
+            case 2:
+                deltareco_pixgrid_segmented[ind0] = 1
+                deltareco_pixgrid_segmented[ind1] = 1
 
-        ###################################  End of changed code
+        # fig, ax = plt.subplots()
+        # cax = ax.imshow(deltareco_pixgrid_segmented, cmap='gray')
+        # plt.colorbar(cax)
+        # plt.axis('image')
+        # plt.title('segmented linear difference reconstruction')
+
+        # fig, ax = plt.subplots()
+        # cax = ax.imshow(deltareco_pixgrid, cmap='gray')
+        # plt.colorbar(cax)
+        # plt.axis('image')
+
         reconstruction = deltareco_pixgrid_segmented
         mdic = {"reconstruction": reconstruction}
         print(outputFolder + '/' + str(objectno + 1) + '.mat')

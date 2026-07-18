@@ -50,42 +50,93 @@ measured and compared fairly.
 
 ## Quick Start
 
-### Option 1: Docker (Recommended)
+### Option 1: Docker (Recommended for Beginners)
 
-#### Full benchmark — every method, zero setup
+**Prerequisites:**
+- Install [Docker Desktop](https://www.docker.com/products/docker-desktop) (free)
+- Restart your computer after installation
+- Open PowerShell to verify: `docker --version`
 
-`EvaluationData/` (584 KB of real KTC 2023 voltage measurements) ships **in this repo**, so
-there's nothing to download. `Dockerfile.full` bundles it plus every dependency needed for all
-11 methods in `configs/ktc_all_methods.yaml` (TensorFlow for `CompetitionCNN`, CPU PyTorch for
-`ktc2023_postprocessing_master`):
+**Quick 3-Step Setup:**
+
+```powershell
+# Step 1: Navigate to project folder
+cd C:\ktc-eit-framework
+
+# Step 2: Build Docker image (one-time, ~5-10 min)
+docker compose build
+
+# Step 3: Start the app
+docker compose up -d
+
+# View logs (should show "You can now view your Streamlit app in your browser")
+docker compose logs -f
+
+# Open browser: http://localhost:8501
+```
+
+**To stop the app:**
+```powershell
+docker compose down
+```
+
+**What's Happening?**
+- `docker compose build` → Creates a container image with all dependencies
+- `docker compose up -d` → Runs the app in the background
+- `-d` flag = detached (runs in background, releases your terminal)
+- Visit `http://localhost:8501` to see the dashboard
+
+**Manual Docker Commands (Advanced):**
+
+If you prefer `docker` commands directly instead of `docker-compose`:
 
 ```bash
-# 1. Build the full image (installs deps + bakes in EvaluationData/, ~5-10 min)
+# Build the image (one-time)
 docker build -f Dockerfile.full -t ktc-dashboard:full .
 
-# 2. Run it
+# Run the container
 docker run -p 8501:8501 ktc-dashboard:full
 
-# 3. Visit dashboard
-# http://localhost:8501 → click "Run Benchmark" → select ktc_all_methods.yaml
+# In another PowerShell, view logs
+docker logs -f <container_id>
+
+# To find container ID
+docker ps
 ```
 
-Prefer `docker-compose`? It still works and additionally persists `outputs/` on the host:
+**Troubleshooting Docker:**
 
-```bash
-docker-compose up -d
-docker-compose logs -f     # watch progress
-docker-compose down        # stop when done
+| Problem | Solution |
+|---------|----------|
+| "Port 8501 already in use" | `docker compose down` then `docker compose up -d` again |
+| "Docker daemon not running" | Open Docker Desktop from Start menu |
+| "Permission denied" | Restart PowerShell as Administrator |
+| Container exits immediately | Check logs: `docker compose logs` |
+| Need to rebuild fresh | `docker compose build --no-cache` |
+
+**Common Docker Commands:**
+
+```powershell
+# View all running containers
+docker ps
+
+# View container logs
+docker compose logs -f
+
+# Stop container
+docker compose down
+
+# Restart container
+docker compose restart
+
+# Remove Docker image to save space
+docker image prune
+
+# View all images on computer
+docker images
 ```
 
-**What this does:**
-- Runs all 7 levels × 11 methods (2 more than the lightweight image:
-  `CompetitionCNN` and `ktc2023_postprocessing_master`, both previously
-  skipped for missing deps)
-- Visualizes results live on dashboard
-- Exports HTML report when done
-
-> For detailed Docker options and troubleshooting, see [Docker Deployment Guide](docs/guides/DEPLOYMENT.md).
+> For advanced Docker options (GPU acceleration, production deployment), see [Docker Deployment Guide](docs/guides/DEPLOYMENT.md).
 
 ### Option 2: Local Python
 
