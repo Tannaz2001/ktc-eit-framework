@@ -29,7 +29,7 @@ from ktc_framework.reporting.data_layer import (
 )
 from example_usage import project_to_dashboard
 
-METHODS = ["BackProjection", "GaussNewton"]
+METHODS = ["BackProjection", "LinearDifferenceReconstruction"]
 LEVELS = [1, 2]
 SAMPLES = ["A", "B"]
 

@@ -8,8 +8,12 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 import logging
 
-from dashboard.config import get_config
-from dashboard.exceptions import CacheError, CacheValidationFailed, CacheNotFound
+try:
+    from dashboard.config import get_config
+    from dashboard.exceptions import CacheError, CacheValidationFailed, CacheNotFound
+except ImportError:
+    from src.dashboard.config import get_config
+    from src.dashboard.exceptions import CacheError, CacheValidationFailed, CacheNotFound
 
 logger = logging.getLogger(__name__)
 

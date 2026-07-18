@@ -8,10 +8,17 @@ from typing import Tuple, Dict, Any
 from datetime import datetime
 import logging
 
-from dashboard.config import get_config
-from dashboard.exceptions import (
-    RunLockError, RunLockAcquisitionFailed, RunLockExpired
-)
+try:
+    from dashboard.config import get_config
+    from dashboard.exceptions import (
+        RunLockError, RunLockAcquisitionFailed, RunLockExpired
+    )
+except ImportError:
+    # Fallback for tests
+    from src.dashboard.config import get_config
+    from src.dashboard.exceptions import (
+        RunLockError, RunLockAcquisitionFailed, RunLockExpired
+    )
 
 logger = logging.getLogger(__name__)
 

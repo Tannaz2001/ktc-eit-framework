@@ -15,6 +15,12 @@ services:
       - ./outputs/opcache/jacobians:/app/cache/jacobians
       # Training data for quick tests
       - ./Codes_Matlab:/app/Codes_Matlab
+      # Runtime-generated benchmark configs (dashboard writes here; root-owned
+      # image copy isn't writable by the non-root container user otherwise)
+      - ./configs:/app/configs
+      # Uploaded/registered method plugins (dashboard's "Add method" upload
+      # writes here — same root-owned-image-vs-non-root-user issue as configs/)
+      - ./external_methods:/app/external_methods
     environment:
       - STREAMLIT_SERVER_PORT=8501
       - STREAMLIT_SERVER_ADDRESS=0.0.0.0

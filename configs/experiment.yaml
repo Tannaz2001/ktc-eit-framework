@@ -19,7 +19,6 @@ samples: [A, B, C]
 
 methods:
   - BackProjection
-  - GaussNewton
   - LinearDifferenceReconstruction
 
 output_dir: outputs/
