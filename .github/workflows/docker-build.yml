@@ -39,6 +39,9 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          # Without an explicit target this built the first stage it found and
+          # published it as :latest — an image with no ML dependencies.
+          target: full
           push: true
           tags: |
             tannaz2001/ktc-dashboard:${{ steps.meta.outputs.VERSION }}

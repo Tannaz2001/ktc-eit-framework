@@ -1397,20 +1397,30 @@ def _render_sidebar_run_history():
         except (ValueError, OSError):
             return False
 
-    run_dirs = [
-        d for d in sorted(runs_root.glob("run_*"), reverse=True)
-        if _dashboard_run_has_data(d)
-    ] if runs_root.exists() else []
+    # Load only active run on startup for performance - lazy load others on demand
+    current_run_obj = find_latest_run()
+    current_run = current_run_obj.name if current_run_obj else None
 
-    if run_dirs:
-        run_names = [d.name for d in run_dirs]
-        # Current loaded run name
-        current_run = find_latest_run().name
+    # Always show active run first
+    run_dirs = [current_run_obj] if current_run_obj and current_run_obj.exists() else []
+
+    # Lazy load other runs only when user opens dropdown
+    @st.cache_data(ttl=600)
+    def get_all_valid_runs():
+        return [
+            d for d in sorted(runs_root.glob("run_*"), reverse=True)
+            if _dashboard_run_has_data(d)
+        ] if runs_root.exists() else []
+
+    if run_dirs or current_run:
         st.sidebar.markdown(
             f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--grn);margin:4px 0">'
             f'Active: {current_run}</div>', unsafe_allow_html=True)
 
-        default_idx = run_names.index(current_run) if current_run in run_names else 0
+        # Lazy-load full list only when needed
+        all_valid_runs = get_all_valid_runs()
+        run_names = [d.name for d in all_valid_runs] if all_valid_runs else [current_run]
+        default_idx = run_names.index(current_run) if current_run and current_run in run_names else 0
         # C1: rich labels with status icon + failure count
         chosen_run = st.sidebar.selectbox(
             "Load run:", run_names, index=default_idx, key="selected_run",

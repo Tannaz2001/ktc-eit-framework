@@ -1,19 +1,41 @@
-# Environments and caches
+# Build context exclusions — applies to every target in the Dockerfile.
+#
+# There used to be a second Dockerfile.full.dockerignore. Docker only honours a
+# per-Dockerfile ignore file under BuildKit; the classic builder silently falls
+# back to this file. Since this file used to exclude external_methods/ and
+# Codes_Matlab/, a non-BuildKit build produced an image with no working methods
+# and no warning. One Dockerfile, one ignore file, no divergence.
+#
+# NOT excluded, deliberately: EvaluationData/, Codes_Matlab/ and
+# external_methods/ total ~42 MB and are required for methods to run. They are
+# baked in so the image needs no host setup.
+
+# Version control and CI
+.git/
+.github/
+
+# Python environments and caches
 venv/
-__pycache__/
+**/__pycache__/
 *.pyc
 .pytest_cache/
 src/*.egg-info/
-.git/
 
-# Large data/results — mounted as volumes at runtime instead (see docker-compose.yml)
+# Benchmark results: multi-GB and machine-specific. Bind-mounted at runtime
+# (see docker-compose.yml), never baked into the image.
 outputs/
+reports/
 
-# External solver repos — not needed by the dashboard image
-external_methods/
-Codes_Matlab/
+# Redundant archives — already extracted as sibling folders
+external_methods/*.zip
 
-# Docker files themselves
+# Docker's own files (the Dockerfile is still read by the builder)
 Dockerfile
-docker-compose.yml
 .dockerignore
+docker-compose.yml
+
+# Editor / tooling / OS
+.vscode/
+.claude/
+.DS_Store
+Thumbs.db
