@@ -250,6 +250,7 @@ p,.stMarkdown p{font-size:11px!important;color:var(--tx2)!important;line-height:
   border-radius:50%;font-size:9px;font-weight:700;color:var(--tx3);cursor:help;
   text-transform:none;letter-spacing:normal;}
 .info-tip:hover,.info-tip:focus{color:#fff;background:var(--tx3);border-color:var(--tx3);}
+.info-tip:focus-visible{outline:2px solid var(--c2);outline-offset:2px;}
 .info-tip:hover::after,.info-tip:focus::after{
   content:attr(data-tip);position:absolute;left:0;top:135%;width:min(320px,60vw);
   background:#1f2328;color:#fff;font-size:10px;font-weight:400;line-height:1.5;
@@ -264,7 +265,8 @@ p,.stMarkdown p{font-size:11px!important;color:var(--tx2)!important;line-height:
 
 /* -- KPI cards -- */
 .kpi-row{display:flex;gap:10px;margin-bottom:12px;}
-.kpi{flex:1;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:11px 13px;position:relative;overflow:hidden;}
+.kpi{flex:1;background:var(--sur);border:1px solid var(--bd);border-radius:7px;padding:11px 13px;position:relative;overflow:visible;}
+.kpi:hover,.kpi:focus-within{z-index:10;}
 .kpi::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--kc,#2da44e);opacity:.8;}
 .kpi-n{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;color:var(--tx);line-height:1;}
 .kpi-l{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.1em;margin-top:5px;}

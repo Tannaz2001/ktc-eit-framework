@@ -94,7 +94,8 @@ def write_runtime_config(method_name: str) -> Path:
         f"samples: {samples_yaml}\n\n"
         f"methods:\n  - {method_name}\n\n"
         "method_plugin_paths:\n  - external_methods\n\n"
-        "output_dir: outputs/\n",
+        "output_dir: outputs/\n"
+        "merge_with_latest: true\n",
         encoding="utf-8",
     )
     return cfg_path
@@ -116,7 +117,8 @@ def write_selected_config(methods: list[str]) -> Path:
         f"samples: {samples_yaml}\n\n"
         f"methods:\n{methods_block}\n"
         "method_plugin_paths:\n  - external_methods\n\n"
-        "output_dir: outputs/\n",
+        "output_dir: outputs/\n"
+        "merge_with_latest: true\n",
         encoding="utf-8",
     )
     return cfg_path
@@ -170,7 +172,8 @@ def write_rerun_failed_config(failures: list[dict]) -> Path:
         f"samples: {samples_yaml}\n\n"
         f"methods:\n{methods_block}\n"
         "method_plugin_paths:\n  - external_methods\n\n"
-        "output_dir: outputs/\n",
+        "output_dir: outputs/\n"
+        "merge_with_latest: true\n",
         encoding="utf-8",
     )
     return cfg_path

@@ -1666,7 +1666,8 @@ def view_leaderboard(scores:Dict, per_run:Dict, sel_metrics:list=None, mm:Dict=N
     ]
     kpi_html = '<div class="kpi-row">'
     for num, lbl, sub, kc, tip in kpis:
-        icon = f'<span class="info-tip" data-tip="{html.escape(tip)}">?</span>' if tip else ''
+        icon = (f'<span class="info-tip" tabindex="0" aria-label="More information" '
+                f'data-tip="{html.escape(tip)}">?</span>') if tip else ''
         kpi_html += (f'<div class="kpi" style="--kc:var({kc})">'
                      f'<div class="kpi-n">{num}</div>'
                      f'<div class="kpi-l" style="display:flex;align-items:center">{lbl}{icon}</div>'
@@ -2761,7 +2762,8 @@ def view_heatmap(scores:Dict, per_run:Dict, mm:Dict, level_range:tuple=(1,7)):
         f'<div class="kpi" style="--kc:var(--c2)">'
         f'<div class="kpi-n">{method_display_name(most_consistent)}</div>'
         f'<div class="kpi-l" style="display:flex;align-items:center">Most Dependable'
-        f'<span class="info-tip" data-tip="{html.escape(dependable_tip)}">?</span></div>'
+        f'<span class="info-tip" tabindex="0" aria-label="More information" '
+        f'data-tip="{html.escape(dependable_tip)}">?</span></div>'
         f'<div class="kpi-s">score barely changes test to test</div></div>'
     )
     if worst_cell_method is not None:

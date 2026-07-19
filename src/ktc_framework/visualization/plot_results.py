@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +30,8 @@ GRADE_COLORS = {
 }
 
 _EIT_CMAP = ListedColormap([COLORMAP[0], COLORMAP[1], COLORMAP[2]])
+
+_logger = logging.getLogger(__name__)
 
 # Deterministic per-method colors — stable across all charts in one run
 _PALETTE = [
@@ -70,9 +74,20 @@ def plot_panel(
     axes[2].set_title("Error Map");    axes[2].axis("off")
 
     plt.tight_layout()
-    Path(save_path).parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(save_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
+    save_path = Path(save_path)
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    # Write to a sibling temp file and rename over the target instead of
+    # overwriting it in place. A direct overwrite can hit a sharing-violation
+    # PermissionError on a Windows host (via Docker Desktop's bind mount) if
+    # the existing file is open elsewhere (e.g. the dashboard displaying it);
+    # os.replace succeeds even then, since it never opens the old file.
+    tmp_path = save_path.with_name(f".{save_path.name}.tmp")
+    try:
+        plt.savefig(tmp_path, dpi=150, bbox_inches="tight")
+        os.replace(tmp_path, save_path)
+    finally:
+        plt.close(fig)
+        tmp_path.unlink(missing_ok=True)
 
 
 # ── Runner integration: save one PNG per result ────────────────────────────
@@ -95,12 +110,19 @@ def save_figures(
         fname = f"{r['method']}_level{r['level']}_sample{r['sample']}.png"
         path  = fig_dir / fname
 
-        plot_panel(
-            pred=pred, gt=gt,
-            method=r["method"], level=r["level"], sample=r["sample"],
-            ktc_score=r.get("metrics", {}).get("ktc_score", 0.0),
-            save_path=path,
-        )
+        try:
+            plot_panel(
+                pred=pred, gt=gt,
+                method=r["method"], level=r["level"], sample=r["sample"],
+                ktc_score=r.get("metrics", {}).get("ktc_score", 0.0),
+                save_path=path,
+            )
+        except OSError as exc:
+            # One locked/inaccessible file (e.g. a Windows sharing violation
+            # while the dashboard has it open) must not cancel every other
+            # method/sample's figure in this run.
+            _logger.warning("Skipping figure %s: %s", path, exc)
+            continue
         saved.append(path)
 
     return saved

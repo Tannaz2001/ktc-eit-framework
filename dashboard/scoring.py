@@ -134,7 +134,8 @@ def render_section_header(title: str, tooltip: str = "") -> None:
     """Render a small-caps section label with an optional hover-help icon."""
     icon_html = ""
     if tooltip:
-        icon_html = f'<span class="info-tip" data-tip="{html.escape(tooltip)}">?</span>'
+        icon_html = (f'<span class="info-tip" tabindex="0" aria-label="More information" '
+                     f'data-tip="{html.escape(tooltip)}">?</span>')
     st.markdown(
         f'<div class="slbl" style="display:flex;align-items:center">{title}{icon_html}</div>',
         unsafe_allow_html=True,
