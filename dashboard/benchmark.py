@@ -14,8 +14,22 @@ import streamlit as st
 
 from dashboard.state import K
 import dashboard.state as SS
+from dashboard.data import load_data, true_first_run_runtime_ms, get_all_valid_runs
 
 BENCH_LOG = Path("outputs/benchmark_log.txt")
+
+
+def _clear_run_data_caches() -> None:
+    """Bust only the caches whose contents depend on run data on disk.
+
+    Deliberately narrower than st.cache_data.clear(): that also wipes
+    unrelated caches like app.py's _classify_ext_file, which is expensive to
+    rebuild (~9-10s re-parsing external_methods/, see its docstring) and has
+    nothing to do with a benchmark starting/stopping/finishing.
+    """
+    load_data.clear()
+    true_first_run_runtime_ms.clear()
+    get_all_valid_runs.clear()
 
 
 def launch_benchmark(config_path) -> bool:
@@ -64,7 +78,7 @@ def stop_benchmark() -> bool:
         st.session_state[K.BENCH_ABORTED] = True
         st.session_state[K.BENCH_WAS_RUNNING] = False
         st.session_state[K.BENCH_PROC] = None
-        st.cache_data.clear()
+        _clear_run_data_caches()
     return True
 
 
@@ -226,11 +240,19 @@ def render_benchmark_status() -> None:
                 f'color:var(--amb);margin:4px 0">RUNNING | {cfg}</div>',
                 unsafe_allow_html=True)
             if st.sidebar.button("Refresh status", use_container_width=True, key="bench_refresh"):
-                st.rerun()
+                # No rerun needed: this button doesn't change any state — the
+                # click itself (not inside a fragment) already causes exactly
+                # one full rerun, which re-reads BENCH_LOG below. An explicit
+                # st.rerun() here would just abort that pass and restart it.
+                pass
         elif code == 0:
             st.session_state[K.BENCH_PROC] = None
-            st.cache_data.clear()
-            st.rerun()
+            _clear_run_data_caches()
+            # No rerun needed: we're already mid-way through a full script
+            # pass (this function only runs as part of one), and everything
+            # that reads BENCH_PROC / the caches just cleared — the main-area
+            # progress fragment below, and main()'s chart data loading after
+            # render_sidebar() returns — executes later in this same pass.
         else:
             st.session_state[K.BENCH_PROC] = None
             if st.session_state.pop(K.BENCH_ABORTED, False):
@@ -266,9 +288,14 @@ def render_benchmark_status() -> None:
 
 
 def render_bench_progress() -> None:
-    """Full-width progress banner in the main area while a benchmark subprocess runs."""
-    if st.session_state.get(K.BENCH_PROC) is None:
-        return
+    """Full-width progress banner in the main area while a benchmark subprocess runs.
+
+    Always mounts the polling fragment, even when no benchmark is active: Run
+    buttons live in their own fragments (so clicking one doesn't force a
+    full-page rerun), which means this function's caller may not re-execute
+    right after a launch. The fragment's own run_every="2s" schedule is what
+    picks up the new BENCH_PROC state, not a rerun triggered from outside it.
+    """
     _render_bench_progress_fragment()
 
 
@@ -280,7 +307,14 @@ def _render_bench_progress_fragment() -> None:
     if proc.poll() is not None:
         if st.session_state.get(K.BENCH_WAS_RUNNING):
             st.session_state[K.BENCH_WAS_RUNNING] = False
-            st.rerun()
+            # Don't clear BENCH_PROC/caches here — render_benchmark_status()
+            # (sidebar) is the single place that inspects the exit code to
+            # decide success vs. failure vs. abort and show the right
+            # message; it needs to see BENCH_PROC still set. It runs earlier
+            # in the same script pass this rerun produces and does its own
+            # (non-repeating) cache clear, so nothing is lost by not doing it
+            # here too.
+            st.rerun()  # intentionally app-scoped: new run data needs every chart tab to refresh
         return
     st.session_state[K.BENCH_WAS_RUNNING] = True
 
@@ -347,23 +381,50 @@ def _render_bench_progress_fragment() -> None:
     c_refresh, c_stop = st.columns([1, 1])
     with c_refresh:
         if st.button("Refresh progress", key="main_bench_refresh", use_container_width=True):
-            st.rerun()
+            # Fragment-scoped: this only re-reads BENCH_LOG for this fragment's
+            # own progress bar, nothing else on the page depends on it. Plain
+            # st.rerun() defaults to scope="app" even inside a fragment, which
+            # would otherwise force all 6 chart tabs to re-render for nothing.
+            st.rerun(scope="fragment")
     with c_stop:
         if st.button("Stop benchmark", key="main_bench_stop", use_container_width=True):
             if stop_benchmark():
                 st.info("Benchmark aborted. Previous completed dashboard data is still active.")
+            # App-scoped (default) intentionally: the sidebar's
+            # render_benchmark_status() also reads BENCH_PROC and needs to stop
+            # showing "RUNNING" immediately too, not just this fragment.
             st.rerun()
 
+    st.markdown(
+        '<hr style="border:none;border-top:1px solid var(--bd);margin:4px 0 14px">',
+        unsafe_allow_html=True)
+
+
+@st.fragment(run_every="2s")
+def _render_bench_log_fragment() -> None:
+    """Sidebar 'View full log' expander, polled independently while a benchmark runs.
+
+    Split out from _render_bench_progress_fragment (which lives in the main
+    area) because a fragment can only write widgets into the container it was
+    invoked from — st.sidebar.expander() called from a main-area-anchored
+    fragment raises StreamlitFragmentWidgetsNotAllowedOutsideError as soon as
+    that fragment reruns on its own run_every schedule.
+    """
+    proc = st.session_state.get(K.BENCH_PROC)
+    if proc is None or proc.poll() is not None:
+        return
     if BENCH_LOG.exists():
-        with st.sidebar.expander("View full log"):
+        with st.expander("View full log"):
             st.code(
                 BENCH_LOG.read_text(encoding="utf-8", errors="replace"),
                 language="text",
             )
 
-    st.markdown(
-        '<hr style="border:none;border-top:1px solid var(--bd);margin:4px 0 14px">',
-        unsafe_allow_html=True)
+
+def render_bench_log_sidebar() -> None:
+    """Mount point for the sidebar log fragment - call from within render_sidebar()."""
+    with st.sidebar:
+        _render_bench_log_fragment()
 
 
 def append_method_to_config(

@@ -93,6 +93,30 @@ class BatchRunner:
                         configured_methods.append(method_name)
                 self.config["methods"] = configured_methods
 
+        # ── Discovery verification ────────────────────────────────────────
+        all_registered = set(registry_list_methods())
+        scheduled = list(self.config.get("methods", []))
+        console.print(
+            f"\n[bold cyan]── Method Discovery ──────────────────────────────────[/bold cyan]"
+        )
+        console.print(
+            f"[cyan]Registered in registry : {len(all_registered)} methods[/cyan]"
+        )
+        console.print(
+            f"[cyan]Scheduled for execution: {len(scheduled)} methods[/cyan]"
+        )
+        for m in scheduled:
+            status = "[green]✓[/green]" if m in all_registered else "[red]✗ NOT REGISTERED[/red]"
+            console.print(f"[cyan]  {status}[cyan] {m}[/cyan]")
+        not_scheduled = sorted(all_registered - set(scheduled))
+        if not_scheduled:
+            console.print(
+                f"[dim]  (registered but not scheduled: {', '.join(not_scheduled)})[/dim]"
+            )
+        console.print(
+            f"[bold cyan]─────────────────────────────────────────────────────[/bold cyan]\n"
+        )
+
         # Load shared resources once — passed to every DataBatch at run time
         self.mesh = self._load_mesh(config.get("mesh_path", ""))
         self.ref_voltages = self._load_reference(config.get("dataset_root", ""))
@@ -425,12 +449,20 @@ class BatchRunner:
         # ── load method ───────────────────────────────────────────────────
         try:
             method_plugin = MethodAdapter(registry_get(method)())
-        except KeyError:
-            console.print(f"[red]Method '{method}' not registered — skipping.[/red]")
+        except Exception as exc:
+            error_type = type(exc).__name__
+            error_msg = (
+                f"Method '{method}' not registered in registry."
+                if isinstance(exc, KeyError)
+                else str(exc)
+            )
+            console.print(
+                f"[red]Method '{method}' failed to load ({error_type}) — skipping.[/red]"
+            )
             self.failures.append({
                 "method": method, "level": level, "sample": sample,
-                "error_type": "KeyError",
-                "error_msg": f"Method '{method}' not registered in registry.",
+                "error_type": error_type,
+                "error_msg": error_msg,
                 "stage": "load_method",
             })
             return None

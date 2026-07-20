@@ -1,39 +1,62 @@
+# Run the dashboard:            docker compose up -d
+# Rebuild after a code change:  docker compose up -d --build
+# Follow logs:                  docker compose logs -f
+# Stop:                         docker compose down
+#
+# Defaults are usable as-is. To override any KTC_* / STREAMLIT_* setting, copy
+# .env.example to .env — it is picked up automatically.
+
 services:
   dashboard:
     build:
       context: .
-      dockerfile: Dockerfile.full
+      # 'slim' skips TensorFlow/Torch and drops CompetitionCNN and
+      # ktc2023_postprocessing_master. See the Dockerfile header.
+      target: full
     image: ktc-dashboard:full
+    container_name: ktc-dashboard
+
     ports:
-      - "8501:8501"
+      - "${HOST_PORT:-8501}:8501"
+
     volumes:
-      # Dataset (required for benchmark runs)
-      - ./EvaluationData:/app/EvaluationData
-      # Reconstruction results (2.7 GB) live outside the image
+      # Benchmark results only. These are multi-GB and machine-specific, so
+      # they live on the host and outlive the container.
+      #
+      # EvaluationData/ is deliberately NOT mounted: the image already
+      # bundles it (~42 MB). Bind-mounting it would make Docker create an
+      # empty directory on any machine that lacks the folder, masking the
+      # bundled copy and leaving the dashboard with no data.
       - ./outputs:/app/outputs
       # Jacobian matrix cache (shared across team)
       - ./outputs/opcache/jacobians:/app/cache/jacobians
-      # Training data for quick tests
+      # Training data for quick tests. Note: on a machine with no local
+      # Codes_Matlab/ folder, this mount creates an empty dir and masks the
+      # image's bundled copy.
       - ./Codes_Matlab:/app/Codes_Matlab
       # Runtime-generated benchmark configs (dashboard writes here; root-owned
       # image copy isn't writable by the non-root container user otherwise)
       - ./configs:/app/configs
       # Uploaded/registered method plugins (dashboard's "Add method" upload
-      # writes here — same root-owned-image-vs-non-root-user issue as configs/)
+      # writes here — same root-owned-image-vs-non-root-user issue as
+      # configs/). Note: on a machine with no local external_methods/ folder,
+      # this mount creates an empty dir and masks the image's bundled copies.
       - ./external_methods:/app/external_methods
+
+    # Optional overrides; the image ships working defaults for all of these.
+    env_file:
+      - path: .env
+        required: false
+
     environment:
-      - STREAMLIT_SERVER_PORT=8501
-      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
-      - STREAMLIT_SERVER_HEADLESS=true
-      # Monitoring & safety
-      - RUN_LOCK_TIMEOUT=7200
-      - CACHE_VALIDATION=true
-      - MAX_DISK_USAGE_PCT=85
-    user: "1000:1000"
-    restart: on-failure:5
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')"]
-      interval: 30s
-      timeout: 10s
-      start_period: 45s
-      retries: 5
+      RUN_LOCK_TIMEOUT: "${RUN_LOCK_TIMEOUT:-7200}"
+      CACHE_VALIDATION: "${CACHE_VALIDATION:-true}"
+      MAX_DISK_USAGE_PCT: "${MAX_DISK_USAGE_PCT:-85}"
+
+    # The image runs as uid 1000 ('app') and owns /app — no user: override
+    # needed. The previous "1000:1000" pointed at a user the image never
+    # created, leaving /app root-owned and configs/ unwritable.
+
+    restart: unless-stopped
+
+    # healthcheck is defined in the Dockerfile so `docker run` gets it too.

@@ -1,0 +1,44 @@
+{
+  "BackProjection": {
+    "dice_conductive": 0.015668,
+    "dice_resistive": 0.100934,
+    "iou_conductive": 0.009376,
+    "iou_resistive": 0.098267,
+    "ktc_score": -0.001345
+  },
+  "CompetitionCNN": {
+    "dice_conductive": 0.331883,
+    "dice_resistive": 0.412324,
+    "iou_conductive": 0.267384,
+    "iou_resistive": 0.302849,
+    "ktc_score": 0.31903
+  },
+  "KTC2023_CUQI1": {
+    "dice_conductive": 0.617884,
+    "dice_resistive": 0.720737,
+    "iou_conductive": 0.531301,
+    "iou_resistive": 0.615209,
+    "ktc_score": 0.340472
+  },
+  "KTC2023_CUQI2_main": {
+    "dice_conductive": 0.597865,
+    "dice_resistive": 0.668951,
+    "iou_conductive": 0.507688,
+    "iou_resistive": 0.558171,
+    "ktc_score": 0.323056
+  },
+  "KTC2023_CUQI4": {
+    "dice_conductive": 0.488362,
+    "dice_resistive": 0.703047,
+    "iou_conductive": 0.405225,
+    "iou_resistive": 0.589648,
+    "ktc_score": 0.237338
+  },
+  "LinearDifferenceReconstruction": {
+    "dice_conductive": 0.522532,
+    "dice_resistive": 0.548478,
+    "iou_conductive": 0.44634,
+    "iou_resistive": 0.441686,
+    "ktc_score": 0.214569
+  }
+}

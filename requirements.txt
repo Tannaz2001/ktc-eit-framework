@@ -25,6 +25,9 @@ rich
 pyyaml
 h5py
 
+# Registry / build infrastructure
+filelock
+
 # CompetitionCNN subprocess dependencies
 # These run on system Python 3.12, NOT inside this venv.
 # On a fresh PC run:
