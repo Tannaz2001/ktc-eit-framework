@@ -8,10 +8,13 @@ Codes_Matlab/Output/
 # Machine-local config overrides (never commit these)
 configs/local_*.yaml
 
-# Generated outputs
+# Generated outputs — all excluded except the pre-computed demo run
 outputs/
 outputs_smoke/
 scores.json
+# Ship the canonical demo run so local-venv and docker-compose users see data on first boot
+!outputs/run_20260719_191247/
+!outputs/latest.txt
 reports/
 configs/runtime_*.yaml
 

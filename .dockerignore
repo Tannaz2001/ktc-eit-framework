@@ -21,9 +21,12 @@ venv/
 .pytest_cache/
 src/*.egg-info/
 
-# Benchmark results: multi-GB and machine-specific. Bind-mounted at runtime
-# (see docker-compose.yml), never baked into the image.
-outputs/
+# Benchmark results: exclude everything except the pre-computed demo run.
+# The demo run is baked in so `docker run` (no compose) shows data immediately.
+# Compose users get data from the bind-mounted host outputs/ (cloned from git).
+outputs/*
+!outputs/run_20260719_191247
+!outputs/latest.txt
 reports/
 
 # Redundant archives — already extracted as sibling folders
