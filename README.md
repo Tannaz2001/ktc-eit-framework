@@ -207,6 +207,8 @@ After a few seconds your terminal will print:
 Open <http://localhost:8501> in your browser. The **EIT Bench** dashboard loads
 immediately and shows the pre-computed demo run — no benchmark run needed on first launch.
 
+![Dashboard home page](docs/screenshots/dashboard-home.png)
+
 > **"streamlit: command not found"?**
 > Your virtual environment is not active. Run `.\venv\Scripts\Activate.ps1` (Windows) or
 > `source venv/bin/activate` (Mac/Linux) and try again.
@@ -271,6 +273,8 @@ terminal prints a METHOD DISCOVERY REPORT confirming which methods were found (s
 Tick-boxes for every registered method. Un-tick a method to hide it from the charts
 without deleting it. Re-tick to bring it back.
 
+![Methods sidebar](docs/screenshots/sidebar-methods.png)
+
 **Metrics**
 Tick-boxes for which performance metrics to display in the charts (KTC Score, Dice,
 IoU, Hull IoU, Runtime).
@@ -290,6 +294,8 @@ current run's results. The report is saved to `outputs/<run_name>/report.html`.
 Drop-down showing all past benchmark runs stored in `outputs/`. The active run
 (displayed in the charts) is shown at the top. Switch to any previous run by selecting
 it from the list.
+
+![Manage Methods and Run History sidebar](docs/screenshots/sidebar-manage.png)
 
 ---
 
@@ -556,6 +562,9 @@ The zip must contain the files at the **top level**, not inside a subfolder:
 2. Scroll down in the sidebar to the **"Add Method"** section
 3. Click the **"Upload Bundle (.zip)"** tab
 4. Click the upload area and select your `.zip` file
+
+![Upload Bundle tab in the sidebar](docs/screenshots/sidebar-upload.png)
+
 5. A confirmation message appears immediately:
    > *"⏳ Building 'MyAlgorithm' in the background — dashboard stays live. Refresh to check status."*
 
@@ -672,6 +681,8 @@ np.save("/data/output.npy", reconstruction)
    ```
 
 2. In the dashboard sidebar, click **"Add Method"** → **"Link Existing Image"** tab
+
+![Link Existing Image tab](docs/screenshots/sidebar-link-image.png)
 
 3. Fill in all three fields:
 
