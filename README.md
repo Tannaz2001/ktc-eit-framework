@@ -826,51 +826,172 @@ if __name__ == "__main__":
 
 ## 8. How Scoring Works
 
-Each reconstruction is compared to the known ground-truth segmentation mask using the
-official **KTC Score** from the Kuopio Tomography Challenge 2023.
-
-### KTC Score (0–100 scale in the dashboard)
-
-The raw KTC score is based on **SSIM** (Structural Similarity Index), computed separately
-for the resistive (plastic) and conductive (metal) regions:
-
-```
-KTC Score = (SSIM_resistive + SSIM_conductive) / 2
-```
-
-The dashboard multiplies by 100 for readability. Interpretation:
-
-| Score | Letter Grade | Meaning |
-|------:|:---:|---------|
-| ≥ 60 | **A** | Excellent — reconstruction closely matches the ground truth |
-| 30–59 | **B** | Good — correct general shape, some boundary errors |
-| 10–29 | **C** | Fair — inclusion detected but shape/position is approximate |
-| < 10 | **D** | Poor — little or no meaningful reconstruction |
-| ≤ 0 | — | Worse than predicting an empty tank everywhere |
+Each reconstruction is a 256×256 segmentation map (0=background, 1=resistive/plastic,
+2=conductive/metal). It is compared pixel-by-pixel against the known ground-truth mask
+using five metrics. Understanding what each metric measures helps you interpret why one
+method outranks another.
 
 ---
 
-### Additional metrics
+### Metric 1 — KTC Score *(primary ranking metric)*
 
-| Metric | Range | What it measures |
-|---|---|---|
-| **Dice Resistive** | 0–1 | Overlap between predicted and true resistive (plastic) region |
-| **Dice Conductive** | 0–1 | Overlap between predicted and true conductive (metal) region |
-| **IoU** | 0–1 | Intersection over Union — stricter than Dice; penalises over-prediction more |
-| **Hull IoU** | 0–1 | Whether the inclusion was found in approximately the right geometric location |
-| **Runtime (ms)** | — | Wall-clock time for one reconstruction on your machine |
+**What it measures:** How structurally similar the predicted segmentation is to the
+ground truth, evaluated separately for plastic and metal regions, then normalised so that
+an "empty tank" prediction always scores exactly 0.
 
-A method can score well on Dice (it found the inclusion) but poorly on Hull IoU (it put
-it in the wrong place). The Metrics tab breaks all of these down per method.
+**Formula:**
+
+```
+For each class (resistive, conductive):
+
+  SSIM(pred, gt)  =  Gaussian-kernel structural similarity between the
+                     predicted binary mask and the ground-truth binary mask
+                     (σ = 80 px, matching the official KTC MATLAB implementation)
+
+  norm_SSIM  =  (SSIM(pred, gt) − SSIM(zeros, gt))
+                ─────────────────────────────────────
+                      1  −  SSIM(zeros, gt)
+
+KTC Score  =  0.5 × (norm_SSIM_resistive + norm_SSIM_conductive)
+```
+
+The dashboard multiplies by 100 for readability (so 0.34 → 34).
+
+**Why normalise against zeros?** Without normalisation, even an all-black prediction
+scores a non-zero SSIM because both images are mostly zero. The normalisation anchors
+the baseline (predict nothing) at exactly 0.0 regardless of how much of the tank is
+actually filled.
+
+**Interpretation:**
+
+| Dashboard Score | Raw KTC | Letter | What it means |
+|---:|---:|:---:|---|
+| ≥ 60 | ≥ 0.60 | **A** | Excellent — shape and position closely match the ground truth |
+| 30–59 | 0.30–0.59 | **B** | Good — correct region, some boundary or size error |
+| 10–29 | 0.10–0.29 | **C** | Fair — inclusion roughly detected but shape is approximate |
+| < 10 | < 0.10 | **D** | Poor — little to no useful reconstruction |
+| ≤ 0 | ≤ 0 | — | Worse than predicting an empty tank everywhere |
+
+---
+
+### Metric 2 — Dice Coefficient
+
+**What it measures:** The pixel-level overlap between the predicted region and the true
+region, computed separately for resistive (plastic, label 1) and conductive (metal, label 2).
+
+**Formula:**
+
+```
+Dice  =  2 × |pred ∩ gt|
+         ────────────────
+          |pred| + |gt|
+```
+
+Where `|·|` counts the number of pixels in each set.
+
+**How to read it:**
+- Dice = 1.0 → perfect overlap (predicted region is exactly the ground-truth region)
+- Dice = 0.5 → the predicted and true regions share half their combined pixels
+- Dice = 0.0 → no overlap at all (predicted nothing, or predicted in the completely wrong place)
+
+**Key property:** Dice is symmetric and rewards methods that get the size roughly right.
+A method that predicts a region twice as large as the truth but perfectly centred scores
+~0.67, not 1.0. It penalises over-prediction and under-prediction equally.
+
+---
+
+### Metric 3 — IoU (Intersection over Union)
+
+**What it measures:** The same overlap concept as Dice but with a stricter denominator —
+the union rather than the sum of sizes. Also called the **Jaccard Index**.
+
+**Formula:**
+
+```
+IoU  =  |pred ∩ gt|
+        ─────────────
+         |pred ∪ gt|
+```
+
+**How to read it:**
+- IoU = 1.0 → perfect overlap
+- IoU = 0.5 → the intersection is half the size of the union
+- IoU = 0.0 → no overlap
+
+**Dice vs IoU:** IoU is always ≤ Dice for the same prediction. IoU penalises
+over-prediction more harshly because extra false-positive pixels expand the union without
+expanding the intersection. A method with a high Dice but lower IoU is probably
+predicting a region that is too large.
+
+```
+Relationship:  IoU = Dice / (2 − Dice)
+```
+
+---
+
+### Metric 4 — Hull IoU
+
+**What it measures:** Whether the predicted inclusion was found in approximately the
+**right geometric location**, regardless of exact pixel-level accuracy. It computes IoU
+on the convex hulls of the predicted and ground-truth regions rather than on the raw
+pixel masks.
+
+**Formula:**
+
+```
+Hull IoU  =  IoU( convex_hull(pred_region),  convex_hull(gt_region) )
+```
+
+**Why convex hulls?** Raw pixel IoU is zero if there is even a one-pixel gap between
+the predicted and true regions. Convex hulls are more generous about position — a method
+that correctly identifies where the inclusion is but slightly mis-draws its boundary will
+still get a high Hull IoU. It answers the question: *"Did the algorithm look in the right
+place?"*
+
+**How to read it:**
+- Hull IoU ≈ 1.0 → inclusion found in exactly the right location and approximate size
+- Hull IoU ≈ 0.5 → found roughly the right area but location or size is off
+- Hull IoU ≈ 0.0 → found nothing, or found it in completely the wrong place
+
+**A method can have:** high Dice + low Hull IoU (found something, but not the inclusion)
+or low Dice + high Hull IoU (found the right location but the shape is very wrong).
+
+---
+
+### Metric 5 — Runtime (ms)
+
+**What it measures:** Wall-clock time in milliseconds to produce one reconstruction on
+the machine running the benchmark. Measured individually for each sample.
+
+**How to read it:** This metric does not affect the KTC Score or letter grade. It is
+shown for practical comparison — a method that achieves the same KTC Score as another
+but runs 10× faster may be preferable in real-world deployment.
+
+**Note:** Runtime depends on your hardware. Numbers from different machines are not
+directly comparable. Use it to compare methods run in the same benchmark session.
+
+---
+
+### Summary table
+
+| Metric | Formula | Range | What a high score means |
+|---|---|---|---|
+| **KTC Score** | 0.5 × (norm_SSIM_resistive + norm_SSIM_conductive) × 100 | 0–100 (can go negative) | Structural match to ground truth, normalised against empty-tank baseline |
+| **Dice Resistive** | 2\|pred∩gt\| / (\|pred\|+\|gt\|) for label=1 | 0–1 | Pixel overlap on plastic region |
+| **Dice Conductive** | 2\|pred∩gt\| / (\|pred\|+\|gt\|) for label=2 | 0–1 | Pixel overlap on metal region |
+| **IoU** | \|pred∩gt\| / \|pred∪gt\| | 0–1 | Stricter overlap; penalises over-prediction |
+| **Hull IoU** | IoU(convex_hull(pred), convex_hull(gt)) | 0–1 | Correct localisation regardless of exact shape |
+| **Runtime** | Wall-clock ms per sample | — | Lower = faster |
 
 ---
 
 ### Difficulty levels
 
 The benchmark runs each method across 7 difficulty levels. Level 1 uses all 32 electrodes
-(easy); level 7 uses only a small subset (hard). A robust method should degrade gracefully
-— its score should drop slowly as level increases. Inspect the **Degradation** tab to see
-how each method handles increasing difficulty.
+(easy — rich voltage data); level 7 uses only a small subset of electrodes (hard — sparse
+data, ill-posed problem). A robust method should degrade gracefully — its score should
+drop slowly as the level increases. Inspect the **Degradation** tab to see each method's
+score curve across levels 1–7.
 
 ---
 
