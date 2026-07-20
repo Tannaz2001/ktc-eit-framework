@@ -85,12 +85,14 @@ RUN pip install -r requirements-full.txt
 FROM deps-slim AS slim
 COPY --chown=app:app . .
 # .dockerignore re-includes outputs/run_* via a negation rule; Docker creates
-# the outputs/ parent synthetically as root before applying --chown, so we
-# must fix the directory's owner explicitly.
-RUN pip install --no-deps . && chmod +x docker-entrypoint.sh && chown app:app /app/outputs
+# the outputs/ parent synthetically as root before applying --chown, and may
+# leave it with restrictive mode bits (e.g. 0555). Fix both owner and mode.
+RUN pip install --no-deps . && chmod +x docker-entrypoint.sh \
+    && mkdir -p /app/outputs && chown app:app /app/outputs && chmod 755 /app/outputs
 USER app
 
 FROM deps-full AS full
 COPY --chown=app:app . .
-RUN pip install --no-deps . && chmod +x docker-entrypoint.sh && chown app:app /app/outputs
+RUN pip install --no-deps . && chmod +x docker-entrypoint.sh \
+    && mkdir -p /app/outputs && chown app:app /app/outputs && chmod 755 /app/outputs
 USER app
